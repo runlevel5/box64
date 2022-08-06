@@ -698,6 +698,7 @@
 #() iFEiiN
 #() iFEipp
 #() iFEipV
+#() iFEupu
 #() iFEupp
 #() iFEpii
 #() iFEpip
@@ -2850,8 +2851,6 @@ wrappedlibc:
   - syscall
 - LFL:
   - getauxval
-- pFL:
-  - malloc
 - pFp:
   - __deregister_frame_info
   - mallinfo
@@ -3818,6 +3817,8 @@ wrappedsdl2:
   - SDL_LogInfo
   - SDL_LogVerbose
   - SDL_LogWarn
+- iFupu:
+  - SDL_DYNAPI_entry
 - iFupp:
   - SDL_TLSSet
 - iFppi:
