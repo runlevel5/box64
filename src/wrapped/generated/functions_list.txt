@@ -140,6 +140,7 @@
 #() iFIi
 #() iFui
 #() iFuu
+#() iFuU
 #() iFuL
 #() iFup
 #() iFUp
@@ -271,6 +272,7 @@
 #() vFiII
 #() vFiui
 #() vFiuu
+#() vFiuU
 #() vFiup
 #() vFiUU
 #() vFiff
@@ -288,6 +290,7 @@
 #() vFuip
 #() vFuui
 #() vFuuu
+#() vFuuU
 #() vFuuf
 #() vFuud
 #() vFuup
@@ -303,6 +306,7 @@
 #() vFfpp
 #() vFddd
 #() vFdpp
+#() vFlll
 #() vFLup
 #() vFLpL
 #() vFLpp
@@ -372,6 +376,7 @@
 #() iFuui
 #() iFuuu
 #() iFuup
+#() iFuUu
 #() iFuff
 #() iFuLL
 #() iFuLp
@@ -581,10 +586,12 @@
 #() vFEppA
 #() vFiiii
 #() vFiiip
+#() vFiill
 #() vFiIII
 #() vFiuiu
 #() vFiuip
 #() vFiuuu
+#() vFiuup
 #() vFiulp
 #() vFiupu
 #() vFiupV
@@ -627,6 +634,7 @@
 #() vFuupi
 #() vFuupp
 #() vFuUii
+#() vFuUip
 #() vFufff
 #() vFuddd
 #() vFulil
@@ -641,6 +649,7 @@
 #() vFUUpi
 #() vFffff
 #() vFdddd
+#() vFllll
 #() vFpiii
 #() vFpiiu
 #() vFpiip
@@ -724,6 +733,7 @@
 #() iFiiip
 #() iFiiiN
 #() iFiiui
+#() iFiiup
 #() iFiill
 #() iFiipi
 #() iFiipp
@@ -993,6 +1003,7 @@
 #() vFiffff
 #() vFidddd
 #() vFilill
+#() vFillpu
 #() vFipipu
 #() vFipipp
 #() vFipupi
@@ -1002,6 +1013,7 @@
 #() vFuiiiu
 #() vFuiiip
 #() vFuiifi
+#() vFuiilp
 #() vFuiIII
 #() vFuiuii
 #() vFuiuiu
@@ -1032,6 +1044,7 @@
 #() vFuuuuu
 #() vFuuuup
 #() vFuuull
+#() vFuuulp
 #() vFuulll
 #() vFuullp
 #() vFuulpp
@@ -1040,6 +1053,7 @@
 #() vFudddd
 #() vFulill
 #() vFullip
+#() vFullpp
 #() vFupupi
 #() vFuppip
 #() vFupppp
@@ -1327,6 +1341,7 @@
 #() vFuiiuup
 #() vFuiIIII
 #() vFuiuiii
+#() vFuiuiil
 #() vFuiuiip
 #() vFuiuiuu
 #() vFuiuuip
@@ -1605,6 +1620,7 @@
 #() vFuuuuiip
 #() vFuuuuuuu
 #() vFuuuufff
+#() vFuuuulll
 #() vFuuuffff
 #() vFuuudddd
 #() vFuuffiip
@@ -2044,6 +2060,7 @@
 #() vFuufffffffff
 #() vFuuddiiddiip
 #() vFuffffffffff
+#() vFUufffffffff
 #() vFpipipiipiii
 #() vFpipppiiiipi
 #() vFpupiiupupup
@@ -2128,6 +2145,7 @@
 #() iFpppppppppppppppp
 #() pFpuuWWWWWWwwCCCuu
 #() pFppipipipipipipip
+#() vFuuuiiiiiuiiiiilll
 #() vFppiiiiddddiiiiiuu
 #() pFppippipipipipipip
 #() vFppuiiiiipuiiiiiiii
@@ -3111,6 +3129,7 @@ wrappedlibgl:
 - iFi:
   - glXSwapIntervalMESA
 - pFp:
+  - glGetVkProcAddrNV
   - glXGetProcAddress
   - glXGetProcAddressARB
 - vFpp:
