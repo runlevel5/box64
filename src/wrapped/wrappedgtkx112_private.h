@@ -3929,6 +3929,10 @@ GO(gtk_window_unmaximize, vFp)
 GO(gtk_window_unstick, vFp)
 GO(gtk_wrap_mode_get_type, LFv)
 
+DATA(gtk_major_version, 4)
+DATA(gtk_minor_version, 4)
+DATA(gtk_micro_version, 4)
+
 // from gtk-1.2
 GOM(gtk_signal_connect, LFEpppp)
 GO2(gtk_type_is_a, iFii, g_type_is_a)
