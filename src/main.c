@@ -1476,6 +1476,9 @@ int main(int argc, const char **argv, char **env) {
     }
     // and handle PLT
     RelocateElfPlt(my_context->maplib, NULL, 0, elf_header);
+    // enable custom malloc if it was hooked
+    extern int go_hooking_malloc;
+    go_hooking_malloc = 1;
     // defered init
     RunDeferedElfInit(emu);
     // update TLS of main elf
