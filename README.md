@@ -86,7 +86,7 @@ GTK libraries are now wrapped on box64, both gtk2 and gtk3.
 Notes about Steam
 ----
 
-Note that Steam is a hybrid 32-bit / 64-bit. You NEED box86 to run Steam, as the client app is a 32-bit binary. It also uses a 64-bit local server binaries, and that steamwebhelper process is now mendatory, even on the "small mode". And that process will eat lots of memory. So machine with less the 6Gb of RAM will need a swapfile tp use Steam.
+Note that Steam is a hybrid 32-bit / 64-bit. You NEED box86 to run Steam, as the client app is a 32-bit binary. It also uses a 64-bit local server binaries, and that steamwebhelper process is now mendatory, even on the "small mode". And that process will eat lots of memory. So machine with less the 6Gb of RAM will need a swapfile to use Steam.
 
 ----
 
