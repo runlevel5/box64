@@ -2,7 +2,7 @@
 
 > This document preserves session context for the PPC64LE dynarec implementation in box64.
 > It should be updated as work progresses so a new session can pick up where the last left off.
-> Last updated: 2026-02-16 (session 3 — successful compilation)
+> Last updated: 2026-02-16 (session 4 — emit helper files)
 
 ---
 
@@ -128,7 +128,7 @@ Add PPC64LE (PowerPC 64-bit Little Endian) dynarec (dynamic recompiler) support 
 
 ## Accomplished
 
-### All PPC64LE Dynarec Files Created (27 files in `src/dynarec/ppc64le/`)
+### All PPC64LE Dynarec Files Created (28 files in `src/dynarec/ppc64le/`)
 1. `ppc64le_mapping.h` — Register mapping definitions
 2. `dynarec_ppc64le_private.h` — Data structures (vmx_cache_t, avx_cache_t, vmxcache_t, flagcache_t, instruction_ppc64le_t, dynarec_ppc64le_t)
 3. `ppc64le_emitter.h` — Comprehensive instruction encoding macros (~1000+ lines)
@@ -149,6 +149,10 @@ Add PPC64LE (PowerPC 64-bit Little Endian) dynarec (dynamic recompiler) support 
 18. `dynarec_ppc64le_f0.c` — LOCK prefix opcode table stub
 19. `dynarec_ppc64le_66.c` — 66h prefix opcode table stub
 20. `dynarec_ppc64le_66f0.c` — 66h+LOCK prefix opcode table stub
+
+### Emit Helper Files (Phase 1 — in progress)
+21. `dynarec_ppc64le_emit_tests.c` — **COMPLETE** (532 lines, 11 functions: emit_cmp8/8_0/16/16_0/32/32_0, emit_test8/8c/16/32/32c) — commit `adc2d162c`
+22. `dynarec_ppc64le_emit_math.c` — **COMPLETE** (1471 lines, 27 functions: emit_add32/32c/8/8c/16, emit_sub8/8c/16/32/32c, emit_sbb8/8c/16/32, emit_adc8/8c/16/32, emit_inc8/16/32, emit_dec8/16/32, emit_neg8/16/32)
 
 ### helper.c Contains All Functions
 `geted`, `geted16`, `jump_to_epilog`, `jump_to_epilog_fast`, `jump_to_next`, `ret_to_next`, `iret_to_next`, `call_c`, `call_n`, `grab_segdata`, `x87_stackcount`, `x87_unstackcount`, `x87_forget`, `x87_reget_st`, `x87_free`, `x87_swapreg`, `x87_setround`, `sse_setround`, `vmxcache_st_coherency`, `x87_restoreround`, `x87_do_push`, `x87_do_push_empty`, `x87_do_pop`, `x87_purgecache`, `x87_reflectcount`, `x87_unreflectcount`, `x87_get_current_cache`, `x87_get_cache`, `x87_get_vmxcache`, `x87_get_st`, `x87_get_st_empty`, `mmx_get_reg`, `mmx_get_reg_empty`, `mmx_purgecache`, `sse_get_reg`, `sse_get_reg_empty`, `sse_forget_reg`, `sse_reflect_reg`, `sse_purge07cache`, `avx_get_reg`, `avx_get_reg_empty`, `avx_reflect_reg_upper128`, `avx_forget_reg`, `avx_reflect_reg`, `fpu_pushcache`, `fpu_popcache`, `fpu_purgecache`, `fpu_reflectcache`, `fpu_unreflectcache`, `emit_pf`, `fpu_reset_cache`, `fpu_propagate_stack`, `findCacheSlot`, `swapCache`, `loadCache`, `unloadCache`, `fpuCacheTransform`, `flagsCacheTransform`, `CacheTransform`, `ppc64le_move32`, `ppc64le_move64`
@@ -176,7 +180,7 @@ Add PPC64LE (PowerPC 64-bit Little Endian) dynarec (dynamic recompiler) support 
 
 ---
 
-## Current Status — COMPILES AND LINKS SUCCESSFULLY
+## Current Status — EMIT HELPER FILES IN PROGRESS
 
 The PPC64LE dynarec builds successfully with `PPC64LE_DYNAREC=ON`:
 ```
@@ -187,12 +191,18 @@ make -j$(nproc)
 Output:
 ```
 $ ./box64 --version
-Box64 ppc64le v0.4.1  with Dynarec built on Feb 16 2026 00:44:57
+Box64 ppc64le v0.4.1  with Dynarec built on Feb 16 2026 07:06:25
 
 $ BOX64_LOG=1 ./box64 /bin/true
 [BOX64] Dynarec for PPC64LE (POWER9+, ISA 3.0)
 [BOX64] Running on POWER9, altivec supported with 32 cores, pagesize: 65536
 ```
+
+Emit helper file status:
+- `emit_tests.c` — **COMPLETE** (11/11 functions)
+- `emit_math.c` — **COMPLETE** (27/27 functions)
+- `emit_logic.c` — **IN PROGRESS** (0/15 functions)
+- `emit_shift.c` — NOT STARTED (0/50 functions)
 
 All opcode tables currently stub to `DEFAULT` (fallback to interpreter). The binary runs but all x86-64 code falls back to interpretation.
 
