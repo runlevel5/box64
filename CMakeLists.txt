@@ -1186,6 +1186,7 @@ if(PPC64LE_DYNAREC)
     "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_f0.c"
     "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_66.c"
     "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_66f0.c"
+    "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_emit_tests.c"
     )
 endif()
 
