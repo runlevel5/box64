@@ -152,7 +152,8 @@ Add PPC64LE (PowerPC 64-bit Little Endian) dynarec (dynamic recompiler) support 
 
 ### Emit Helper Files (Phase 1 — in progress)
 21. `dynarec_ppc64le_emit_tests.c` — **COMPLETE** (532 lines, 11 functions: emit_cmp8/8_0/16/16_0/32/32_0, emit_test8/8c/16/32/32c) — commit `adc2d162c`
-22. `dynarec_ppc64le_emit_math.c` — **COMPLETE** (1471 lines, 27 functions: emit_add32/32c/8/8c/16, emit_sub8/8c/16/32/32c, emit_sbb8/8c/16/32, emit_adc8/8c/16/32, emit_inc8/16/32, emit_dec8/16/32, emit_neg8/16/32)
+22. `dynarec_ppc64le_emit_math.c` — **COMPLETE** (1471 lines, 27 functions: emit_add32/32c/8/8c/16, emit_sub8/8c/16/32/32c, emit_sbb8/8c/16/32, emit_adc8/8c/16/32, emit_inc8/16/32, emit_dec8/16/32, emit_neg8/16/32) — commit `337af4a4b`
+23. `dynarec_ppc64le_emit_logic.c` — **COMPLETE** (15 functions: emit_xor8/8c/16/32/32c, emit_and8/8c/16/32/32c, emit_or8/8c/16/32/32c)
 
 ### helper.c Contains All Functions
 `geted`, `geted16`, `jump_to_epilog`, `jump_to_epilog_fast`, `jump_to_next`, `ret_to_next`, `iret_to_next`, `call_c`, `call_n`, `grab_segdata`, `x87_stackcount`, `x87_unstackcount`, `x87_forget`, `x87_reget_st`, `x87_free`, `x87_swapreg`, `x87_setround`, `sse_setround`, `vmxcache_st_coherency`, `x87_restoreround`, `x87_do_push`, `x87_do_push_empty`, `x87_do_pop`, `x87_purgecache`, `x87_reflectcount`, `x87_unreflectcount`, `x87_get_current_cache`, `x87_get_cache`, `x87_get_vmxcache`, `x87_get_st`, `x87_get_st_empty`, `mmx_get_reg`, `mmx_get_reg_empty`, `mmx_purgecache`, `sse_get_reg`, `sse_get_reg_empty`, `sse_forget_reg`, `sse_reflect_reg`, `sse_purge07cache`, `avx_get_reg`, `avx_get_reg_empty`, `avx_reflect_reg_upper128`, `avx_forget_reg`, `avx_reflect_reg`, `fpu_pushcache`, `fpu_popcache`, `fpu_purgecache`, `fpu_reflectcache`, `fpu_unreflectcache`, `emit_pf`, `fpu_reset_cache`, `fpu_propagate_stack`, `findCacheSlot`, `swapCache`, `loadCache`, `unloadCache`, `fpuCacheTransform`, `flagsCacheTransform`, `CacheTransform`, `ppc64le_move32`, `ppc64le_move64`
@@ -201,7 +202,7 @@ $ BOX64_LOG=1 ./box64 /bin/true
 Emit helper file status:
 - `emit_tests.c` — **COMPLETE** (11/11 functions)
 - `emit_math.c` — **COMPLETE** (27/27 functions)
-- `emit_logic.c` — **IN PROGRESS** (0/15 functions)
+- `emit_logic.c` — **COMPLETE** (15/15 functions)
 - `emit_shift.c` — NOT STARTED (0/50 functions)
 
 All opcode tables currently stub to `DEFAULT` (fallback to interpreter). The binary runs but all x86-64 code falls back to interpretation.
