@@ -106,6 +106,72 @@
         }                               \
     } while (0)
 
+// SLLIxw: shift left immediate, conditional 32/64 based on rex.w
+#define SLLIxw(Rd, Rs, imm)    \
+    do {                       \
+        if (rex.w) {           \
+            SLDI(Rd, Rs, imm); \
+        } else {               \
+            SLWI(Rd, Rs, imm); \
+            ZEROUP(Rd);        \
+        }                      \
+    } while (0)
+
+// SRLIxw: shift right logical immediate, conditional 32/64 based on rex.w
+#define SRLIxw(Rd, Rs, imm)    \
+    do {                       \
+        if (rex.w) {           \
+            SRDI(Rd, Rs, imm); \
+        } else {               \
+            SRWI(Rd, Rs, imm); \
+            ZEROUP(Rd);        \
+        }                      \
+    } while (0)
+
+// SRAIxw: shift right arithmetic immediate, conditional 32/64 based on rex.w
+#define SRAIxw(Rd, Rs, imm)      \
+    do {                         \
+        if (rex.w) {             \
+            SRADI(Rd, Rs, imm);  \
+        } else {                 \
+            SRAWI(Rd, Rs, imm);  \
+            ZEROUP(Rd);          \
+        }                        \
+    } while (0)
+
+// SLLxw: variable shift left, conditional 32/64 based on rex.w
+#define SLLxw(Rd, Rs, Rb)     \
+    do {                      \
+        if (rex.w) {          \
+            SLD(Rd, Rs, Rb);  \
+        } else {              \
+            SLW(Rd, Rs, Rb);  \
+            ZEROUP(Rd);       \
+        }                     \
+    } while (0)
+
+// SRLxw: variable shift right logical, conditional 32/64 based on rex.w
+#define SRLxw(Rd, Rs, Rb)     \
+    do {                      \
+        if (rex.w) {          \
+            SRD(Rd, Rs, Rb);  \
+        } else {              \
+            SRW(Rd, Rs, Rb);  \
+            ZEROUP(Rd);       \
+        }                     \
+    } while (0)
+
+// SRAxw: variable shift right arithmetic, conditional 32/64 based on rex.w
+#define SRAxw(Rd, Rs, Rb)      \
+    do {                       \
+        if (rex.w) {           \
+            SRAD(Rd, Rs, Rb);  \
+        } else {               \
+            SRAW(Rd, Rs, Rb);  \
+            ZEROUP(Rd);        \
+        }                      \
+    } while (0)
+
 // SLLIy: shift left, zero-extend if 32-bit mode
 #define SLLIy(Rd, Rs, imm)              \
     do {                                 \
@@ -1966,6 +2032,15 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
 // PPC64LE has no LBT — RESTORE_EFLAGS / SPILL_EFLAGS are empty
 #define RESTORE_EFLAGS(s)
 #define SPILL_EFLAGS()
+
+// MOD_DU: unsigned modulo (dst = dst % divisor), uses s3 as scratch
+// PPC64LE has no modulo — implement as: q = dst / divisor; dst = dst - q * divisor
+#define MOD_DU(dst, dst2, divisor)       \
+    do {                                 \
+        DIVDU(x3, dst, divisor);         \
+        MULLD(x3, x3, divisor);          \
+        SUB(dst, dst, x3);              \
+    } while (0)
 
 #define PURGE_YMM()
 

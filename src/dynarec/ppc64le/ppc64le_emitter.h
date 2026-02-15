@@ -466,6 +466,16 @@
 // RLDIMI — rotate left doubleword immediate then mask insert
 #define RLDIMI(Ra, Rs, sh, mb)  EMIT(MD_form_gen(30, Rs, Ra, (sh) & 0x3F, (mb) & 0x3F, 3, 0))
 
+// MDS-form (doubleword rotate, variable shift amount in RB)
+// MDS form: OPCD[0:5] | RS[6:10] | RA[11:15] | RB[16:20] | mb[21:26] | XO[27:30] | Rc[31]
+#define MDS_form_gen(opcd, rs, ra, rb, mbe, xo, rc) \
+    ((uint32_t)(opcd) << 26 | ((rs) & 0x1F) << 21 | ((ra) & 0x1F) << 16 | ((rb) & 0x1F) << 11 | (((mbe) & 0x3F)) << 5 | ((xo) & 0xF) << 1 | ((rc) & 1))
+
+// RLDCL — rotate left doubleword then clear left (variable, Rb has rotate amount)
+#define RLDCL(Ra, Rs, Rb, mb)   EMIT(MDS_form_gen(30, Rs, Ra, Rb, (mb) & 0x3F, 8, 0))
+// RLDCR — rotate left doubleword then clear right (variable, Rb has rotate amount)
+#define RLDCR(Ra, Rs, Rb, me)   EMIT(MDS_form_gen(30, Rs, Ra, Rb, (me) & 0x3F, 9, 0))
+
 // Shift doubleword (pseudo-ops using rldicl/rldicr)
 // SLDI — shift left doubleword immediate: rldicr Ra, Rs, n, 63-n
 #define SLDI(Ra, Rs, n)         RLDICR(Ra, Rs, n, 63-(n))
