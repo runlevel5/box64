@@ -3,7 +3,7 @@
 #define MESSAGE(A, ...) do {} while (0)
 #define EMIT(A) do {} while (0)
 
-#define SETFLAGS(A,B)                                                   \
+#define SETFLAGS(A,B,FUSION)                                            \
         dyn->insts[ninst].x64.set_flags = A;                            \
         dyn->insts[ninst].x64.state_flags = (B)&~SF_DF;                 \
         dyn->f=((B)&SF_SET)?(((B)==SF_SET_NODF)?dyn->f:status_none_pending):(((B)&SF_SET_PENDING)?status_set:status_none_pending);  \

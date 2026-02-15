@@ -176,6 +176,8 @@
 #define XORIS(Ra, Rs, ui)       EMIT(D_form_gen(27, Rs, Ra, (ui) & 0xFFFF))
 // ANDI. — RA = RS & UI, sets CR0
 #define ANDId(Ra, Rs, ui)       EMIT(D_form_gen(28, Rs, Ra, (ui) & 0xFFFF))
+// ANDI alias (LA64 compat) — note: PPC64LE andi. always sets CR0
+#define ANDI(Ra, Rs, ui)        ANDId(Ra, Rs, ui)
 // ANDIS. — RA = RS & (UI << 16), sets CR0
 #define ANDISd(Ra, Rs, ui)      EMIT(D_form_gen(29, Rs, Ra, (ui) & 0xFFFF))
 
@@ -708,7 +710,7 @@
 #define TRAP()                 TW(31, 0, 0)
 
 // UDF — undefined instruction (for marking dead code, same as trap)
-#define UDF(n)                 TRAP()
+#define UDF(...)               TRAP()
 
 // ===========================================================================
 // Floating-point arithmetic (A-form)
@@ -1008,6 +1010,9 @@
             B((imm) - 8);                                \
         }                                                \
     } while (0)
+
+// Aliases for GOCOND macro compatibility (B##EQZ##_safe, B##NEZ##_safe)
+#define BEQZ_safe(rj, imm) BEZ_safe(rj, imm)
 
 // IMARK / GETIP / MARKLOCK etc. will be defined in the pass headers
 

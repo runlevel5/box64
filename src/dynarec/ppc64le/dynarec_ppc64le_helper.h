@@ -72,6 +72,9 @@
 // ADDIxw: addi then optionally zero upper 32 bits
 #define ADDIxw(Rt, Ra, imm) \
     ADDI(Rt, Ra, imm); if (!rex.w) { RLDICL(Rt, Rt, 0, 32); }
+// ADDIz: addi then optionally zero upper 32 bits (based on is32bits)
+#define ADDIz(Rt, Ra, imm) \
+    ADDI(Rt, Ra, imm); if (rex.is32bits) { RLDICL(Rt, Rt, 0, 32); }
 
 // ZEROUP: clear upper 32 bits
 #define ZEROUP(Rd) RLDICL(Rd, Rd, 0, 32)
@@ -1963,10 +1966,56 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
         break
 
 // Dummy macros for native flag fusion (stubs for PPC64LE)
-#define B__safe(a, b, c) NOP()
+// These are needed because NATIVEJUMP_safe expands to B##COND##_safe(op1, op2, val)
+// and GOCOND uses native conditions like GT, LE, LT, GE, etc.
+// 3-arg B##COND##_safe stubs (for NATIVEJUMP_safe)
+#define B__safe(a, b, c)    NOP()
+#define BGT_safe(a, b, c)   NOP()
+#define BLE_safe(a, b, c)   NOP()
+#define BLT_safe(a, b, c)   NOP()
+#define BGE_safe(a, b, c)   NOP()
+#define BGTU_safe(a, b, c)  NOP()
+#define BLEU_safe(a, b, c)  NOP()
+#define BLTU_safe(a, b, c)  NOP()
+#define BGEU_safe(a, b, c)  NOP()
+#define BEQ_safe(a, b, c)   NOP()
+#define BNE_safe(a, b, c)   NOP()
+// 3-arg B##COND## stubs (for NATIVEJUMP)
 #define B_(a, b, c)      NOP()
+#define BGT_(a, b, c)    NOP()
+#define BLE_(a, b, c)    NOP()
+#define BLT_(a, b, c)    NOP()
+#define BGE_(a, b, c)    NOP()
+#define BGTU_(a, b, c)   NOP()
+#define BLEU_(a, b, c)   NOP()
+#define BLTU_(a, b, c)   NOP()
+#define BGEU_(a, b, c)   NOP()
+#define BEQ_(a, b, c)    NOP()
+#define BNE_(a, b, c)    NOP()
+// 3-arg S##COND## stubs (for NATIVESET)
 #define S_(a, b, c)      NOP()
-#define MV_(a, b, c, d)  NOP()
+#define SGT_(a, b, c)    NOP()
+#define SLE_(a, b, c)    NOP()
+#define SLT_(a, b, c)    NOP()
+#define SGE_(a, b, c)    NOP()
+#define SGTU_(a, b, c)   NOP()
+#define SLEU_(a, b, c)   NOP()
+#define SLTU_(a, b, c)   NOP()
+#define SGEU_(a, b, c)   NOP()
+#define SEQ_(a, b, c)    NOP()
+#define SNE_(a, b, c)    NOP()
+// 4-arg MV##COND## stubs (for NATIVEMV)
+#define MV_(a, b, c, d)     NOP()
+#define MVGT_(a, b, c, d)   NOP()
+#define MVLE_(a, b, c, d)   NOP()
+#define MVLT_(a, b, c, d)   NOP()
+#define MVGE_(a, b, c, d)   NOP()
+#define MVGTU_(a, b, c, d)  NOP()
+#define MVLEU_(a, b, c, d)  NOP()
+#define MVLTU_(a, b, c, d)  NOP()
+#define MVGEU_(a, b, c, d)  NOP()
+#define MVEQ_(a, b, c, d)   NOP()
+#define MVNE_(a, b, c, d)   NOP()
 
 #define NATIVEJUMP_safe(COND, val) \
     B##COND##_safe(dyn->insts[ninst].nat_flags_op1, dyn->insts[ninst].nat_flags_op2, val);
@@ -2033,12 +2082,63 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
 #define RESTORE_EFLAGS(s)
 #define SPILL_EFLAGS()
 
-// MOD_DU: unsigned modulo (dst = dst % divisor), uses s3 as scratch
+// SNEZ: Set if Not Equal to Zero — dst = (src != 0) ? 1 : 0
+// Uses SUBFIC+SUBFE+NEG sequence: carry-based detection
+#define SNEZ(dst, src)                   \
+    do {                                 \
+        SUBFIC(dst, src, 0);             \
+        SUBFE(dst, dst, dst);            \
+        NEG(dst, dst);                   \
+    } while (0)
+
+// SLTI: Set Less Than Immediate — dst = (src < imm) ? 1 : 0
+// PPC64LE has no direct SLTI; use CMPDI + extract LT bit from CR0
+#define SLTI(dst, src, imm)              \
+    do {                                 \
+        CMPDI(src, imm);                 \
+        MFCR(dst);                       \
+        RLWINM(dst, dst, 1, 31, 31);     \
+    } while (0)
+
+// LDXxw: Indexed load, 32/64 conditional on rex.w
+#define LDXxw(rd, base, idx)             \
+    do {                                 \
+        if (rex.w)                       \
+            LDX(rd, base, idx);          \
+        else                             \
+            LWZX(rd, base, idx);         \
+    } while (0)
+
+// MOD_DU: unsigned 64-bit modulo (dst = dst % divisor), uses x3 as scratch
 // PPC64LE has no modulo — implement as: q = dst / divisor; dst = dst - q * divisor
 #define MOD_DU(dst, dst2, divisor)       \
     do {                                 \
         DIVDU(x3, dst, divisor);         \
         MULLD(x3, x3, divisor);          \
+        SUB(dst, dst, x3);              \
+    } while (0)
+
+// MOD_D: signed 64-bit modulo (dst = dst % divisor), uses x3 as scratch
+#define MOD_D(dst, dst2, divisor)        \
+    do {                                 \
+        DIVD(x3, dst, divisor);          \
+        MULLD(x3, x3, divisor);          \
+        SUB(dst, dst, x3);              \
+    } while (0)
+
+// MOD_WU: unsigned 32-bit modulo (dst = dst % divisor), uses x3 as scratch
+#define MOD_WU(dst, dst2, divisor)       \
+    do {                                 \
+        DIVWU(x3, dst, divisor);         \
+        MULLW(x3, x3, divisor);          \
+        SUB(dst, dst, x3);              \
+    } while (0)
+
+// MOD_W: signed 32-bit modulo (dst = dst % divisor), uses x3 as scratch
+#define MOD_W(dst, dst2, divisor)        \
+    do {                                 \
+        DIVW(x3, dst, divisor);          \
+        MULLW(x3, x3, divisor);          \
         SUB(dst, dst, x3);              \
     } while (0)
 
