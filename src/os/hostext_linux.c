@@ -255,6 +255,10 @@ int DetectHostCpuFeatures(void)
             }
         }
     }
+#elif defined(PPC64LE)
+    // POWER9 (ISA 3.0) is our minimum target
+    // No optional feature detection needed yet
+    (void)p;
 #endif
     return 1;
 }

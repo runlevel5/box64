@@ -43,6 +43,10 @@ typedef union cpu_ext_s {
         uint64_t scq : 1;
         uint64_t frecipe : 1;
         uint64_t lasx : 1;
+#elif defined(PPC64LE)
+        // POWER9 (ISA 3.0) is our minimum target — no optional features to detect yet
+        // Future: POWER10 (ISA 3.1) features like prefixed instructions, pcrel addressing
+        uint64_t reserved : 1;
 #endif
     };
     uint64_t x;

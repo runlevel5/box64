@@ -48,6 +48,10 @@
 #include "dynarec/rv64/rv64_mapping.h"
 #define CONTEXT_REG(P, X)   P->uc_mcontext.__gregs[X]
 #define CONTEXT_PC(P)       P->uc_mcontext.__gregs[REG_PC]
+#elif defined(PPC64LE)
+#include "dynarec/ppc64le/ppc64le_mapping.h"
+#define CONTEXT_REG(P, X)   P->uc_mcontext.gp_regs[X]
+#define CONTEXT_PC(P)       P->uc_mcontext.gp_regs[PT_NIP]
 #else
 #error Unsupported Architecture
 #endif //arch
@@ -814,6 +818,8 @@ void my32_sigactionhandler(int32_t sig, siginfo_t* info, void * ucntx)
     void * pc = (void*)p->uc_mcontext.__pc;
     #elif defined(RV64)
     void * pc = (void*)p->uc_mcontext.__gregs[0];
+    #elif defined(PPC64LE)
+    void * pc = (void*)p->uc_mcontext.gp_regs[PT_NIP];
     #else
     #error Unsupported architecture
     #endif
