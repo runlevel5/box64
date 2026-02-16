@@ -17,7 +17,7 @@ r8      a5       x6           Argument                        Scratch           
 r9      a6       x7           Argument                        Scratch                 Caller
 r10     a7       -            Argument                        Scratch (env ptr)       Caller
 r11     -        -            Scratch (env ptr / plt)         PLT scratch             Caller
-r12     -        xSavedSP     Scratch (func entry ptr)        SavedSP / scratch       Caller
+r12     -        -            Scratch (func entry ptr)        scratch (caller-saved)  Caller
 r13     -        -            TLS pointer (reserved)          N/A                     -
 r14     s0       RAX          Saved register                  -                       Callee
 r15     s1       RCX          Saved register                  -                       Callee
@@ -71,7 +71,9 @@ Note: In little-endian mode, SIMD element ordering matches x86 — minimal swizz
 #define xR15    29
 #define xFlags  30
 #define xRIP    9       // use r9 (caller-saved, loaded at block entry)
-#define xSavedSP 12    // r12 for saved host SP
+// xSavedSP is stored in emu->xSPSave (offset 808), not in a register.
+// r12 is caller-saved and gets clobbered by native calls, so it cannot
+// hold xSavedSP across BCTRL. See RV64 for the same approach.
 
 // convert a x86 register to native according to the register mapping
 #define TO_NAT(A) (((uint8_t[]) { 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29 })[(A)])
@@ -163,7 +165,7 @@ Note: In little-endian mode, SIMD element ordering matches x86 — minimal swizz
 #define Flags   30
 #define RIP     9
 #define Emu     31
-#define SavedSP 12
+// SavedSP is no longer a register — stored in emu->xSPSave (offset 808)
 
 #endif // ASM_MAPPING
 

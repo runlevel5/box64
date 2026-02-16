@@ -60,7 +60,7 @@ uintptr_t geted(dynarec_ppc64le_t* dyn, uintptr_t addr, int ninst, uint8_t nexto
             if ((sib & 0x7) == 5) {
                 int64_t tmp = F32S;
                 if (sib_reg != 4) {
-                    if (tmp && ((tmp < -32768) || (tmp > maxval) || !i12)) {
+                    if (tmp && ((tmp < -32768) || (tmp > maxval) || !i12 || (i12 && (tmp & 3)))) {
                         MOV64y(scratch, tmp);
                         ALSLy(ret, TO_NAT(sib_reg), scratch, sib >> 6);
                         SCRATCH_USAGE(1);
@@ -74,7 +74,7 @@ uintptr_t geted(dynarec_ppc64le_t* dyn, uintptr_t addr, int ninst, uint8_t nexto
                         *fixaddress = tmp;
                     }
                 } else {
-                    if (rex.seg && !(tmp && ((tmp < -32768) || (tmp > maxval) || !i12))) {
+                    if (rex.seg && !(tmp && ((tmp < -32768) || (tmp > maxval) || !i12 || (i12 && (tmp & 3))))) {
                         grab_segdata(dyn, addr, ninst, ret, rex.seg);
                         seg_done = 1;
                         *fixaddress = tmp;
@@ -124,10 +124,10 @@ uintptr_t geted(dynarec_ppc64le_t* dyn, uintptr_t addr, int ninst, uint8_t nexto
             } else {
                 int64_t tmp = F32S64;
                 int64_t adj = dyn->last_ip ? ((addr + delta) - dyn->last_ip) : 0;
-                if (i12 && adj && (tmp + adj >= -32768) && (tmp + adj <= maxval)) {
+                if (i12 && adj && (tmp + adj >= -32768) && (tmp + adj <= maxval) && !((tmp + adj) & 3)) {
                     ret = xRIP;
                     *fixaddress = tmp + adj;
-                } else if (i12 && (tmp >= -32768) && (tmp <= maxval)) {
+                } else if (i12 && (tmp >= -32768) && (tmp <= maxval) && !(tmp & 3)) {
                     GETIP(addr + delta, scratch);
                     ret = xRIP;
                     *fixaddress = tmp;
@@ -178,7 +178,7 @@ uintptr_t geted(dynarec_ppc64le_t* dyn, uintptr_t addr, int ninst, uint8_t nexto
             i64 = F32S;
         else
             i64 = F8S;
-        if (i64 == 0 || ((i64 >= -32768) && (i64 <= maxval) && i12)) {
+        if (i64 == 0 || ((i64 >= -32768) && (i64 <= maxval) && i12 && !(i64 & 3))) {
             *fixaddress = i64;
             if ((nextop & 7) == 4) {
                 if (sib_reg != 4) {
@@ -535,7 +535,8 @@ void ret_to_next(dynarec_ppc64le_t* dyn, uintptr_t ip, int ninst, rex_t rex)
         MTCTR(x4);
         BCTR();
         // not the correct return address, regular jump, but purge the stack first
-        ADDI(xSP, xSavedSP, -16);
+        // Load the saved frame SP from emu->xSPSave (r12 is no longer xSavedSP)
+        LD(xSP, offsetof(x64emu_t, xSPSave), xEmu);
     }
     NOTEST(x2);
     int dest = indirect_lookup(dyn, ninst, rex.is32bits, x2, x3);
@@ -594,7 +595,17 @@ void iret_to_next(dynarec_ppc64le_t* dyn, uintptr_t ip, int ninst, int is32bits,
 void call_c(dynarec_ppc64le_t* dyn, int ninst, ppc64le_consts_t fnc, int reg, int ret, int saveflags, int savereg, int arg1, int arg2, int arg3, int arg4, int arg5, int arg6)
 {
     MAYUSE(fnc);
-    CHECK_DFNONE(1);
+    // Bug 4 fix: Cannot use CHECK_DFNONE(1) here because it expands to
+    // FORCE_DFNONE() which uses x1 (=r3=A0) as scratch. If the caller
+    // pre-loaded an arg into x1 before calling call_c, FORCE_DFNONE
+    // would clobber it. Use `reg` (x6=r8) as scratch instead — it's the
+    // dedicated function pointer register that gets overwritten by
+    // TABLE64C(reg, fnc) later anyway.
+    if (dyn->f == status_none_pending) {
+        LI(reg, 0);
+        STW(reg, offsetof(x64emu_t, df), xEmu);
+        dyn->f = status_none;
+    }
     if (savereg == 0)
         savereg = x87pc;
     if (saveflags) {
@@ -625,6 +636,9 @@ void call_c(dynarec_ppc64le_t* dyn, int ninst, ppc64le_consts_t fnc, int reg, in
     if (arg5) MV(A5, arg5);
     if (arg6) MV(A6, arg6);
     MV(A0, xEmu);
+    // ELFv2 ABI: r12 must be set to the function entry address
+    // for global entry point TOC setup
+    MR(12, reg);
     MTCTR(reg);
     BCTRL();
     if (ret >= 0) {
@@ -666,25 +680,39 @@ void call_n(dynarec_ppc64le_t* dyn, int ninst, void* fnc, int w)
     MAYUSE(fnc);
     CHECK_DFNONE(1);
     fpu_pushcache(dyn, ninst, x3, 1);
+    // Save x86 regs that the native function might modify via re-entrant emulation.
+    // On PPC64LE, x86 regs are in callee-saved r14-r29, so the native function preserves
+    // them. We save SP/BP/BX to the emu struct for consistency with the interpreter.
     STD(xRSP, offsetof(x64emu_t, regs[_SP]), xEmu);
     STD(xRBP, offsetof(x64emu_t, regs[_BP]), xEmu);
     STD(xRBX, offsetof(x64emu_t, regs[_BX]), xEmu);
-    // check if additional sextw needed
+    // prepare regs for native call: copy x86 argument registers to PPC64LE ABI registers.
+    // On PPC64LE, x86 regs are in callee-saved r14-r29, while ABI args are in r3-r8.
+    // No overlap, so order doesn't matter.
+    MV(A0, xRDI);
+    MV(A1, xRSI);
+    MV(A2, xRDX);
+    MV(A3, xRCX);
+    MV(A4, xR8);
+    MV(A5, xR9);
+    // check if additional sextw needed (applied after copy to ABI regs)
     int sextw_mask = ((w > 0 ? w : -w) >> 4) & 0b111111;
     for (int i = 0; i < 6; i++) {
         if (sextw_mask & (1 << i)) {
             SEXT_W(A0 + i, A0 + i);
         }
     }
-    // native call
+    // native call — load function pointer into x7 (r10) to avoid clobbering argument regs
     if (dyn->need_reloc) {
         // fnc is indirect, to help with relocation (but PltResolver might be an issue here)
-        TABLE64(x3, (uintptr_t)fnc);
-        LD(x3, 0, x3);
+        TABLE64(x7, (uintptr_t)fnc);
+        LD(x7, 0, x7);
     } else {
-        TABLE64_(x3, *(uintptr_t*)fnc);
+        TABLE64_(x7, *(uintptr_t*)fnc);
     }
-    MTCTR(x3);
+    // ELFv2 ABI: r12 must be set to the function entry address
+    MR(12, x7);
+    MTCTR(x7);
     BCTRL();
     // put return value in x64 regs
     if (w > 0) {

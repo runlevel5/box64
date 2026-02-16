@@ -40,9 +40,13 @@ ppc64le_epilog:
     // Store RIP (r9 = xRIP, must contain current IP)
     std     RIP, (8 * 17)(Emu)   // r9
 
-    // Restore stack pointer from SavedSP
-    // SavedSP (r12) = original caller SP
-    addi    1, SavedSP, -256     // point back to our frame
+    // Restore stack pointer from emu->xSPSave
+    // xSPSave stores the frame base SP saved by the prolog
+    ld      1, 808(Emu)
+
+    // Restore old xSPSave for nested dynarec calls
+    ld      0, 192(1)
+    std     0, 808(Emu)
 
     // Restore TOC
     ld      2, 24(1)

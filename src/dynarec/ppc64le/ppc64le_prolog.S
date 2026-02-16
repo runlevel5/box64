@@ -30,7 +30,8 @@ ppc64le_prolog:
     //  24: TOC save
     //  32: r14-r31 save area (144 bytes = 18*8)
     // 176: jump_next slot (16 bytes = 2*8)
-    // 192-255: padding
+    // 192: old xSPSave (8 bytes, for nested dynarec)
+    // 200-255: padding
 
     stdu    1, -256(1)          // allocate stack frame
 
@@ -66,35 +67,40 @@ ppc64le_prolog:
     // Each is 8 bytes, starting at offset 0 in x64emu_t
     // r3 = emu pointer
 
-    // Load x86 registers from emu into mapped PPC64LE registers
-    ld      RAX, (8 *  0)(3)   // RAX = r14
-    ld      RCX, (8 *  1)(3)   // RCX = r15
-    ld      RDX, (8 *  2)(3)   // RDX = r16
-    ld      RBX, (8 *  3)(3)   // RBX = r17
-    ld      RSP, (8 *  4)(3)   // RSP = r18
-    ld      RBP, (8 *  5)(3)   // RBP = r19
-    ld      RSI, (8 *  6)(3)   // RSI = r20
-    ld      RDI, (8 *  7)(3)   // RDI = r21
-    ld      R8,  (8 *  8)(3)   // R8  = r22
-    ld      R9,  (8 *  9)(3)   // R9  = r23
-    ld      R10, (8 * 10)(3)   // R10 = r24
-    ld      R11, (8 * 11)(3)   // R11 = r25
-    ld      R12, (8 * 12)(3)   // R12 = r26
-    ld      R13, (8 * 13)(3)   // R13 = r27
-    ld      R14, (8 * 14)(3)   // R14 = r28
-    ld      R15, (8 * 15)(3)   // R15 = r29
-
-    // Load flags (at offset 16*8 = 128)
-    ld      Flags, (8 * 16)(3) // Flags = r30
-
-    // Load RIP into r9 (xRIP)
-    ld      RIP, (8 * 17)(3)   // RIP = r9
-
-    // Store emu pointer
+    // Store emu pointer first (needed for xSPSave below)
     mr      Emu, 3              // Emu = r31
 
-    // Save host SP for restoration in epilog (SavedSP = r12)
-    addi    SavedSP, 1, 256     // SavedSP points to caller's SP
+    // Save the current frame SP to emu->xSPSave so the epilog can find it.
+    // r12 (xSavedSP) is caller-saved and gets clobbered by native calls,
+    // so we store the frame base in the emu struct instead (like RV64).
+    // Also save the old xSPSave value on the stack for nested dynarec calls.
+    ld      0, 808(Emu)         // old xSPSave value
+    std     1, 808(Emu)         // emu->xSPSave = current frame SP
+    std     0, 192(1)           // save old xSPSave at frame offset 192
+
+    // Load x86 registers from emu into mapped PPC64LE registers
+    ld      RAX, (8 *  0)(Emu)  // RAX = r14
+    ld      RCX, (8 *  1)(Emu)  // RCX = r15
+    ld      RDX, (8 *  2)(Emu)  // RDX = r16
+    ld      RBX, (8 *  3)(Emu)  // RBX = r17
+    ld      RSP, (8 *  4)(Emu)  // RSP = r18
+    ld      RBP, (8 *  5)(Emu)  // RBP = r19
+    ld      RSI, (8 *  6)(Emu)  // RSI = r20
+    ld      RDI, (8 *  7)(Emu)  // RDI = r21
+    ld      R8,  (8 *  8)(Emu)  // R8  = r22
+    ld      R9,  (8 *  9)(Emu)  // R9  = r23
+    ld      R10, (8 * 10)(Emu)  // R10 = r24
+    ld      R11, (8 * 11)(Emu)  // R11 = r25
+    ld      R12, (8 * 12)(Emu)  // R12 = r26
+    ld      R13, (8 * 13)(Emu)  // R13 = r27
+    ld      R14, (8 * 14)(Emu)  // R14 = r28
+    ld      R15, (8 * 15)(Emu)  // R15 = r29
+
+    // Load flags (at offset 16*8 = 128)
+    ld      Flags, (8 * 16)(Emu) // Flags = r30
+
+    // Load RIP into r9 (xRIP)
+    ld      RIP, (8 * 17)(Emu)  // RIP = r9
 
     // Push a jump_next slot on stack (2 doublewords of zeros)
     li      0, 0
