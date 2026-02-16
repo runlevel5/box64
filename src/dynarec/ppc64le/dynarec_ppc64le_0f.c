@@ -46,6 +46,7 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
     int unscaled;
     int lock;
     int cacheupd = 0;
+    int v0, v1, q0, q1, d0, d1;
     MAYUSE(u8);
     MAYUSE(eb1);
     MAYUSE(eb2);
@@ -56,6 +57,12 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
     MAYUSE(j64);
     MAYUSE(lock);
     MAYUSE(gdoffset);
+    MAYUSE(v0);
+    MAYUSE(v1);
+    MAYUSE(q0);
+    MAYUSE(q1);
+    MAYUSE(d0);
+    MAYUSE(d1);
 
     switch (opcode) {
 
@@ -182,6 +189,97 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             FAKEED;
             break;
 
+        case 0x10:
+            INST_NAME("MOVUPS Gx, Ex");
+            nextop = F8;
+            GETG;
+            if (MODREG) {
+                ed = (nextop & 7) + (rex.b << 3);
+                v1 = sse_get_reg(dyn, ninst, x1, ed, 0);
+                v0 = sse_get_reg_empty(dyn, ninst, x1, gd);
+                XXLOR(VSXREG(v0), VSXREG(v1), VSXREG(v1));
+            } else {
+                v0 = sse_get_reg_empty(dyn, ninst, x1, gd);
+                SMREAD();
+                addr = geted(dyn, addr, ninst, nextop, &ed, x2, x3, &fixedaddress, rex, NULL, 1, 0);
+                LXV(VSXREG(v0), fixedaddress, ed);
+            }
+            break;
+        case 0x11:
+            INST_NAME("MOVUPS Ex, Gx");
+            nextop = F8;
+            GETG;
+            v0 = sse_get_reg(dyn, ninst, x1, gd, 0);
+            if (MODREG) {
+                ed = (nextop & 7) + (rex.b << 3);
+                v1 = sse_get_reg_empty(dyn, ninst, x1, ed);
+                XXLOR(VSXREG(v1), VSXREG(v0), VSXREG(v0));
+            } else {
+                addr = geted(dyn, addr, ninst, nextop, &ed, x2, x3, &fixedaddress, rex, NULL, 1, 0);
+                STXV(VSXREG(v0), fixedaddress, ed);
+                SMWRITE2();
+            }
+            break;
+
+        case 0x28:
+            INST_NAME("MOVAPS Gx, Ex");
+            nextop = F8;
+            GETG;
+            if (MODREG) {
+                ed = (nextop & 7) + (rex.b << 3);
+                v1 = sse_get_reg(dyn, ninst, x1, ed, 0);
+                v0 = sse_get_reg_empty(dyn, ninst, x1, gd);
+                XXLOR(VSXREG(v0), VSXREG(v1), VSXREG(v1));
+            } else {
+                v0 = sse_get_reg_empty(dyn, ninst, x1, gd);
+                SMREAD();
+                addr = geted(dyn, addr, ninst, nextop, &ed, x2, x3, &fixedaddress, rex, NULL, 1, 0);
+                LXV(VSXREG(v0), fixedaddress, ed);
+            }
+            break;
+        case 0x29:
+            INST_NAME("MOVAPS Ex, Gx");
+            nextop = F8;
+            GETG;
+            v0 = sse_get_reg(dyn, ninst, x1, gd, 0);
+            if (MODREG) {
+                ed = (nextop & 7) + (rex.b << 3);
+                v1 = sse_get_reg_empty(dyn, ninst, x1, ed);
+                XXLOR(VSXREG(v1), VSXREG(v0), VSXREG(v0));
+            } else {
+                addr = geted(dyn, addr, ninst, nextop, &ed, x2, x3, &fixedaddress, rex, NULL, 1, 0);
+                STXV(VSXREG(v0), fixedaddress, ed);
+                SMWRITE2();
+            }
+            break;
+
+        case 0x38:
+            nextop = F8;
+            switch (nextop) {
+                case 0xF0:
+                    INST_NAME("MOVBE Gd, Ed");
+                    nextop = F8;
+                    GETGD;
+                    SMREAD();
+                    addr = geted(dyn, addr, ninst, nextop, &ed, x2, x1, &fixedaddress, rex, NULL, 1, 0);
+                    LDxw(gd, ed, fixedaddress);
+                    REVBxw(gd, gd, x1);
+                    break;
+                case 0xF1:
+                    INST_NAME("MOVBE Ed, Gd");
+                    nextop = F8;
+                    GETGD;
+                    SMREAD();
+                    addr = geted(dyn, addr, ninst, nextop, &wback, x2, x1, &fixedaddress, rex, NULL, 1, 0);
+                    REVBxw(x1, gd, x3);
+                    SDxw(x1, wback, fixedaddress);
+                    SMWRITE2();
+                    break;
+                default:
+                    DEFAULT;
+            }
+            break;
+
 #define GO(GETFLAGS, NO, YES, NATNO, NATYES, F, I)                                          \
     READFLAGS_FUSION(F, x1, x2, x3, x4, x5);                                                \
     if (!dyn->insts[ninst].nat_flags_fusion) {                                               \
@@ -301,10 +399,87 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
 
 #undef GO
 
+        case 0x6E:
+            INST_NAME("MOVD Gm, Ed");
+            nextop = F8;
+            GETG;
+            v0 = mmx_get_reg_empty(dyn, ninst, x1, x2, x3, gd);
+            if (MODREG) {
+                ed = TO_NAT((nextop & 7) + (rex.b << 3));
+                if (rex.w) {
+                    MTVSRD(VSXREG(v0), ed);
+                } else {
+                    RLWINM(x4, ed, 0, 0, 31);  // zero-extend 32-bit
+                    MTVSRD(VSXREG(v0), x4);
+                }
+            } else {
+                SMREAD();
+                addr = geted(dyn, addr, ninst, nextop, &wback, x3, x1, &fixedaddress, rex, NULL, 1, 0);
+                if (rex.w) {
+                    LFD(v0, fixedaddress, wback);
+                } else {
+                    LWZ(x4, fixedaddress, wback);
+                    MTVSRD(VSXREG(v0), x4);
+                }
+            }
+            break;
+        case 0x6F:
+            INST_NAME("MOVQ Gm, Em");
+            nextop = F8;
+            GETG;
+            if (MODREG) {
+                v1 = mmx_get_reg(dyn, ninst, x1, x2, x3, nextop & 7);
+                v0 = mmx_get_reg_empty(dyn, ninst, x1, x2, x3, gd);
+                FMR(v0, v1);
+            } else {
+                v0 = mmx_get_reg_empty(dyn, ninst, x1, x2, x3, gd);
+                SMREAD();
+                addr = geted(dyn, addr, ninst, nextop, &wback, x3, x1, &fixedaddress, rex, NULL, 1, 0);
+                LFD(v0, fixedaddress, wback);
+            }
+            break;
+
         case 0x77:
             INST_NAME("EMMS");
             // empty MMX, FPU now usable
             mmx_purgecache(dyn, ninst, 0, x1);
+            break;
+
+        case 0x7E:
+            INST_NAME("MOVD Ed, Gm");
+            nextop = F8;
+            GETGM(v0);
+            if (MODREG) {
+                ed = TO_NAT((nextop & 7) + (rex.b << 3));
+                if (rex.w) {
+                    MFVSRD(ed, VSXREG(v0));
+                } else {
+                    MFVSRWZ(ed, VSXREG(v0));
+                    ZEROUP(ed);
+                }
+            } else {
+                addr = geted(dyn, addr, ninst, nextop, &ed, x3, x2, &fixedaddress, rex, NULL, 1, 0);
+                if (rex.w) {
+                    STFD(v0, fixedaddress, ed);
+                } else {
+                    MFVSRWZ(x4, VSXREG(v0));
+                    STW(x4, fixedaddress, ed);
+                }
+                SMWRITE2();
+            }
+            break;
+        case 0x7F:
+            INST_NAME("MOVQ Em, Gm");
+            nextop = F8;
+            GETGM(v0);
+            if (MODREG) {
+                v1 = mmx_get_reg_empty(dyn, ninst, x1, x2, x3, nextop & 7);
+                FMR(v1, v0);
+            } else {
+                addr = geted(dyn, addr, ninst, nextop, &ed, x3, x2, &fixedaddress, rex, NULL, 1, 0);
+                STFD(v0, fixedaddress, ed);
+                SMWRITE2();
+            }
             break;
 
         case 0xA0:
