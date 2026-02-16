@@ -37,6 +37,12 @@ uintptr_t dynarec64_F30F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
     MAYUSE(wb1);
 
     switch (opcode) {
+        case 0x1E:
+            INST_NAME("NOP / ENDBR32 / ENDBR64");
+            nextop = F8;
+            FAKEED;
+            break;
+
         default:
             DEFAULT;
     }

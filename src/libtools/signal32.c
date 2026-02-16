@@ -758,7 +758,7 @@ int my_sigactionhandler_oldcode_32(x64emu_t* emu, int32_t sig, int simple, sigin
             if(Locks & is_dyndump_locked)
                 CancelBlock64(1);
             #endif
-            #ifdef RV64
+            #if defined(RV64) || defined(PPC64LE)
             emu->xSPSave = emu->old_savedsp;
             #endif
             #ifdef DYNAREC
