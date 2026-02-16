@@ -247,8 +247,17 @@
 
 // BSTRINS_D equivalent: insert low bits of Rs into Ra at position hi:lo
 // RLDIMI(Ra, Rs, lo, 63-hi)
-#define BSTRINS_D(Ra, Rs, hi, lo) \
-    RLDIMI(Ra, Rs, lo, 63-(hi))
+// IMPORTANT: When Rs == xZR (r0), r0 is NOT a zero register on PPC64LE.
+// We load 0 into x4 scratch and use that instead.
+#define BSTRINS_D(Ra, Rs, hi, lo)                                     \
+    do {                                                              \
+        if ((Rs) == xZR) {                                            \
+            LI(x4, 0);                                                \
+            RLDIMI(Ra, x4, lo, 63-(hi));                              \
+        } else {                                                      \
+            RLDIMI(Ra, Rs, lo, 63-(hi));                              \
+        }                                                             \
+    } while (0)
 
 // ========================================================================
 // GETGD    get x64 register in gd
@@ -900,8 +909,9 @@
 // The offset must be computed AFTER the compare instruction is emitted.
 
 // Bxx_gen: compare two registers, then branch
+// Uses CMPD_ZR to handle xZR (r0) safely — see note at CMPD_ZR definition
 #define Bxx_gen(COND, M, reg1, reg2)             \
-    CMPD(reg1, reg2);                            \
+    CMPD_ZR(reg1, reg2);                         \
     j64 = GET##M - dyn->native_size;             \
     B##COND(j64)
 
@@ -958,9 +968,9 @@
 // Branch to MARK if reg1<reg2 (signed) (use j64)
 #define BLT_MARK(reg1, reg2) Bxx_gen(LT, MARK, reg1, reg2)
 // Branch to MARK if reg1<reg2 (unsigned) (use j64)
-// PPC64LE: use CMPLD for unsigned, then BLT
+// PPC64LE: use CMPLD_ZR for unsigned, then BLT
 #define BLTU_MARK(reg1, reg2)                    \
-    CMPLD(reg1, reg2);                           \
+    CMPLD_ZR(reg1, reg2);                        \
     j64 = GETMARK - dyn->native_size;            \
     BLT(j64)
 // Branch to MARK if reg1>=reg2 (use j64)
@@ -1075,10 +1085,11 @@
     LOAD_REG(R15);
 
 // PPC64LE has no xZR register that can be stored — must use LI+STW for zero stores
+// Use x4 (r6) as scratch instead of x1 (r3) since x1 often holds live 'ed' values
 #define FORCE_DFNONE()               \
     do {                             \
-        LI(x1, 0);                   \
-        STW(x1, offsetof(x64emu_t, df), xEmu); \
+        LI(x4, 0);                   \
+        STW(x4, offsetof(x64emu_t, df), xEmu); \
     } while (0)
 
 #define CHECK_DFNONE(N)                      \
@@ -1977,6 +1988,12 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
 //
 // Signed conditions use CMPD, unsigned use CMPLD.
 // Near/far branch ranges: conditional ±32KB, unconditional ±32MB.
+//
+// IMPORTANT: xZR == r0 == 0, but r0 is NOT a hardware zero register on PPC64LE.
+// When r2 == xZR (0), we must use CMPDI/CMPLDI with immediate 0 instead of
+// CMPD/CMPLD against r0 (which may hold a non-zero value).
+#define CMPD_ZR(r1, r2)   do { if ((r2) == xZR) CMPDI(r1, 0); else CMPD(r1, r2); } while(0)
+#define CMPLD_ZR(r1, r2)  do { if ((r2) == xZR) CMPLDI(r1, 0); else CMPLD(r1, r2); } while(0)
 
 // --- 3-arg B##COND##_safe: always 3 instructions ---
 // Pattern: CMPD/CMPLD + near(Bcond+NOP) or far(inv_Bcond+B)
@@ -1986,7 +2003,7 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
 
 #define BEQ_safe(r1, r2, imm)                       \
     do {                                             \
-        CMPD(r1, r2);                                \
+        CMPD_ZR(r1, r2);                             \
         if ((imm) > -0x7000 && (imm) < 0x7000) {    \
             BEQ((imm) - 4);                          \
             NOP();                                   \
@@ -1998,7 +2015,7 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
 
 #define BNE_safe(r1, r2, imm)                        \
     do {                                             \
-        CMPD(r1, r2);                                \
+        CMPD_ZR(r1, r2);                             \
         if ((imm) > -0x7000 && (imm) < 0x7000) {    \
             BNE((imm) - 4);                          \
             NOP();                                   \
@@ -2010,7 +2027,7 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
 
 #define BLT_safe(r1, r2, imm)                        \
     do {                                             \
-        CMPD(r1, r2);                                \
+        CMPD_ZR(r1, r2);                             \
         if ((imm) > -0x7000 && (imm) < 0x7000) {    \
             BLT((imm) - 4);                          \
             NOP();                                   \
@@ -2022,7 +2039,7 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
 
 #define BGE_safe(r1, r2, imm)                        \
     do {                                             \
-        CMPD(r1, r2);                                \
+        CMPD_ZR(r1, r2);                             \
         if ((imm) > -0x7000 && (imm) < 0x7000) {    \
             BGE((imm) - 4);                          \
             NOP();                                   \
@@ -2034,7 +2051,7 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
 
 #define BGT_safe(r1, r2, imm)                        \
     do {                                             \
-        CMPD(r1, r2);                                \
+        CMPD_ZR(r1, r2);                             \
         if ((imm) > -0x7000 && (imm) < 0x7000) {    \
             BGT((imm) - 4);                          \
             NOP();                                   \
@@ -2046,7 +2063,7 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
 
 #define BLE_safe(r1, r2, imm)                        \
     do {                                             \
-        CMPD(r1, r2);                                \
+        CMPD_ZR(r1, r2);                             \
         if ((imm) > -0x7000 && (imm) < 0x7000) {    \
             BLE((imm) - 4);                          \
             NOP();                                   \
@@ -2059,7 +2076,7 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
 // Unsigned variants use CMPLD
 #define BLTU_safe(r1, r2, imm)                       \
     do {                                             \
-        CMPLD(r1, r2);                               \
+        CMPLD_ZR(r1, r2);                            \
         if ((imm) > -0x7000 && (imm) < 0x7000) {    \
             BLT((imm) - 4);                          \
             NOP();                                   \
@@ -2071,7 +2088,7 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
 
 #define BGEU_safe(r1, r2, imm)                       \
     do {                                             \
-        CMPLD(r1, r2);                               \
+        CMPLD_ZR(r1, r2);                            \
         if ((imm) > -0x7000 && (imm) < 0x7000) {    \
             BGE((imm) - 4);                          \
             NOP();                                   \
@@ -2083,7 +2100,7 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
 
 #define BGTU_safe(r1, r2, imm)                       \
     do {                                             \
-        CMPLD(r1, r2);                               \
+        CMPLD_ZR(r1, r2);                            \
         if ((imm) > -0x7000 && (imm) < 0x7000) {    \
             BGT((imm) - 4);                          \
             NOP();                                   \
@@ -2095,7 +2112,7 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
 
 #define BLEU_safe(r1, r2, imm)                       \
     do {                                             \
-        CMPLD(r1, r2);                               \
+        CMPLD_ZR(r1, r2);                            \
         if ((imm) > -0x7000 && (imm) < 0x7000) {    \
             BLE((imm) - 4);                          \
             NOP();                                   \
@@ -2120,62 +2137,62 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
 
 #define BEQ_(r1, r2, imm)                            \
     do {                                             \
-        CMPD(r1, r2);                                \
+        CMPD_ZR(r1, r2);                             \
         BEQ((imm) - 4);                              \
     } while (0)
 
 #define BNE_(r1, r2, imm)                            \
     do {                                             \
-        CMPD(r1, r2);                                \
+        CMPD_ZR(r1, r2);                             \
         BNE((imm) - 4);                              \
     } while (0)
 
 #define BLT_(r1, r2, imm)                            \
     do {                                             \
-        CMPD(r1, r2);                                \
+        CMPD_ZR(r1, r2);                             \
         BLT((imm) - 4);                              \
     } while (0)
 
 #define BGE_(r1, r2, imm)                            \
     do {                                             \
-        CMPD(r1, r2);                                \
+        CMPD_ZR(r1, r2);                             \
         BGE((imm) - 4);                              \
     } while (0)
 
 #define BGT_(r1, r2, imm)                            \
     do {                                             \
-        CMPD(r1, r2);                                \
+        CMPD_ZR(r1, r2);                             \
         BGT((imm) - 4);                              \
     } while (0)
 
 #define BLE_(r1, r2, imm)                            \
     do {                                             \
-        CMPD(r1, r2);                                \
+        CMPD_ZR(r1, r2);                             \
         BLE((imm) - 4);                              \
     } while (0)
 
 // Unsigned variants use CMPLD
 #define BLTU_(r1, r2, imm)                           \
     do {                                             \
-        CMPLD(r1, r2);                               \
+        CMPLD_ZR(r1, r2);                            \
         BLT((imm) - 4);                              \
     } while (0)
 
 #define BGEU_(r1, r2, imm)                           \
     do {                                             \
-        CMPLD(r1, r2);                               \
+        CMPLD_ZR(r1, r2);                            \
         BGE((imm) - 4);                              \
     } while (0)
 
 #define BGTU_(r1, r2, imm)                           \
     do {                                             \
-        CMPLD(r1, r2);                               \
+        CMPLD_ZR(r1, r2);                            \
         BGT((imm) - 4);                              \
     } while (0)
 
 #define BLEU_(r1, r2, imm)                           \
     do {                                             \
-        CMPLD(r1, r2);                               \
+        CMPLD_ZR(r1, r2);                            \
         BLE((imm) - 4);                              \
     } while (0)
 
@@ -2195,21 +2212,21 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
 // Direct conditions: extract the relevant bit
 #define SLT_(dst, r1, r2)                            \
     do {                                             \
-        CMPD(r1, r2);                                \
+        CMPD_ZR(r1, r2);                             \
         MFCR(dst);                                   \
         RLWINM(dst, dst, 1, 31, 31);                 \
     } while (0)
 
 #define SGT_(dst, r1, r2)                            \
     do {                                             \
-        CMPD(r1, r2);                                \
+        CMPD_ZR(r1, r2);                             \
         MFCR(dst);                                   \
         RLWINM(dst, dst, 2, 31, 31);                 \
     } while (0)
 
 #define SEQ_(dst, r1, r2)                            \
     do {                                             \
-        CMPD(r1, r2);                                \
+        CMPD_ZR(r1, r2);                             \
         MFCR(dst);                                   \
         RLWINM(dst, dst, 3, 31, 31);                 \
     } while (0)
@@ -2217,7 +2234,7 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
 // Inverted conditions: extract the opposite bit and XOR with 1
 #define SGE_(dst, r1, r2)                            \
     do {                                             \
-        CMPD(r1, r2);                                \
+        CMPD_ZR(r1, r2);                             \
         MFCR(dst);                                   \
         RLWINM(dst, dst, 1, 31, 31);                 \
         XORI(dst, dst, 1);                           \
@@ -2225,7 +2242,7 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
 
 #define SLE_(dst, r1, r2)                            \
     do {                                             \
-        CMPD(r1, r2);                                \
+        CMPD_ZR(r1, r2);                             \
         MFCR(dst);                                   \
         RLWINM(dst, dst, 2, 31, 31);                 \
         XORI(dst, dst, 1);                           \
@@ -2233,7 +2250,7 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
 
 #define SNE_(dst, r1, r2)                            \
     do {                                             \
-        CMPD(r1, r2);                                \
+        CMPD_ZR(r1, r2);                             \
         MFCR(dst);                                   \
         RLWINM(dst, dst, 3, 31, 31);                 \
         XORI(dst, dst, 1);                           \
@@ -2242,21 +2259,21 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
 // Unsigned variants use CMPLD
 #define SLTU_(dst, r1, r2)                           \
     do {                                             \
-        CMPLD(r1, r2);                               \
+        CMPLD_ZR(r1, r2);                            \
         MFCR(dst);                                   \
         RLWINM(dst, dst, 1, 31, 31);                 \
     } while (0)
 
 #define SGTU_(dst, r1, r2)                           \
     do {                                             \
-        CMPLD(r1, r2);                               \
+        CMPLD_ZR(r1, r2);                            \
         MFCR(dst);                                   \
         RLWINM(dst, dst, 2, 31, 31);                 \
     } while (0)
 
 #define SGEU_(dst, r1, r2)                           \
     do {                                             \
-        CMPLD(r1, r2);                               \
+        CMPLD_ZR(r1, r2);                            \
         MFCR(dst);                                   \
         RLWINM(dst, dst, 1, 31, 31);                 \
         XORI(dst, dst, 1);                           \
@@ -2264,7 +2281,7 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
 
 #define SLEU_(dst, r1, r2)                           \
     do {                                             \
-        CMPLD(r1, r2);                               \
+        CMPLD_ZR(r1, r2);                            \
         MFCR(dst);                                   \
         RLWINM(dst, dst, 2, 31, 31);                 \
         XORI(dst, dst, 1);                           \

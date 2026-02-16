@@ -772,7 +772,8 @@ uintptr_t dynarec64_00(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 PUSH1z(x1);
             } else {
                 if (!i64) {
-                    PUSH1z(xZR);
+                    LI(x3, 0);
+                    PUSH1z(x3);
                 } else {
                     MOV64z(x3, i64);
                     PUSH1z(x3);
@@ -833,7 +834,8 @@ uintptr_t dynarec64_00(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             INST_NAME("PUSH Ib");
             i64 = F8S;
             if (!i64) {
-                PUSH1z(xZR);
+                LI(x3, 0);
+                PUSH1z(x3);
             } else {
                 MOV64z(x3, i64);
                 PUSH1z(x3);
@@ -2413,8 +2415,11 @@ uintptr_t dynarec64_00(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                     SCRATCH_USAGE(1);
                     LI(x3, u8);
                     ed = x3;
-                } else
-                    ed = xZR;
+                } else {
+                    SCRATCH_USAGE(1);
+                    LI(x3, 0);
+                    ed = x3;
+                }
                 STB(ed, fixedaddress, wback);
                 SMWRITELOCK(lock);
             }
@@ -2434,8 +2439,11 @@ uintptr_t dynarec64_00(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                     SCRATCH_USAGE(1);
                     MOV64x(x3, i64);
                     ed = x3;
-                } else
-                    ed = xZR;
+                } else {
+                    SCRATCH_USAGE(1);
+                    LI(x3, 0);
+                    ed = x3;
+                }
                 SDxw(ed, wback, fixedaddress);
                 SMWRITELOCK(lock);
             }

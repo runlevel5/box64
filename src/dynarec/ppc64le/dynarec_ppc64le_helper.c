@@ -478,15 +478,18 @@ void jump_to_next(dynarec_ppc64le_t* dyn, uintptr_t ip, int reg, int ninst, int 
     if (is32bits)
         ip &= 0xffffffffLL;
 
-    CHECK_DFNONE(0);
+    // Move target address into xRIP BEFORE CHECK_DFNONE, because
+    // FORCE_DFNONE uses LI(x1, 0) which clobbers x1 — and ed is often x1.
     int dest;
     if (reg) {
         if (reg != xRIP) {
             MV(xRIP, reg);
         }
+        CHECK_DFNONE(0);
         NOTEST(x2);
         dest = indirect_lookup(dyn, ninst, is32bits, x2, x3);
     } else {
+        CHECK_DFNONE(0);
         NOTEST(x2);
         uintptr_t p = getJumpTableAddress64(ip);
         MAYUSE(p);
