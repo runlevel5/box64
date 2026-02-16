@@ -30,7 +30,7 @@
 //   mflr Rd                (move LR to target register)
 //   addis Rd,Rd,ha(delta)  (add upper 16 bits of adjusted offset)
 //   ld Rd,lo(delta)(Rd)    (load 64-bit value with lower offset)
-// where delta = table_entry_addr - (addr_of_bcl + 8)
+// where delta = table_entry_addr - (addr_of_bcl + 4)
 // We use helper macros to split the offset:
 //   PPC64_HI16(x)  = upper 16 bits with sign adjustment for lower half
 //   PPC64_LO16(x)  = lower 16 bits (sign-extended by hardware)
@@ -40,7 +40,7 @@
                 if(dyn->need_reloc)                                                         \
                         AddRelocTable64Addr(dyn, ninst, (V), 3);                            \
                 int val64offset = Table64(dyn, (V), 3);                                     \
-                int _delta = val64offset - 8;                                               \
+                int _delta = val64offset - 4;                                               \
                 MESSAGE(LOG_DUMP, "  Table64: 0x%lx (offset %d)\n", (V), val64offset);      \
                 BCL(20, 31, 4);                                                             \
                 MFLR(A);                                                                    \
@@ -49,7 +49,7 @@
             } while(0)
 #define TABLE64_(A, V)   {                                                                  \
                 int val64offset = Table64(dyn, (V), 3);                                     \
-                int _delta = val64offset - 8;                                               \
+                int _delta = val64offset - 4;                                               \
                 MESSAGE(LOG_DUMP, "  Table64: 0x%lx (offset %d)\n", (V), val64offset);      \
                 BCL(20, 31, 4);                                                             \
                 MFLR(A);                                                                    \
@@ -60,7 +60,7 @@
                 if(dyn->need_reloc)                                                         \
                         AddRelocTable64Const(dyn, ninst, (V), 3);                           \
                 int val64offset = Table64(dyn, getConst(V), 3);                             \
-                int _delta = val64offset - 8;                                               \
+                int _delta = val64offset - 4;                                               \
                 MESSAGE(LOG_DUMP, "  Table64C: 0x%lx (offset %d)\n", (V), val64offset);     \
                 BCL(20, 31, 4);                                                             \
                 MFLR(A);                                                                    \
@@ -70,7 +70,7 @@
 #define FTABLE64(A, V)  do {                                                                \
                 mmx87_regs_t v = {.d = V};                                                  \
                 int val64offset = Table64(dyn, v.q, 3);                                     \
-                int _delta = val64offset - 8;                                               \
+                int _delta = val64offset - 4;                                               \
                 MESSAGE(LOG_DUMP, "  FTable64: %g (offset %d)\n", v.d, val64offset);        \
                 BCL(20, 31, 4);                                                             \
                 MFLR(x1);                                                                   \

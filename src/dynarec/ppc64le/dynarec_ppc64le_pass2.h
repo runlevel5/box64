@@ -19,8 +19,8 @@
 // TABLE64: PPC64LE uses 4 instructions to load from the constant pool:
 //   bcl 20,31,.+4  (get PC into LR)
 //   mflr Rd
-//   addis Rd,Rd,hi(offset-8)
-//   ld Rd,lo(offset-8)(Rd)
+//   addis Rd,Rd,hi(offset-4)
+//   ld Rd,lo(offset-4)(Rd)
 #define TABLE64(A, V)   do {                                                    \
                 if(dyn->need_reloc)                                             \
                         AddRelocTable64Addr(dyn, ninst, (V), 2);                \
