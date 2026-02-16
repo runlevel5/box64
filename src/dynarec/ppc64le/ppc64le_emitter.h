@@ -548,6 +548,9 @@
 #define MFXER(Rt)              MFSPR(Rt, SPR_XER)
 // MTXER — move to XER
 #define MTXER(Rs)              MTSPR(SPR_XER, Rs)
+// MFTB — move from time base (SPR 268, reads TBR)
+#define SPR_TB                 (8 << 5 | 12)   // TBR = SPR 268
+#define MFTB(Rt)               MFSPR(Rt, SPR_TB)
 
 // MFCR — move from condition register (X-form, xo=19)
 #define MFCR(Rt)               EMIT(X_form_gen(31, Rt, 0, 0, 19, 0))

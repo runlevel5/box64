@@ -1980,8 +1980,8 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
 #define BGEU_safe(a, b, c)  NOP()
 #define BEQ_safe(a, b, c)   NOP()
 #define BNE_safe(a, b, c)   NOP()
-// 3-arg B##COND## stubs (for NATIVEJUMP)
-#define B_(a, b, c)      NOP()
+// 3-arg B##COND##_ stubs (for NATIVEJUMP)
+#define B__(a, b, c)     NOP()
 #define BGT_(a, b, c)    NOP()
 #define BLE_(a, b, c)    NOP()
 #define BLT_(a, b, c)    NOP()
@@ -1992,8 +1992,8 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
 #define BGEU_(a, b, c)   NOP()
 #define BEQ_(a, b, c)    NOP()
 #define BNE_(a, b, c)    NOP()
-// 3-arg S##COND## stubs (for NATIVESET)
-#define S_(a, b, c)      NOP()
+// 3-arg S##COND##_ stubs (for NATIVESET)
+#define S__(a, b, c)     NOP()
 #define SGT_(a, b, c)    NOP()
 #define SLE_(a, b, c)    NOP()
 #define SLT_(a, b, c)    NOP()
@@ -2004,8 +2004,8 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
 #define SGEU_(a, b, c)   NOP()
 #define SEQ_(a, b, c)    NOP()
 #define SNE_(a, b, c)    NOP()
-// 4-arg MV##COND## stubs (for NATIVEMV)
-#define MV_(a, b, c, d)     NOP()
+// 4-arg MV##COND##_ stubs (for NATIVEMV)
+#define MV__(a, b, c, d)    NOP()
 #define MVGT_(a, b, c, d)   NOP()
 #define MVLE_(a, b, c, d)   NOP()
 #define MVLT_(a, b, c, d)   NOP()
@@ -2021,13 +2021,13 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
     B##COND##_safe(dyn->insts[ninst].nat_flags_op1, dyn->insts[ninst].nat_flags_op2, val);
 
 #define NATIVEJUMP(COND, val) \
-    B##COND(dyn->insts[ninst].nat_flags_op1, dyn->insts[ninst].nat_flags_op2, val);
+    B##COND##_(dyn->insts[ninst].nat_flags_op1, dyn->insts[ninst].nat_flags_op2, val);
 
 #define NATIVESET(COND, rd) \
-    S##COND(rd, dyn->insts[ninst].nat_flags_op1, dyn->insts[ninst].nat_flags_op2);
+    S##COND##_(rd, dyn->insts[ninst].nat_flags_op1, dyn->insts[ninst].nat_flags_op2);
 
 #define NATIVEMV(COND, rd, rs) \
-    MV##COND(rd, rs, dyn->insts[ninst].nat_flags_op1, dyn->insts[ninst].nat_flags_op2);
+    MV##COND##_(rd, rs, dyn->insts[ninst].nat_flags_op1, dyn->insts[ninst].nat_flags_op2);
 
 // ========================================================================
 // NOTEST / SKIPTEST / GOTEST
@@ -2089,6 +2089,13 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
         SUBFIC(dst, src, 0);             \
         SUBFE(dst, dst, dst);            \
         NEG(dst, dst);                   \
+    } while (0)
+
+// SEQZ: Set Equal Zero — dst = (src == 0) ? 1 : 0
+#define SEQZ(dst, src)                   \
+    do {                                 \
+        CNTLZD(dst, src);               \
+        SRDI(dst, dst, 6);              \
     } while (0)
 
 // SLTI: Set Less Than Immediate — dst = (src < imm) ? 1 : 0
@@ -2163,5 +2170,24 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
 #ifndef SCRATCH_USAGE
 #define SCRATCH_USAGE(usage)
 #endif
+
+// ========================================================================
+// REVBxw — byte-reverse (BSWAP) for 32 or 64 bits
+// ========================================================================
+// 32-bit: pure register approach, 3 instructions, no scratch needed
+// 64-bit: uses stack red zone + scratch register for store-load byte-reverse
+// Note: tmp is a scratch GPR, only needed for 64-bit mode
+#define REVBxw(Rd, Rs, tmp)                              \
+    do {                                                  \
+        if (rex.w) {                                      \
+            STD(Rs, -8, xSP);                             \
+            LI(tmp, -8);                                  \
+            LDBRX(Rd, xSP, tmp);                          \
+        } else {                                          \
+            RLWINM(Rd, Rs, 8, 0, 31);                     \
+            RLWIMI(Rd, Rs, 24, 0, 7);                     \
+            RLWIMI(Rd, Rs, 24, 16, 23);                   \
+        }                                                 \
+    } while (0)
 
 #endif //__DYNAREC_PPC64LE_HELPER_H__
