@@ -44,16 +44,18 @@
 // Convenience macros for PPC64LE (equivalent to LA64's LDxw, SDxw, etc.)
 // ========================================================================
 // LDxw: load 32 or 64 bits depending on rex.w
-#define LDxw(Rt, Ra, offset) \
+// For 64-bit (LD), offset must be 4-aligned (DS-form); geted() guarantees this when i12=1.
+#define LDxw(Rt, Ra, offset)                                        \
     if (rex.w) { LD(Rt, offset, Ra); } else { LWZ(Rt, offset, Ra); }
 // LDz: load 32 or 64 bits depending on rex.is32bits
-#define LDz(Rt, Ra, offset) \
+#define LDz(Rt, Ra, offset)                                         \
     if (rex.is32bits) { LWZ(Rt, offset, Ra); } else { LD(Rt, offset, Ra); }
 // SDxw: store 32 or 64 bits depending on rex.w
-#define SDxw(Rs, Ra, offset) \
+// For 64-bit (STD), offset must be 4-aligned (DS-form); geted() guarantees this when i12=1.
+#define SDxw(Rs, Ra, offset)                                        \
     if (rex.w) { STD(Rs, offset, Ra); } else { STW(Rs, offset, Ra); }
 // SDz: store 32 or 64 bits depending on rex.is32bits
-#define SDz(Rs, Ra, offset) \
+#define SDz(Rs, Ra, offset)                                         \
     if (rex.is32bits) { STW(Rs, offset, Ra); } else { STD(Rs, offset, Ra); }
 
 // SDXxw: indexed store 32 or 64 bits
@@ -1965,46 +1967,317 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             ANDId(tmp1, tmp1, (1 << F_SF) | (1 << F_ZF)), NEZ, EQZ, LE, GT, X_SF | X_OF | X_ZF, X64_JMP_JG);  \
         break
 
-// Dummy macros for native flag fusion (stubs for PPC64LE)
-// These are needed because NATIVEJUMP_safe expands to B##COND##_safe(op1, op2, val)
-// and GOCOND uses native conditions like GT, LE, LT, GE, etc.
-// 3-arg B##COND##_safe stubs (for NATIVEJUMP_safe)
-#define B__safe(a, b, c)    NOP()
-#define BGT_safe(a, b, c)   NOP()
-#define BLE_safe(a, b, c)   NOP()
-#define BLT_safe(a, b, c)   NOP()
-#define BGE_safe(a, b, c)   NOP()
-#define BGTU_safe(a, b, c)  NOP()
-#define BLEU_safe(a, b, c)  NOP()
-#define BLTU_safe(a, b, c)  NOP()
-#define BGEU_safe(a, b, c)  NOP()
-#define BEQ_safe(a, b, c)   NOP()
-#define BNE_safe(a, b, c)   NOP()
-// 3-arg B##COND##_ stubs (for NATIVEJUMP)
-#define B__(a, b, c)     NOP()
-#define BGT_(a, b, c)    NOP()
-#define BLE_(a, b, c)    NOP()
-#define BLT_(a, b, c)    NOP()
-#define BGE_(a, b, c)    NOP()
-#define BGTU_(a, b, c)   NOP()
-#define BLEU_(a, b, c)   NOP()
-#define BLTU_(a, b, c)   NOP()
-#define BGEU_(a, b, c)   NOP()
-#define BEQ_(a, b, c)    NOP()
-#define BNE_(a, b, c)    NOP()
-// 3-arg S##COND##_ stubs (for NATIVESET)
-#define S__(a, b, c)     NOP()
-#define SGT_(a, b, c)    NOP()
-#define SLE_(a, b, c)    NOP()
-#define SLT_(a, b, c)    NOP()
-#define SGE_(a, b, c)    NOP()
-#define SGTU_(a, b, c)   NOP()
-#define SLEU_(a, b, c)   NOP()
-#define SLTU_(a, b, c)   NOP()
-#define SGEU_(a, b, c)   NOP()
-#define SEQ_(a, b, c)    NOP()
-#define SNE_(a, b, c)    NOP()
-// 4-arg MV##COND##_ stubs (for NATIVEMV)
+// ========================================================================
+// Native flag fusion macros for PPC64LE
+// ========================================================================
+// PPC64LE needs separate compare + branch instructions (unlike LA64 which
+// has combined compare-and-branch). So:
+//   B##COND##_safe(r1, r2, imm) = 3 instructions (matches BNEZ_safe/BEZ_safe sizing)
+//   B##COND##_(r1, r2, imm)     = 2 instructions (matches BxxZ_gen sizing)
+//
+// Signed conditions use CMPD, unsigned use CMPLD.
+// Near/far branch ranges: conditional ±32KB, unconditional ±32MB.
+
+// --- 3-arg B##COND##_safe: always 3 instructions ---
+// Pattern: CMPD/CMPLD + near(Bcond+NOP) or far(inv_Bcond+B)
+// imm is offset from start of this macro to target.
+// Bcond sits at +4, so near Bcond offset = imm-4.
+// For far case: inv_Bcond skips over B (offset=8), B sits at +8 so B offset = imm-8.
+
+#define BEQ_safe(r1, r2, imm)                       \
+    do {                                             \
+        CMPD(r1, r2);                                \
+        if ((imm) > -0x7000 && (imm) < 0x7000) {    \
+            BEQ((imm) - 4);                          \
+            NOP();                                   \
+        } else {                                     \
+            BNE(2 * 4);                              \
+            B((imm) - 8);                            \
+        }                                            \
+    } while (0)
+
+#define BNE_safe(r1, r2, imm)                        \
+    do {                                             \
+        CMPD(r1, r2);                                \
+        if ((imm) > -0x7000 && (imm) < 0x7000) {    \
+            BNE((imm) - 4);                          \
+            NOP();                                   \
+        } else {                                     \
+            BEQ(2 * 4);                              \
+            B((imm) - 8);                            \
+        }                                            \
+    } while (0)
+
+#define BLT_safe(r1, r2, imm)                        \
+    do {                                             \
+        CMPD(r1, r2);                                \
+        if ((imm) > -0x7000 && (imm) < 0x7000) {    \
+            BLT((imm) - 4);                          \
+            NOP();                                   \
+        } else {                                     \
+            BGE(2 * 4);                              \
+            B((imm) - 8);                            \
+        }                                            \
+    } while (0)
+
+#define BGE_safe(r1, r2, imm)                        \
+    do {                                             \
+        CMPD(r1, r2);                                \
+        if ((imm) > -0x7000 && (imm) < 0x7000) {    \
+            BGE((imm) - 4);                          \
+            NOP();                                   \
+        } else {                                     \
+            BLT(2 * 4);                              \
+            B((imm) - 8);                            \
+        }                                            \
+    } while (0)
+
+#define BGT_safe(r1, r2, imm)                        \
+    do {                                             \
+        CMPD(r1, r2);                                \
+        if ((imm) > -0x7000 && (imm) < 0x7000) {    \
+            BGT((imm) - 4);                          \
+            NOP();                                   \
+        } else {                                     \
+            BLE(2 * 4);                              \
+            B((imm) - 8);                            \
+        }                                            \
+    } while (0)
+
+#define BLE_safe(r1, r2, imm)                        \
+    do {                                             \
+        CMPD(r1, r2);                                \
+        if ((imm) > -0x7000 && (imm) < 0x7000) {    \
+            BLE((imm) - 4);                          \
+            NOP();                                   \
+        } else {                                     \
+            BGT(2 * 4);                              \
+            B((imm) - 8);                            \
+        }                                            \
+    } while (0)
+
+// Unsigned variants use CMPLD
+#define BLTU_safe(r1, r2, imm)                       \
+    do {                                             \
+        CMPLD(r1, r2);                               \
+        if ((imm) > -0x7000 && (imm) < 0x7000) {    \
+            BLT((imm) - 4);                          \
+            NOP();                                   \
+        } else {                                     \
+            BGE(2 * 4);                              \
+            B((imm) - 8);                            \
+        }                                            \
+    } while (0)
+
+#define BGEU_safe(r1, r2, imm)                       \
+    do {                                             \
+        CMPLD(r1, r2);                               \
+        if ((imm) > -0x7000 && (imm) < 0x7000) {    \
+            BGE((imm) - 4);                          \
+            NOP();                                   \
+        } else {                                     \
+            BLT(2 * 4);                              \
+            B((imm) - 8);                            \
+        }                                            \
+    } while (0)
+
+#define BGTU_safe(r1, r2, imm)                       \
+    do {                                             \
+        CMPLD(r1, r2);                               \
+        if ((imm) > -0x7000 && (imm) < 0x7000) {    \
+            BGT((imm) - 4);                          \
+            NOP();                                   \
+        } else {                                     \
+            BLE(2 * 4);                              \
+            B((imm) - 8);                            \
+        }                                            \
+    } while (0)
+
+#define BLEU_safe(r1, r2, imm)                       \
+    do {                                             \
+        CMPLD(r1, r2);                               \
+        if ((imm) > -0x7000 && (imm) < 0x7000) {    \
+            BLE((imm) - 4);                          \
+            NOP();                                   \
+        } else {                                     \
+            BGT(2 * 4);                              \
+            B((imm) - 8);                            \
+        }                                            \
+    } while (0)
+
+// B__safe: unconditional placeholder (dead code, never reached in fusion path)
+// Must be 3 instructions to match _safe sizing.
+#define B__safe(a, b, imm)                           \
+    do {                                             \
+        NOP();                                       \
+        NOP();                                       \
+        NOP();                                       \
+    } while (0)
+
+// --- 3-arg B##COND##_: always 2 instructions (matches BxxZ_gen sizing) ---
+// Pattern: CMPD/CMPLD + Bcond
+// imm is offset from start of this macro to target. Bcond at +4, so offset = imm-4.
+
+#define BEQ_(r1, r2, imm)                            \
+    do {                                             \
+        CMPD(r1, r2);                                \
+        BEQ((imm) - 4);                              \
+    } while (0)
+
+#define BNE_(r1, r2, imm)                            \
+    do {                                             \
+        CMPD(r1, r2);                                \
+        BNE((imm) - 4);                              \
+    } while (0)
+
+#define BLT_(r1, r2, imm)                            \
+    do {                                             \
+        CMPD(r1, r2);                                \
+        BLT((imm) - 4);                              \
+    } while (0)
+
+#define BGE_(r1, r2, imm)                            \
+    do {                                             \
+        CMPD(r1, r2);                                \
+        BGE((imm) - 4);                              \
+    } while (0)
+
+#define BGT_(r1, r2, imm)                            \
+    do {                                             \
+        CMPD(r1, r2);                                \
+        BGT((imm) - 4);                              \
+    } while (0)
+
+#define BLE_(r1, r2, imm)                            \
+    do {                                             \
+        CMPD(r1, r2);                                \
+        BLE((imm) - 4);                              \
+    } while (0)
+
+// Unsigned variants use CMPLD
+#define BLTU_(r1, r2, imm)                           \
+    do {                                             \
+        CMPLD(r1, r2);                               \
+        BLT((imm) - 4);                              \
+    } while (0)
+
+#define BGEU_(r1, r2, imm)                           \
+    do {                                             \
+        CMPLD(r1, r2);                               \
+        BGE((imm) - 4);                              \
+    } while (0)
+
+#define BGTU_(r1, r2, imm)                           \
+    do {                                             \
+        CMPLD(r1, r2);                               \
+        BGT((imm) - 4);                              \
+    } while (0)
+
+#define BLEU_(r1, r2, imm)                           \
+    do {                                             \
+        CMPLD(r1, r2);                               \
+        BLE((imm) - 4);                              \
+    } while (0)
+
+// B__: unconditional placeholder (dead code). Must be 2 instructions.
+#define B__(a, b, imm)                               \
+    do {                                             \
+        NOP();                                       \
+        NOP();                                       \
+    } while (0)
+
+// --- 3-arg S##COND##_: NATIVESET (set rd = (op1 COND op2) ? 1 : 0) ---
+// Pattern: CMPD/CMPLD + MFCR + extract CR0 bit
+// CR0 bits in MFCR result (32-bit): LT=bit31, GT=bit30, EQ=bit29, SO=bit28
+// RLWINM(dst, dst, shift, 31, 31) extracts one bit to position 0.
+//   LT: shift=1, GT: shift=2, EQ: shift=3
+
+// Direct conditions: extract the relevant bit
+#define SLT_(dst, r1, r2)                            \
+    do {                                             \
+        CMPD(r1, r2);                                \
+        MFCR(dst);                                   \
+        RLWINM(dst, dst, 1, 31, 31);                 \
+    } while (0)
+
+#define SGT_(dst, r1, r2)                            \
+    do {                                             \
+        CMPD(r1, r2);                                \
+        MFCR(dst);                                   \
+        RLWINM(dst, dst, 2, 31, 31);                 \
+    } while (0)
+
+#define SEQ_(dst, r1, r2)                            \
+    do {                                             \
+        CMPD(r1, r2);                                \
+        MFCR(dst);                                   \
+        RLWINM(dst, dst, 3, 31, 31);                 \
+    } while (0)
+
+// Inverted conditions: extract the opposite bit and XOR with 1
+#define SGE_(dst, r1, r2)                            \
+    do {                                             \
+        CMPD(r1, r2);                                \
+        MFCR(dst);                                   \
+        RLWINM(dst, dst, 1, 31, 31);                 \
+        XORI(dst, dst, 1);                           \
+    } while (0)
+
+#define SLE_(dst, r1, r2)                            \
+    do {                                             \
+        CMPD(r1, r2);                                \
+        MFCR(dst);                                   \
+        RLWINM(dst, dst, 2, 31, 31);                 \
+        XORI(dst, dst, 1);                           \
+    } while (0)
+
+#define SNE_(dst, r1, r2)                            \
+    do {                                             \
+        CMPD(r1, r2);                                \
+        MFCR(dst);                                   \
+        RLWINM(dst, dst, 3, 31, 31);                 \
+        XORI(dst, dst, 1);                           \
+    } while (0)
+
+// Unsigned variants use CMPLD
+#define SLTU_(dst, r1, r2)                           \
+    do {                                             \
+        CMPLD(r1, r2);                               \
+        MFCR(dst);                                   \
+        RLWINM(dst, dst, 1, 31, 31);                 \
+    } while (0)
+
+#define SGTU_(dst, r1, r2)                           \
+    do {                                             \
+        CMPLD(r1, r2);                               \
+        MFCR(dst);                                   \
+        RLWINM(dst, dst, 2, 31, 31);                 \
+    } while (0)
+
+#define SGEU_(dst, r1, r2)                           \
+    do {                                             \
+        CMPLD(r1, r2);                               \
+        MFCR(dst);                                   \
+        RLWINM(dst, dst, 1, 31, 31);                 \
+        XORI(dst, dst, 1);                           \
+    } while (0)
+
+#define SLEU_(dst, r1, r2)                           \
+    do {                                             \
+        CMPLD(r1, r2);                               \
+        MFCR(dst);                                   \
+        RLWINM(dst, dst, 2, 31, 31);                 \
+        XORI(dst, dst, 1);                           \
+    } while (0)
+
+// S__: unconditional placeholder (dead code). Sets dst=1 unconditionally.
+#define S__(dst, r1, r2)                             \
+    do {                                             \
+        LI(dst, 1);                                  \
+    } while (0)
+
+// --- 4-arg MV##COND##_: NATIVEMV (dst = (op1 COND op2) ? src : dst) ---
+// Not used by PPC64LE opcode tables currently. Stub with NOPs.
 #define MV__(a, b, c, d)    NOP()
 #define MVGT_(a, b, c, d)   NOP()
 #define MVLE_(a, b, c, d)   NOP()
