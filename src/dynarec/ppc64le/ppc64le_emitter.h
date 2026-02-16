@@ -792,6 +792,8 @@
 #define VCMPGTUH(Vrt, Vra, Vrb)  EMIT(VX_form_gen(Vrt, Vra, Vrb, 582))
 // VCMPGTUW — vector compare greater than unsigned word
 #define VCMPGTUW(Vrt, Vra, Vrb)  EMIT(VX_form_gen(Vrt, Vra, Vrb, 646))
+// VCMPGTUD — vector compare greater than unsigned doubleword
+#define VCMPGTUD(Vrt, Vra, Vrb)  EMIT(VX_form_gen(Vrt, Vra, Vrb, 711))
 
 // --- Integer Min/Max ---
 // VMINUB — vector minimum unsigned byte
@@ -1385,6 +1387,8 @@
 #define XSCVSXDDP(Xt, Xb)     EMIT(XX2_form_gen(60, Xt, Xb, 376))
 // XSCVDPSXDS — VSX scalar convert double to signed int64 (truncation)
 #define XSCVDPSXDS(Xt, Xb)    EMIT(XX2_form_gen(60, Xt, Xb, 344))
+// XSCVDPSXWS — VSX scalar convert double to signed int32 (truncation)
+#define XSCVDPSXWS(Xt, Xb)    EMIT(XX2_form_gen(60, Xt, Xb, 88))
 // XSCVDPUXDS — VSX scalar convert double to unsigned int64 (truncation)
 #define XSCVDPUXDS(Xt, Xb)    EMIT(XX2_form_gen(60, Xt, Xb, 328))
 // XSCVUXDDP — VSX scalar convert unsigned int64 to double
@@ -1398,6 +1402,18 @@
 #define XVCVSXDDP(Xt, Xb)     EMIT(XX2_form_gen(60, Xt, Xb, 504))
 // XVCVDPSXDS — VSX vector convert 2 doubles to 2 signed int64
 #define XVCVDPSXDS(Xt, Xb)    EMIT(XX2_form_gen(60, Xt, Xb, 472))
+// XVCVDPSXWS — VSX vector convert 2 doubles to 2 signed int32 (results in odd words)
+#define XVCVDPSXWS(Xt, Xb)    EMIT(XX2_form_gen(60, Xt, Xb, 408))
+// XVCVSXWDP — VSX vector convert 2 signed int32 (odd words) to 2 doubles
+#define XVCVSXWDP(Xt, Xb)     EMIT(XX2_form_gen(60, Xt, Xb, 440))
+// XVCVSPSXWS — VSX vector convert 4 singles to 4 signed int32
+#define XVCVSPSXWS(Xt, Xb)    EMIT(XX2_form_gen(60, Xt, Xb, 152))
+// XVCVSXWSP — VSX vector convert 4 signed int32 to 4 singles
+#define XVCVSXWSP(Xt, Xb)     EMIT(XX2_form_gen(60, Xt, Xb, 184))
+// XVRDPIZ — VSX vector round double to integer toward zero
+#define XVRDPIZ(Xt, Xb)       EMIT(XX2_form_gen(60, Xt, Xb, 201))
+// XVRSPIZ — VSX vector round single to integer toward zero
+#define XVRSPIZ(Xt, Xb)       EMIT(XX2_form_gen(60, Xt, Xb, 137))
 
 // XVABSDP — VSX vector absolute double
 #define XVABSDP(Xt, Xb)       EMIT(XX2_form_gen(60, Xt, Xb, 473))
@@ -1411,6 +1427,13 @@
 #define XSCMPUDP(bf, Xa, Xb)  EMIT(XX3_form_gen(60, ((bf) & 0x7) << 2, Xa, Xb, 35))
 // XSCMPODP — VSX scalar compare ordered double, result in CR field BF
 #define XSCMPODP(bf, Xa, Xb)  EMIT(XX3_form_gen(60, ((bf) & 0x7) << 2, Xa, Xb, 43))
+
+// ===========================================================================
+// ISEL — Integer Select (X-form, opcode 31)
+// ===========================================================================
+// ISEL(RT, RA, RB, BC): if CR bit BC is set, RT=RA; else RT=RB
+// If RA=0, the value 0 is used instead of GPR[0]
+#define ISEL(Rt, Ra, Rb, BC)   EMIT(X_form_gen(31, Rt, Ra, Rb, (((BC) & 0x1F) << 5) | 15, 0))
 
 // ===========================================================================
 // Convenience macros for the dynarec framework
