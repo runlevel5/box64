@@ -1198,6 +1198,11 @@
 #define XXSPLTW(Xt, Xb, uim2) \
     EMIT(XX2_form_gen(60, Xt, Xb, (((uim2) & 0x3) << 7) | 40))
 
+// XXSPLTIB — VSX splat immediate byte: replicate IMM8 to all 16 bytes (POWER9, X_RD6_IMM8-form)
+// Encoding: [60 | XT[0:4] | 00 | IMM8 | 360 | XT[5]]
+#define XXSPLTIB(Xt, imm8) \
+    EMIT((uint32_t)(60) << 26 | (((Xt) & 0x1F) << 21) | (((imm8) & 0xFF) << 11) | (360 << 1) | (((Xt) >> 5) & 1))
+
 // ===========================================================================
 // Trap / debug
 // ===========================================================================
