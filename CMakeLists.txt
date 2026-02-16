@@ -1329,7 +1329,11 @@ else()
     endif()
 endif()
 if(DYNAREC)
-    target_link_libraries(${BOX64} dynarec)
+    # Use --whole-archive to ensure all object files from the static library are
+    # linked, even when multiple passes produce .o files with the same basename.
+    # Without this, the linker may only pull in the first archive member matching
+    # a given filename and miss symbols defined in later passes (e.g. dynarec64_003).
+    target_link_libraries(${BOX64} -Wl,--whole-archive dynarec -Wl,--no-whole-archive)
 endif()
 target_link_libraries(${BOX64} interpreter)
 
