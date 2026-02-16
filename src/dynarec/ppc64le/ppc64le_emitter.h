@@ -740,6 +740,8 @@
 #define VADDSBS(Vrt, Vra, Vrb)  EMIT(VX_form_gen(Vrt, Vra, Vrb, 768))
 // VADDSHS — vector add signed halfword saturate
 #define VADDSHS(Vrt, Vra, Vrb)  EMIT(VX_form_gen(Vrt, Vra, Vrb, 832))
+// VADDSWS — vector add signed word saturate
+#define VADDSWS(Vrt, Vra, Vrb)  EMIT(VX_form_gen(Vrt, Vra, Vrb, 896))
 // VADDUBS — vector add unsigned byte saturate
 #define VADDUBS(Vrt, Vra, Vrb)  EMIT(VX_form_gen(Vrt, Vra, Vrb, 512))
 // VADDUHS — vector add unsigned halfword saturate
@@ -1094,7 +1096,7 @@
 // XVDIVDP — vector divide double-precision
 #define XVDIVDP(Xt, Xa, Xb)   EMIT(XX3_form_gen(60, Xt, Xa, Xb, 120))
 // XVSQRTDP — vector square root double-precision (XX2-form)
-#define XVSQRTDP(Xt, Xb)      EMIT(XX2_form_gen(60, Xt, Xb, 460))
+#define XVSQRTDP(Xt, Xb)      EMIT(XX2_form_gen(60, Xt, Xb, 203))
 // XVMINDP — vector minimum double-precision
 #define XVMINDP(Xt, Xa, Xb)   EMIT(XX3_form_gen(60, Xt, Xa, Xb, 232))
 // XVMAXDP — vector maximum double-precision
@@ -1109,7 +1111,7 @@
 // XVDIVSP — vector divide single-precision
 #define XVDIVSP(Xt, Xa, Xb)   EMIT(XX3_form_gen(60, Xt, Xa, Xb, 88))
 // XVSQRTSP — vector square root single-precision (XX2-form)
-#define XVSQRTSP(Xt, Xb)      EMIT(XX2_form_gen(60, Xt, Xb, 140))
+#define XVSQRTSP(Xt, Xb)      EMIT(XX2_form_gen(60, Xt, Xb, 139))
 
 // --- VSX Scalar FP Arithmetic (XX3-form, opcode 60) ---
 // XSADDDP — scalar add double-precision
@@ -1121,7 +1123,7 @@
 // XSDIVDP — scalar divide double-precision
 #define XSDIVDP(Xt, Xa, Xb)   EMIT(XX3_form_gen(60, Xt, Xa, Xb, 56))
 // XSSQRTDP — scalar square root double-precision (XX2-form)
-#define XSSQRTDP(Xt, Xb)      EMIT(XX2_form_gen(60, Xt, Xb, 204))
+#define XSSQRTDP(Xt, Xb)      EMIT(XX2_form_gen(60, Xt, Xb, 75))
 // XSMINDP — scalar minimum double-precision
 #define XSMINDP(Xt, Xa, Xb)   EMIT(XX3_form_gen(60, Xt, Xa, Xb, 168))
 // XSMAXDP — scalar maximum double-precision
@@ -1403,17 +1405,43 @@
 // XVCVDPSXDS — VSX vector convert 2 doubles to 2 signed int64
 #define XVCVDPSXDS(Xt, Xb)    EMIT(XX2_form_gen(60, Xt, Xb, 472))
 // XVCVDPSXWS — VSX vector convert 2 doubles to 2 signed int32 (results in odd words)
-#define XVCVDPSXWS(Xt, Xb)    EMIT(XX2_form_gen(60, Xt, Xb, 408))
+#define XVCVDPSXWS(Xt, Xb)    EMIT(XX2_form_gen(60, Xt, Xb, 216))
 // XVCVSXWDP — VSX vector convert 2 signed int32 (odd words) to 2 doubles
-#define XVCVSXWDP(Xt, Xb)     EMIT(XX2_form_gen(60, Xt, Xb, 440))
+#define XVCVSXWDP(Xt, Xb)     EMIT(XX2_form_gen(60, Xt, Xb, 248))
 // XVCVSPSXWS — VSX vector convert 4 singles to 4 signed int32
 #define XVCVSPSXWS(Xt, Xb)    EMIT(XX2_form_gen(60, Xt, Xb, 152))
 // XVCVSXWSP — VSX vector convert 4 signed int32 to 4 singles
 #define XVCVSXWSP(Xt, Xb)     EMIT(XX2_form_gen(60, Xt, Xb, 184))
 // XVRDPIZ — VSX vector round double to integer toward zero
-#define XVRDPIZ(Xt, Xb)       EMIT(XX2_form_gen(60, Xt, Xb, 201))
+#define XVRDPIZ(Xt, Xb)       EMIT(XX2_form_gen(60, Xt, Xb, 217))
+// XVRDPI — VSX vector round double to integer nearest (ties to even)
+#define XVRDPI(Xt, Xb)        EMIT(XX2_form_gen(60, Xt, Xb, 201))
+// XVRDPIC — VSX vector round double to integer using current rounding mode
+#define XVRDPIC(Xt, Xb)       EMIT(XX2_form_gen(60, Xt, Xb, 235))
+// XVRDPIM — VSX vector round double to integer toward -infinity (floor)
+#define XVRDPIM(Xt, Xb)       EMIT(XX2_form_gen(60, Xt, Xb, 249))
+// XVRDPIP — VSX vector round double to integer toward +infinity (ceil)
+#define XVRDPIP(Xt, Xb)       EMIT(XX2_form_gen(60, Xt, Xb, 233))
 // XVRSPIZ — VSX vector round single to integer toward zero
-#define XVRSPIZ(Xt, Xb)       EMIT(XX2_form_gen(60, Xt, Xb, 137))
+#define XVRSPIZ(Xt, Xb)       EMIT(XX2_form_gen(60, Xt, Xb, 153))
+// XVRSPI — VSX vector round single to integer nearest (ties to even)
+#define XVRSPI(Xt, Xb)        EMIT(XX2_form_gen(60, Xt, Xb, 137))
+// XVRSPIC — VSX vector round single to integer using current rounding mode
+#define XVRSPIC(Xt, Xb)       EMIT(XX2_form_gen(60, Xt, Xb, 171))
+// XVRSPIM — VSX vector round single to integer toward -infinity (floor)
+#define XVRSPIM(Xt, Xb)       EMIT(XX2_form_gen(60, Xt, Xb, 185))
+// XVRSPIP — VSX vector round single to integer toward +infinity (ceil)
+#define XVRSPIP(Xt, Xb)       EMIT(XX2_form_gen(60, Xt, Xb, 169))
+// XSRDPI — VSX scalar round double to integer nearest (ties to even)
+#define XSRDPI(Xt, Xb)        EMIT(XX2_form_gen(60, Xt, Xb, 73))
+// XSRDPIC — VSX scalar round double to integer using current rounding mode
+#define XSRDPIC(Xt, Xb)       EMIT(XX2_form_gen(60, Xt, Xb, 107))
+// XSRDPIM — VSX scalar round double to integer toward -infinity (floor)
+#define XSRDPIM(Xt, Xb)       EMIT(XX2_form_gen(60, Xt, Xb, 121))
+// XSRDPIP — VSX scalar round double to integer toward +infinity (ceil)
+#define XSRDPIP(Xt, Xb)       EMIT(XX2_form_gen(60, Xt, Xb, 105))
+// XSRDPIZ — VSX scalar round double to integer toward zero (truncation)
+#define XSRDPIZ(Xt, Xb)       EMIT(XX2_form_gen(60, Xt, Xb, 89))
 
 // XVABSDP — VSX vector absolute double
 #define XVABSDP(Xt, Xb)       EMIT(XX2_form_gen(60, Xt, Xb, 473))
