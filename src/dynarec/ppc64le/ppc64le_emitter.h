@@ -455,8 +455,14 @@
 
 // MD-form (64-bit rotate): OPCD(6) | RS(5) | RA(5) | sh[0:4](5) | mb/me(6) | XO(3) | sh[5](1) | Rc(1)
 // sh is 6 bits: sh[5] is bit 1, sh[0:4] is bits 11-15
+// MD form: the 6-bit mb/me field is stored with a scrambled bit order.
+// The hardware interprets it as b = mb[5] || mb[0:4], where mb[0] is at
+// Power bit 21 (C bit 10, the MSB of the 6-bit field in the instruction)
+// and mb[5] is at Power bit 26 (C bit 5, the LSB).
+// So to encode logical value 'mbe', we must place mbe[0:4] in the upper 5 bits
+// and mbe[5] in the lower bit: raw = ((mbe & 0x1F) << 1) | ((mbe >> 5) & 1)
 #define MD_form_gen(opcd, rs, ra, sh5, mbe, xo, rc) \
-    ((uint32_t)(opcd) << 26 | ((rs) & 0x1F) << 21 | ((ra) & 0x1F) << 16 | (((sh5) & 0x1F)) << 11 | (((mbe) & 0x3F)) << 5 | ((xo) & 0x7) << 2 | ((((sh5) >> 5) & 1)) << 1 | ((rc) & 1))
+    ((uint32_t)(opcd) << 26 | ((rs) & 0x1F) << 21 | ((ra) & 0x1F) << 16 | (((sh5) & 0x1F)) << 11 | ((((mbe) & 0x1F) << 1 | (((mbe) >> 5) & 1))) << 5 | ((xo) & 0x7) << 2 | ((((sh5) >> 5) & 1)) << 1 | ((rc) & 1))
 
 // RLDICL — rotate left doubleword immediate then clear left
 #define RLDICL(Ra, Rs, sh, mb)  EMIT(MD_form_gen(30, Rs, Ra, (sh) & 0x3F, (mb) & 0x3F, 0, 0))
@@ -470,8 +476,9 @@
 
 // MDS-form (doubleword rotate, variable shift amount in RB)
 // MDS form: OPCD[0:5] | RS[6:10] | RA[11:15] | RB[16:20] | mb[21:26] | XO[27:30] | Rc[31]
+// MDS form: same mb/me scrambling as MD form (6-bit field, b = mb[5]||mb[0:4])
 #define MDS_form_gen(opcd, rs, ra, rb, mbe, xo, rc) \
-    ((uint32_t)(opcd) << 26 | ((rs) & 0x1F) << 21 | ((ra) & 0x1F) << 16 | ((rb) & 0x1F) << 11 | (((mbe) & 0x3F)) << 5 | ((xo) & 0xF) << 1 | ((rc) & 1))
+    ((uint32_t)(opcd) << 26 | ((rs) & 0x1F) << 21 | ((ra) & 0x1F) << 16 | ((rb) & 0x1F) << 11 | ((((mbe) & 0x1F) << 1 | (((mbe) >> 5) & 1))) << 5 | ((xo) & 0xF) << 1 | ((rc) & 1))
 
 // RLDCL — rotate left doubleword then clear left (variable, Rb has rotate amount)
 #define RLDCL(Ra, Rs, Rb, mb)   EMIT(MDS_form_gen(30, Rs, Ra, Rb, (mb) & 0x3F, 8, 0))
