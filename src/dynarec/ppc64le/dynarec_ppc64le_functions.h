@@ -6,6 +6,16 @@
 // First VMX scratch register index
 #define SCRATCH0    24
 
+// Map cache index to VSX hardware register number.
+// XMM indices 0-15 → vs32-vs47 (VMX vr0-vr15), enabling VMX integer SIMD ops.
+// x87/MMX indices 16-23 → vs16-vs23 (FPR space, unchanged for scalar FP).
+// Scratch indices 24-31 → vs24-vs31 (FPR space, unchanged).
+#define VSXREG(idx)  ((idx) < 16 ? (idx) + 32 : (idx))
+
+// Extract VR register number for VMX integer instructions (5-bit, vr0-vr15).
+// Only valid for XMM cache indices 0-15.  vr0 = vs32, so VR number = cache index.
+#define VRREG(idx)   (idx)
+
 typedef struct x64emu_s x64emu_t;
 typedef struct dynarec_ppc64le_s dynarec_ppc64le_t;
 

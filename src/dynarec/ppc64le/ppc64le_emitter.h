@@ -694,16 +694,509 @@
 // Using opcode 61, xo = 5 for stxv
 #define STXV(Vrs, offset, Ra)  EMIT(DQ_form_gen(61, Vrs, Ra, offset, 5))
 
-// Indexed VMX load/store (X-form, opcode 31)
-// LXVX — load VSX vector indexed (POWER9)
-#define LXVX(Vrt, Ra, Rb)     EMIT(X_form_gen(31, Vrt, Ra, Rb, 268, 0))
-// STXVX — store VSX vector indexed (POWER9)
-#define STXVX(Vrs, Ra, Rb)    EMIT(X_form_gen(31, Vrs, Ra, Rb, 396, 0))
+// Indexed VMX load/store (XX1-form, opcode 31 — TX bit in bit 0)
+// LXVX — load VSX vector indexed (POWER9, supports vs0-vs63)
+#define LXVX(Vrt, Ra, Rb)     EMIT(XX1_form_gen(31, Vrt, Ra, Rb, 268))
+// STXVX — store VSX vector indexed (POWER9, supports vs0-vs63)
+#define STXVX(Vrs, Ra, Rb)    EMIT(XX1_form_gen(31, Vrs, Ra, Rb, 396))
 
 // LVX — load vector indexed (VMX, old-style 128-bit load)
 #define LVX(Vrt, Ra, Rb)      EMIT(X_form_gen(31, Vrt, Ra, Rb, 103, 0))
 // STVX — store vector indexed (VMX, old-style 128-bit store)
 #define STVX(Vrs, Ra, Rb)     EMIT(X_form_gen(31, Vrs, Ra, Rb, 231, 0))
+
+// ===========================================================================
+// VMX (Altivec) integer SIMD instructions — VX-form (opcode 4)
+// ===========================================================================
+// VX-form: OPCD(6) | VRT(5) | VRA(5) | VRB(5) | XO(11)
+// NOTE: These operate on VMX registers vr0-vr31. In our backend, the vmxcache
+// maps XMM/x87/MMX slots to VSX vs0-vs31 (which overlap with FPR f0-f31).
+// VMX vr0-vr31 are VSX vs32-vs63. Since our SSE cache uses vs0-vs31 (FPR space),
+// we generally use VSX instructions (XXLOR, etc.) for 128-bit ops.
+// However, VMX integer SIMD instructions (VADDUBM, VCMPEQUB, etc.) only work
+// on VMX regs (vr0-vr31 = vs32-vs63). To use them with our vs0-vs31 cache,
+// we need XXLOR to move data to/from vr scratch regs, or use the VSX equivalents
+// where available.
+//
+// For POWER9+, many packed integer ops are available via VSX instructions
+// that can operate on the full vs0-vs63 range. We prefer those.
+//
+// VX-form generator (all use primary opcode 4):
+#define VX_form_gen(vrt, vra, vrb, xo) \
+    ((uint32_t)(4) << 26 | ((vrt) & 0x1F) << 21 | ((vra) & 0x1F) << 16 | ((vrb) & 0x1F) << 11 | ((xo) & 0x7FF))
+
+// --- Integer Add ---
+// VADDUBM — vector add unsigned byte modulo: VRT = VRA + VRB (byte)
+#define VADDUBM(Vrt, Vra, Vrb)  EMIT(VX_form_gen(Vrt, Vra, Vrb, 0))
+// VADDUHM — vector add unsigned halfword modulo: VRT = VRA + VRB (halfword)
+#define VADDUHM(Vrt, Vra, Vrb)  EMIT(VX_form_gen(Vrt, Vra, Vrb, 64))
+// VADDUWM — vector add unsigned word modulo: VRT = VRA + VRB (word)
+#define VADDUWM(Vrt, Vra, Vrb)  EMIT(VX_form_gen(Vrt, Vra, Vrb, 128))
+// VADDUDM — vector add unsigned doubleword modulo: VRT = VRA + VRB (dword)
+#define VADDUDM(Vrt, Vra, Vrb)  EMIT(VX_form_gen(Vrt, Vra, Vrb, 192))
+
+// --- Integer Add Saturate ---
+// VADDSBS — vector add signed byte saturate
+#define VADDSBS(Vrt, Vra, Vrb)  EMIT(VX_form_gen(Vrt, Vra, Vrb, 768))
+// VADDSHS — vector add signed halfword saturate
+#define VADDSHS(Vrt, Vra, Vrb)  EMIT(VX_form_gen(Vrt, Vra, Vrb, 832))
+// VADDUBS — vector add unsigned byte saturate
+#define VADDUBS(Vrt, Vra, Vrb)  EMIT(VX_form_gen(Vrt, Vra, Vrb, 512))
+// VADDUHS — vector add unsigned halfword saturate
+#define VADDUHS(Vrt, Vra, Vrb)  EMIT(VX_form_gen(Vrt, Vra, Vrb, 576))
+
+// --- Integer Subtract ---
+// VSUBUBM — vector subtract unsigned byte modulo
+#define VSUBUBM(Vrt, Vra, Vrb)  EMIT(VX_form_gen(Vrt, Vra, Vrb, 1024))
+// VSUBUHM — vector subtract unsigned halfword modulo
+#define VSUBUHM(Vrt, Vra, Vrb)  EMIT(VX_form_gen(Vrt, Vra, Vrb, 1088))
+// VSUBUWM — vector subtract unsigned word modulo
+#define VSUBUWM(Vrt, Vra, Vrb)  EMIT(VX_form_gen(Vrt, Vra, Vrb, 1152))
+// VSUBUDM — vector subtract unsigned doubleword modulo
+#define VSUBUDM(Vrt, Vra, Vrb)  EMIT(VX_form_gen(Vrt, Vra, Vrb, 1216))
+
+// --- Integer Subtract Saturate ---
+// VSUBSBS — vector subtract signed byte saturate
+#define VSUBSBS(Vrt, Vra, Vrb)  EMIT(VX_form_gen(Vrt, Vra, Vrb, 1792))
+// VSUBSHS — vector subtract signed halfword saturate
+#define VSUBSHS(Vrt, Vra, Vrb)  EMIT(VX_form_gen(Vrt, Vra, Vrb, 1856))
+// VSUBUBS — vector subtract unsigned byte saturate
+#define VSUBUBS(Vrt, Vra, Vrb)  EMIT(VX_form_gen(Vrt, Vra, Vrb, 1536))
+// VSUBUHS — vector subtract unsigned halfword saturate
+#define VSUBUHS(Vrt, Vra, Vrb)  EMIT(VX_form_gen(Vrt, Vra, Vrb, 1600))
+
+// --- Integer Compare Equal ---
+// VCMPEQUB — vector compare equal unsigned byte (result is all-1s or all-0s per element)
+#define VCMPEQUB(Vrt, Vra, Vrb)  EMIT(VX_form_gen(Vrt, Vra, Vrb, 6))
+// VCMPEQUH — vector compare equal unsigned halfword
+#define VCMPEQUH(Vrt, Vra, Vrb)  EMIT(VX_form_gen(Vrt, Vra, Vrb, 70))
+// VCMPEQUW — vector compare equal unsigned word
+#define VCMPEQUW(Vrt, Vra, Vrb)  EMIT(VX_form_gen(Vrt, Vra, Vrb, 134))
+// VCMPEQUD — vector compare equal unsigned doubleword (POWER8)
+#define VCMPEQUD(Vrt, Vra, Vrb)  EMIT(VX_form_gen(Vrt, Vra, Vrb, 199))
+
+// --- Integer Compare Greater Than (signed) ---
+// VCMPGTSB — vector compare greater than signed byte
+#define VCMPGTSB(Vrt, Vra, Vrb)  EMIT(VX_form_gen(Vrt, Vra, Vrb, 774))
+// VCMPGTSH — vector compare greater than signed halfword
+#define VCMPGTSH(Vrt, Vra, Vrb)  EMIT(VX_form_gen(Vrt, Vra, Vrb, 838))
+// VCMPGTSW — vector compare greater than signed word
+#define VCMPGTSW(Vrt, Vra, Vrb)  EMIT(VX_form_gen(Vrt, Vra, Vrb, 902))
+// VCMPGTSD — vector compare greater than signed doubleword (POWER8)
+#define VCMPGTSD(Vrt, Vra, Vrb)  EMIT(VX_form_gen(Vrt, Vra, Vrb, 967))
+
+// --- Integer Compare Greater Than (unsigned) ---
+// VCMPGTUB — vector compare greater than unsigned byte
+#define VCMPGTUB(Vrt, Vra, Vrb)  EMIT(VX_form_gen(Vrt, Vra, Vrb, 518))
+// VCMPGTUH — vector compare greater than unsigned halfword
+#define VCMPGTUH(Vrt, Vra, Vrb)  EMIT(VX_form_gen(Vrt, Vra, Vrb, 582))
+// VCMPGTUW — vector compare greater than unsigned word
+#define VCMPGTUW(Vrt, Vra, Vrb)  EMIT(VX_form_gen(Vrt, Vra, Vrb, 646))
+
+// --- Integer Min/Max ---
+// VMINUB — vector minimum unsigned byte
+#define VMINUB(Vrt, Vra, Vrb)   EMIT(VX_form_gen(Vrt, Vra, Vrb, 514))
+// VMINUH — vector minimum unsigned halfword
+#define VMINUH(Vrt, Vra, Vrb)   EMIT(VX_form_gen(Vrt, Vra, Vrb, 578))
+// VMINSB — vector minimum signed byte
+#define VMINSB(Vrt, Vra, Vrb)   EMIT(VX_form_gen(Vrt, Vra, Vrb, 770))
+// VMINSH — vector minimum signed halfword
+#define VMINSH(Vrt, Vra, Vrb)   EMIT(VX_form_gen(Vrt, Vra, Vrb, 834))
+// VMINSW — vector minimum signed word
+#define VMINSW(Vrt, Vra, Vrb)   EMIT(VX_form_gen(Vrt, Vra, Vrb, 898))
+// VMINUW — vector minimum unsigned word
+#define VMINUW(Vrt, Vra, Vrb)   EMIT(VX_form_gen(Vrt, Vra, Vrb, 642))
+// VMINSD — vector minimum signed doubleword (POWER8)
+#define VMINSD(Vrt, Vra, Vrb)   EMIT(VX_form_gen(Vrt, Vra, Vrb, 962))
+// VMINUD — vector minimum unsigned doubleword (POWER8)
+#define VMINUD(Vrt, Vra, Vrb)   EMIT(VX_form_gen(Vrt, Vra, Vrb, 706))
+// VMAXUB — vector maximum unsigned byte
+#define VMAXUB(Vrt, Vra, Vrb)   EMIT(VX_form_gen(Vrt, Vra, Vrb, 2))
+// VMAXUH — vector maximum unsigned halfword
+#define VMAXUH(Vrt, Vra, Vrb)   EMIT(VX_form_gen(Vrt, Vra, Vrb, 66))
+// VMAXSB — vector maximum signed byte
+#define VMAXSB(Vrt, Vra, Vrb)   EMIT(VX_form_gen(Vrt, Vra, Vrb, 258))
+// VMAXSH — vector maximum signed halfword
+#define VMAXSH(Vrt, Vra, Vrb)   EMIT(VX_form_gen(Vrt, Vra, Vrb, 322))
+// VMAXSW — vector maximum signed word
+#define VMAXSW(Vrt, Vra, Vrb)   EMIT(VX_form_gen(Vrt, Vra, Vrb, 386))
+// VMAXUW — vector maximum unsigned word
+#define VMAXUW(Vrt, Vra, Vrb)   EMIT(VX_form_gen(Vrt, Vra, Vrb, 130))
+// VMAXSD — vector maximum signed doubleword (POWER8)
+#define VMAXSD(Vrt, Vra, Vrb)   EMIT(VX_form_gen(Vrt, Vra, Vrb, 450))
+// VMAXUD — vector maximum unsigned doubleword (POWER8)
+#define VMAXUD(Vrt, Vra, Vrb)   EMIT(VX_form_gen(Vrt, Vra, Vrb, 194))
+
+// --- Integer Multiply ---
+// VMULESB — vector multiply even signed byte (produces halfwords)
+#define VMULESB(Vrt, Vra, Vrb)  EMIT(VX_form_gen(Vrt, Vra, Vrb, 776))
+// VMULEUB — vector multiply even unsigned byte (produces halfwords)
+#define VMULEUB(Vrt, Vra, Vrb)  EMIT(VX_form_gen(Vrt, Vra, Vrb, 520))
+// VMULOSB — vector multiply odd signed byte (produces halfwords)
+#define VMULOSB(Vrt, Vra, Vrb)  EMIT(VX_form_gen(Vrt, Vra, Vrb, 264))
+// VMULOUB — vector multiply odd unsigned byte (produces halfwords)
+#define VMULOUB(Vrt, Vra, Vrb)  EMIT(VX_form_gen(Vrt, Vra, Vrb, 8))
+// VMULESH — vector multiply even signed halfword (produces words)
+#define VMULESH(Vrt, Vra, Vrb)  EMIT(VX_form_gen(Vrt, Vra, Vrb, 840))
+// VMULEUH — vector multiply even unsigned halfword (produces words)
+#define VMULEUH(Vrt, Vra, Vrb)  EMIT(VX_form_gen(Vrt, Vra, Vrb, 584))
+// VMULOSH — vector multiply odd signed halfword (produces words)
+#define VMULOSH(Vrt, Vra, Vrb)  EMIT(VX_form_gen(Vrt, Vra, Vrb, 328))
+// VMULOUH — vector multiply odd unsigned halfword (produces words)
+#define VMULOUH(Vrt, Vra, Vrb)  EMIT(VX_form_gen(Vrt, Vra, Vrb, 72))
+// VMULESW — vector multiply even signed word (produces doublewords, POWER8)
+#define VMULESW(Vrt, Vra, Vrb)  EMIT(VX_form_gen(Vrt, Vra, Vrb, 904))
+// VMULEUW — vector multiply even unsigned word (produces doublewords, POWER8)
+#define VMULEUW(Vrt, Vra, Vrb)  EMIT(VX_form_gen(Vrt, Vra, Vrb, 648))
+// VMULOSW — vector multiply odd signed word (produces doublewords, POWER8)
+#define VMULOSW(Vrt, Vra, Vrb)  EMIT(VX_form_gen(Vrt, Vra, Vrb, 392))
+// VMULOUW — vector multiply odd unsigned word (produces doublewords, POWER8)
+#define VMULOUW(Vrt, Vra, Vrb)  EMIT(VX_form_gen(Vrt, Vra, Vrb, 136))
+// VMULUWM — vector multiply unsigned word modulo (POWER8)
+#define VMULUWM(Vrt, Vra, Vrb)  EMIT(VX_form_gen(Vrt, Vra, Vrb, 137))
+
+// --- Pack ---
+// VPKUHUM — vector pack unsigned halfword unsigned modulo (halfwords->bytes)
+#define VPKUHUM(Vrt, Vra, Vrb)  EMIT(VX_form_gen(Vrt, Vra, Vrb, 14))
+// VPKUWUM — vector pack unsigned word unsigned modulo (words->halfwords)
+#define VPKUWUM(Vrt, Vra, Vrb)  EMIT(VX_form_gen(Vrt, Vra, Vrb, 78))
+// VPKSHSS — vector pack signed halfword signed saturate (halfwords->bytes)
+#define VPKSHSS(Vrt, Vra, Vrb)  EMIT(VX_form_gen(Vrt, Vra, Vrb, 398))
+// VPKSWSS — vector pack signed word signed saturate (words->halfwords)
+#define VPKSWSS(Vrt, Vra, Vrb)  EMIT(VX_form_gen(Vrt, Vra, Vrb, 462))
+// VPKSHUS — vector pack signed halfword unsigned saturate
+#define VPKSHUS(Vrt, Vra, Vrb)  EMIT(VX_form_gen(Vrt, Vra, Vrb, 270))
+// VPKSWUS — vector pack signed word unsigned saturate
+#define VPKSWUS(Vrt, Vra, Vrb)  EMIT(VX_form_gen(Vrt, Vra, Vrb, 334))
+// VPKSDSS — vector pack signed doubleword signed saturate (POWER8)
+#define VPKSDSS(Vrt, Vra, Vrb)  EMIT(VX_form_gen(Vrt, Vra, Vrb, 1486))
+// VPKSDUS — vector pack signed doubleword unsigned saturate (POWER8)
+#define VPKSDUS(Vrt, Vra, Vrb)  EMIT(VX_form_gen(Vrt, Vra, Vrb, 1358))
+// VPKUDUS — vector pack unsigned doubleword unsigned saturate (POWER8)
+#define VPKUDUS(Vrt, Vra, Vrb)  EMIT(VX_form_gen(Vrt, Vra, Vrb, 1102))
+// VPKUDUM — vector pack unsigned doubleword unsigned modulo (POWER8)
+#define VPKUDUM(Vrt, Vra, Vrb)  EMIT(VX_form_gen(Vrt, Vra, Vrb, 1102))
+
+// --- Unpack / Extend ---
+// VUPKHSB — vector unpack high signed byte (bytes->halfwords, upper 8 bytes)
+#define VUPKHSB(Vrt, Vrb)      EMIT(VX_form_gen(Vrt, 0, Vrb, 526))
+// VUPKHSH — vector unpack high signed halfword (halfwords->words)
+#define VUPKHSH(Vrt, Vrb)      EMIT(VX_form_gen(Vrt, 0, Vrb, 590))
+// VUPKHSW — vector unpack high signed word (words->doublewords, POWER8)
+#define VUPKHSW(Vrt, Vrb)      EMIT(VX_form_gen(Vrt, 0, Vrb, 1614))
+// VUPKLSB — vector unpack low signed byte (bytes->halfwords, lower 8 bytes)
+#define VUPKLSB(Vrt, Vrb)      EMIT(VX_form_gen(Vrt, 0, Vrb, 654))
+// VUPKLSH — vector unpack low signed halfword (halfwords->words)
+#define VUPKLSH(Vrt, Vrb)      EMIT(VX_form_gen(Vrt, 0, Vrb, 718))
+// VUPKLSW — vector unpack low signed word (words->doublewords, POWER8)
+#define VUPKLSW(Vrt, Vrb)      EMIT(VX_form_gen(Vrt, 0, Vrb, 1742))
+// VEXTSB2W — vector extend sign byte to word (POWER9)
+#define VEXTSB2W(Vrt, Vrb)     EMIT(VX_form_gen(Vrt, 16, Vrb, 1538))
+// VEXTSB2D — vector extend sign byte to doubleword (POWER9)
+#define VEXTSB2D(Vrt, Vrb)     EMIT(VX_form_gen(Vrt, 24, Vrb, 1538))
+// VEXTSH2W — vector extend sign halfword to word (POWER9)
+#define VEXTSH2W(Vrt, Vrb)     EMIT(VX_form_gen(Vrt, 17, Vrb, 1538))
+// VEXTSH2D — vector extend sign halfword to doubleword (POWER9)
+#define VEXTSH2D(Vrt, Vrb)     EMIT(VX_form_gen(Vrt, 25, Vrb, 1538))
+// VEXTSW2D — vector extend sign word to doubleword (POWER9)
+#define VEXTSW2D(Vrt, Vrb)     EMIT(VX_form_gen(Vrt, 26, Vrb, 1538))
+
+// --- Merge (Interleave) ---
+// VMRGHB — vector merge high byte (interleave upper 8 bytes)
+#define VMRGHB(Vrt, Vra, Vrb)  EMIT(VX_form_gen(Vrt, Vra, Vrb, 12))
+// VMRGHH — vector merge high halfword (interleave upper 4 halfwords)
+#define VMRGHH(Vrt, Vra, Vrb)  EMIT(VX_form_gen(Vrt, Vra, Vrb, 76))
+// VMRGHW — vector merge high word (interleave upper 2 words)
+#define VMRGHW(Vrt, Vra, Vrb)  EMIT(VX_form_gen(Vrt, Vra, Vrb, 140))
+// VMRGLB — vector merge low byte (interleave lower 8 bytes)
+#define VMRGLB(Vrt, Vra, Vrb)  EMIT(VX_form_gen(Vrt, Vra, Vrb, 268))
+// VMRGLH — vector merge low halfword (interleave lower 4 halfwords)
+#define VMRGLH(Vrt, Vra, Vrb)  EMIT(VX_form_gen(Vrt, Vra, Vrb, 332))
+// VMRGLW — vector merge low word (interleave lower 2 words)
+#define VMRGLW(Vrt, Vra, Vrb)  EMIT(VX_form_gen(Vrt, Vra, Vrb, 396))
+
+// --- Shift ---
+// VSLB — vector shift left byte
+#define VSLB(Vrt, Vra, Vrb)    EMIT(VX_form_gen(Vrt, Vra, Vrb, 260))
+// VSLH — vector shift left halfword
+#define VSLH(Vrt, Vra, Vrb)    EMIT(VX_form_gen(Vrt, Vra, Vrb, 324))
+// VSLW — vector shift left word
+#define VSLW(Vrt, Vra, Vrb)    EMIT(VX_form_gen(Vrt, Vra, Vrb, 388))
+// VSLD — vector shift left doubleword (POWER8)
+#define VSLD(Vrt, Vra, Vrb)    EMIT(VX_form_gen(Vrt, Vra, Vrb, 1476))
+// VSRB — vector shift right byte
+#define VSRB(Vrt, Vra, Vrb)    EMIT(VX_form_gen(Vrt, Vra, Vrb, 516))
+// VSRH — vector shift right halfword
+#define VSRH(Vrt, Vra, Vrb)    EMIT(VX_form_gen(Vrt, Vra, Vrb, 580))
+// VSRW — vector shift right word
+#define VSRW(Vrt, Vra, Vrb)    EMIT(VX_form_gen(Vrt, Vra, Vrb, 644))
+// VSRD — vector shift right doubleword (POWER8)
+#define VSRD(Vrt, Vra, Vrb)    EMIT(VX_form_gen(Vrt, Vra, Vrb, 1732))
+// VSRAB — vector shift right algebraic byte
+#define VSRAB(Vrt, Vra, Vrb)   EMIT(VX_form_gen(Vrt, Vra, Vrb, 772))
+// VSRAH — vector shift right algebraic halfword
+#define VSRAH(Vrt, Vra, Vrb)   EMIT(VX_form_gen(Vrt, Vra, Vrb, 836))
+// VSRAW — vector shift right algebraic word
+#define VSRAW(Vrt, Vra, Vrb)   EMIT(VX_form_gen(Vrt, Vra, Vrb, 900))
+// VSRAD — vector shift right algebraic doubleword (POWER8)
+#define VSRAD(Vrt, Vra, Vrb)   EMIT(VX_form_gen(Vrt, Vra, Vrb, 964))
+
+// VSL — vector shift left (128-bit, by count in VRB bits 121:124)
+#define VSL(Vrt, Vra, Vrb)     EMIT(VX_form_gen(Vrt, Vra, Vrb, 452))
+// VSR — vector shift right (128-bit, by count in VRB bits 121:124)
+#define VSR(Vrt, Vra, Vrb)     EMIT(VX_form_gen(Vrt, Vra, Vrb, 708))
+// VSLO — vector shift left by octet (byte shift)
+#define VSLO(Vrt, Vra, Vrb)    EMIT(VX_form_gen(Vrt, Vra, Vrb, 1036))
+// VSRO — vector shift right by octet (byte shift)
+#define VSRO(Vrt, Vra, Vrb)    EMIT(VX_form_gen(Vrt, Vra, Vrb, 1100))
+
+// --- Splat ---
+// VSPLTB — vector splat byte: replicate byte VRB[UIMM] to all 16 bytes
+#define VSPLTB(Vrt, Vrb, uimm)  EMIT(VX_form_gen(Vrt, (uimm) & 0xF, Vrb, 524))
+// VSPLTH — vector splat halfword: replicate halfword VRB[UIMM] to all 8 halfwords
+#define VSPLTH(Vrt, Vrb, uimm)  EMIT(VX_form_gen(Vrt, (uimm) & 0x7, Vrb, 588))
+// VSPLTW — vector splat word: replicate word VRB[UIMM] to all 4 words
+#define VSPLTW(Vrt, Vrb, uimm)  EMIT(VX_form_gen(Vrt, (uimm) & 0x3, Vrb, 652))
+// VSPLTISB — vector splat immediate signed byte: all 16 bytes = sign-extend(SIMM)
+#define VSPLTISB(Vrt, simm)     EMIT(VX_form_gen(Vrt, (simm) & 0x1F, 0, 780))
+// VSPLTISH — vector splat immediate signed halfword
+#define VSPLTISH(Vrt, simm)     EMIT(VX_form_gen(Vrt, (simm) & 0x1F, 0, 844))
+// VSPLTISW — vector splat immediate signed word
+#define VSPLTISW(Vrt, simm)     EMIT(VX_form_gen(Vrt, (simm) & 0x1F, 0, 908))
+
+// --- Permute (VA-form, opcode 4) ---
+// VPERM — vector permute: VRT[i] = (VRA||VRB)[VRC[i] & 0x1F]
+#define VPERM(Vrt, Vra, Vrb, Vrc)  EMIT(VA_form_gen(4, Vrt, Vra, Vrb, Vrc, 43))
+
+// VSLDOI — vector shift left double by octet immediate (VA-form)
+// VRT = (VRA || VRB) << (SHB*8), take upper 128 bits
+#define VSLDOI(Vrt, Vra, Vrb, shb)  EMIT(VA_form_gen(4, Vrt, Vra, Vrb, (shb) & 0xF, 44))
+
+// --- Logical (VMX — use XXLAND/XXLOR/XXLXOR for VSX range instead) ---
+// VAND — vector AND
+#define VAND(Vrt, Vra, Vrb)    EMIT(VX_form_gen(Vrt, Vra, Vrb, 1028))
+// VOR — vector OR
+#define VOR(Vrt, Vra, Vrb)     EMIT(VX_form_gen(Vrt, Vra, Vrb, 1156))
+// VXOR — vector XOR
+#define VXOR(Vrt, Vra, Vrb)    EMIT(VX_form_gen(Vrt, Vra, Vrb, 1220))
+// VNOR — vector NOR
+#define VNOR(Vrt, Vra, Vrb)    EMIT(VX_form_gen(Vrt, Vra, Vrb, 1284))
+// VANDC — vector AND with complement: VRT = VRA & ~VRB
+#define VANDC(Vrt, Vra, Vrb)   EMIT(VX_form_gen(Vrt, Vra, Vrb, 1092))
+// VORC — vector OR with complement (POWER8): VRT = VRA | ~VRB
+#define VORC(Vrt, Vra, Vrb)    EMIT(VX_form_gen(Vrt, Vra, Vrb, 1348))
+// VNAND — vector NAND (POWER8)
+#define VNAND(Vrt, Vra, Vrb)   EMIT(VX_form_gen(Vrt, Vra, Vrb, 1412))
+// VEQV — vector equivalence / XNOR (POWER8)
+#define VEQV(Vrt, Vra, Vrb)    EMIT(VX_form_gen(Vrt, Vra, Vrb, 1668))
+
+// --- Absolute Value ---
+// VABSDUB — vector absolute difference unsigned byte (POWER9)
+#define VABSDUB(Vrt, Vra, Vrb)  EMIT(VX_form_gen(Vrt, Vra, Vrb, 1027))
+// VABSDUH — vector absolute difference unsigned halfword (POWER9)
+#define VABSDUH(Vrt, Vra, Vrb)  EMIT(VX_form_gen(Vrt, Vra, Vrb, 1091))
+// VABSDUW — vector absolute difference unsigned word (POWER9)
+#define VABSDUW(Vrt, Vra, Vrb)  EMIT(VX_form_gen(Vrt, Vra, Vrb, 1155))
+
+// --- Average ---
+// VAVGUB — vector average unsigned byte
+#define VAVGUB(Vrt, Vra, Vrb)  EMIT(VX_form_gen(Vrt, Vra, Vrb, 1026))
+// VAVGUH — vector average unsigned halfword
+#define VAVGUH(Vrt, Vra, Vrb)  EMIT(VX_form_gen(Vrt, Vra, Vrb, 1090))
+// VAVGSB — vector average signed byte
+#define VAVGSB(Vrt, Vra, Vrb)  EMIT(VX_form_gen(Vrt, Vra, Vrb, 1282))
+// VAVGSH — vector average signed halfword
+#define VAVGSH(Vrt, Vra, Vrb)  EMIT(VX_form_gen(Vrt, Vra, Vrb, 1346))
+
+// --- Sum Across ---
+// VSUM4UBS — vector sum across partial (unsigned byte)
+#define VSUM4UBS(Vrt, Vra, Vrb) EMIT(VX_form_gen(Vrt, Vra, Vrb, 1672))
+// VSUM4SBS — vector sum across partial (signed byte)
+#define VSUM4SBS(Vrt, Vra, Vrb) EMIT(VX_form_gen(Vrt, Vra, Vrb, 1800))
+// VSUM4SHS — vector sum across partial (signed halfword)
+#define VSUM4SHS(Vrt, Vra, Vrb) EMIT(VX_form_gen(Vrt, Vra, Vrb, 1608))
+
+// --- Multiply-Add/Sum (VA-form) ---
+// VMSUMUBM — vector multiply-sum unsigned byte modulo
+#define VMSUMUBM(Vrt, Vra, Vrb, Vrc) EMIT(VA_form_gen(4, Vrt, Vra, Vrb, Vrc, 36))
+// VMSUMUHM — vector multiply-sum unsigned halfword modulo
+#define VMSUMUHM(Vrt, Vra, Vrb, Vrc) EMIT(VA_form_gen(4, Vrt, Vra, Vrb, Vrc, 38))
+// VMSUMSHS — vector multiply-sum signed halfword saturate
+#define VMSUMSHS(Vrt, Vra, Vrb, Vrc) EMIT(VA_form_gen(4, Vrt, Vra, Vrb, Vrc, 41))
+// VMSUMMBM — vector multiply-sum mixed-sign byte modulo
+#define VMSUMMBM(Vrt, Vra, Vrb, Vrc) EMIT(VA_form_gen(4, Vrt, Vra, Vrb, Vrc, 37))
+// VMHADDSHS — vector multiply-high-add signed halfword saturate
+#define VMHADDSHS(Vrt, Vra, Vrb, Vrc) EMIT(VA_form_gen(4, Vrt, Vra, Vrb, Vrc, 32))
+// VMHRADDSHS — vector multiply-high-round-add signed halfword saturate
+#define VMHRADDSHS(Vrt, Vra, Vrb, Vrc) EMIT(VA_form_gen(4, Vrt, Vra, Vrb, Vrc, 33))
+// VMLADDUHM — vector multiply-low-add unsigned halfword modulo
+#define VMLADDUHM(Vrt, Vra, Vrb, Vrc) EMIT(VA_form_gen(4, Vrt, Vra, Vrb, Vrc, 34))
+
+// --- Bit Select (VA-form) ---
+// VSEL — vector select: VRT = (VRA & ~VRC) | (VRB & VRC)
+#define VSEL(Vrt, Vra, Vrb, Vrc) EMIT(VA_form_gen(4, Vrt, Vra, Vrb, Vrc, 42))
+
+// --- Count Leading Zeros ---
+// VCLZB — vector count leading zeros byte (POWER8)
+#define VCLZB(Vrt, Vrb)        EMIT(VX_form_gen(Vrt, 0, Vrb, 1794))
+// VCLZH — vector count leading zeros halfword (POWER8)
+#define VCLZH(Vrt, Vrb)        EMIT(VX_form_gen(Vrt, 0, Vrb, 1858))
+// VCLZW — vector count leading zeros word (POWER8)
+#define VCLZW(Vrt, Vrb)        EMIT(VX_form_gen(Vrt, 0, Vrb, 1922))
+// VCLZD — vector count leading zeros doubleword (POWER8)
+#define VCLZD(Vrt, Vrb)        EMIT(VX_form_gen(Vrt, 0, Vrb, 1986))
+
+// --- Population Count ---
+// VPOPCNTB — vector population count byte (POWER8)
+#define VPOPCNTB(Vrt, Vrb)     EMIT(VX_form_gen(Vrt, 0, Vrb, 1795))
+// VPOPCNTH — vector population count halfword (POWER8)
+#define VPOPCNTH(Vrt, Vrb)     EMIT(VX_form_gen(Vrt, 0, Vrb, 1859))
+// VPOPCNTW — vector population count word (POWER8)
+#define VPOPCNTW(Vrt, Vrb)     EMIT(VX_form_gen(Vrt, 0, Vrb, 1923))
+// VPOPCNTD — vector population count doubleword (POWER8)
+#define VPOPCNTD(Vrt, Vrb)     EMIT(VX_form_gen(Vrt, 0, Vrb, 1987))
+
+// --- Rotate ---
+// VRLB — vector rotate left byte
+#define VRLB(Vrt, Vra, Vrb)    EMIT(VX_form_gen(Vrt, Vra, Vrb, 4))
+// VRLH — vector rotate left halfword
+#define VRLH(Vrt, Vra, Vrb)    EMIT(VX_form_gen(Vrt, Vra, Vrb, 68))
+// VRLW — vector rotate left word
+#define VRLW(Vrt, Vra, Vrb)    EMIT(VX_form_gen(Vrt, Vra, Vrb, 132))
+// VRLD — vector rotate left doubleword (POWER8)
+#define VRLD(Vrt, Vra, Vrb)    EMIT(VX_form_gen(Vrt, Vra, Vrb, 196))
+
+// --- Negative Multiply-Add (POWER9) ---
+// VNEGW — vector negate word (POWER9)
+#define VNEGW(Vrt, Vrb)        EMIT(VX_form_gen(Vrt, 6, Vrb, 1538))
+// VNEGD — vector negate doubleword (POWER9)
+#define VNEGD(Vrt, Vrb)        EMIT(VX_form_gen(Vrt, 7, Vrb, 1538))
+
+// --- Byte Reverse ---
+// XXBRW — VSX vector byte-reverse word (POWER9, XX2-form)
+#define XXBRW(Xt, Xb)         EMIT(XX2_form_gen(60, Xt, Xb, 475))
+// XXBRD — VSX vector byte-reverse doubleword (POWER9, XX2-form)
+#define XXBRD(Xt, Xb)         EMIT(XX2_form_gen(60, Xt, Xb, 503))
+// XXBRQ — VSX vector byte-reverse quadword (POWER9, XX2-form)
+#define XXBRQ(Xt, Xb)         EMIT(XX2_form_gen(60, Xt, Xb, 507))
+// XXBRH — VSX vector byte-reverse halfword (POWER9, XX2-form)
+#define XXBRH(Xt, Xb)         EMIT(XX2_form_gen(60, Xt, Xb, 471))
+
+// --- VSX Vector FP Arithmetic (XX3-form, opcode 60) ---
+// XVADDDP — vector add double-precision
+#define XVADDDP(Xt, Xa, Xb)   EMIT(XX3_form_gen(60, Xt, Xa, Xb, 96))
+// XVSUBDP — vector subtract double-precision
+#define XVSUBDP(Xt, Xa, Xb)   EMIT(XX3_form_gen(60, Xt, Xa, Xb, 104))
+// XVMULDP — vector multiply double-precision
+#define XVMULDP(Xt, Xa, Xb)   EMIT(XX3_form_gen(60, Xt, Xa, Xb, 112))
+// XVDIVDP — vector divide double-precision
+#define XVDIVDP(Xt, Xa, Xb)   EMIT(XX3_form_gen(60, Xt, Xa, Xb, 120))
+// XVSQRTDP — vector square root double-precision (XX2-form)
+#define XVSQRTDP(Xt, Xb)      EMIT(XX2_form_gen(60, Xt, Xb, 460))
+// XVMINDP — vector minimum double-precision
+#define XVMINDP(Xt, Xa, Xb)   EMIT(XX3_form_gen(60, Xt, Xa, Xb, 232))
+// XVMAXDP — vector maximum double-precision
+#define XVMAXDP(Xt, Xa, Xb)   EMIT(XX3_form_gen(60, Xt, Xa, Xb, 224))
+
+// XVADDSP — vector add single-precision
+#define XVADDSP(Xt, Xa, Xb)   EMIT(XX3_form_gen(60, Xt, Xa, Xb, 64))
+// XVSUBSP — vector subtract single-precision
+#define XVSUBSP(Xt, Xa, Xb)   EMIT(XX3_form_gen(60, Xt, Xa, Xb, 72))
+// XVMULSP — vector multiply single-precision
+#define XVMULSP(Xt, Xa, Xb)   EMIT(XX3_form_gen(60, Xt, Xa, Xb, 80))
+// XVDIVSP — vector divide single-precision
+#define XVDIVSP(Xt, Xa, Xb)   EMIT(XX3_form_gen(60, Xt, Xa, Xb, 88))
+// XVSQRTSP — vector square root single-precision (XX2-form)
+#define XVSQRTSP(Xt, Xb)      EMIT(XX2_form_gen(60, Xt, Xb, 140))
+
+// --- VSX Scalar FP Arithmetic (XX3-form, opcode 60) ---
+// XSADDDP — scalar add double-precision
+#define XSADDDP(Xt, Xa, Xb)   EMIT(XX3_form_gen(60, Xt, Xa, Xb, 32))
+// XSSUBDP — scalar subtract double-precision
+#define XSSUBDP(Xt, Xa, Xb)   EMIT(XX3_form_gen(60, Xt, Xa, Xb, 40))
+// XSMULDP — scalar multiply double-precision
+#define XSMULDP(Xt, Xa, Xb)   EMIT(XX3_form_gen(60, Xt, Xa, Xb, 48))
+// XSDIVDP — scalar divide double-precision
+#define XSDIVDP(Xt, Xa, Xb)   EMIT(XX3_form_gen(60, Xt, Xa, Xb, 56))
+// XSSQRTDP — scalar square root double-precision (XX2-form)
+#define XSSQRTDP(Xt, Xb)      EMIT(XX2_form_gen(60, Xt, Xb, 204))
+// XSMINDP — scalar minimum double-precision
+#define XSMINDP(Xt, Xa, Xb)   EMIT(XX3_form_gen(60, Xt, Xa, Xb, 168))
+// XSMAXDP — scalar maximum double-precision
+#define XSMAXDP(Xt, Xa, Xb)   EMIT(XX3_form_gen(60, Xt, Xa, Xb, 160))
+
+// --- VSX Vector FP Compare (XX3-form) ---
+// XVCMPEQDP — vector compare equal double-precision
+#define XVCMPEQDP(Xt, Xa, Xb)  EMIT(XX3_form_gen(60, Xt, Xa, Xb, 99))
+// XVCMPGEDP — vector compare greater-or-equal double-precision
+#define XVCMPGEDP(Xt, Xa, Xb)  EMIT(XX3_form_gen(60, Xt, Xa, Xb, 115))
+// XVCMPGTDP — vector compare greater-than double-precision
+#define XVCMPGTDP(Xt, Xa, Xb)  EMIT(XX3_form_gen(60, Xt, Xa, Xb, 107))
+// XVCMPEQSP — vector compare equal single-precision
+#define XVCMPEQSP(Xt, Xa, Xb)  EMIT(XX3_form_gen(60, Xt, Xa, Xb, 67))
+// XVCMPGESP — vector compare greater-or-equal single-precision
+#define XVCMPGESP(Xt, Xa, Xb)  EMIT(XX3_form_gen(60, Xt, Xa, Xb, 83))
+// XVCMPGTSP — vector compare greater-than single-precision
+#define XVCMPGTSP(Xt, Xa, Xb)  EMIT(XX3_form_gen(60, Xt, Xa, Xb, 75))
+
+// --- Move to/from VSR (POWER8, X-form with TX/SX bit, opcode 31) ---
+// XX1-form: like X-form but bit 0 is TX (bit 5 of 6-bit VSX register) instead of Rc
+#define XX1_form_gen(opcd, rt6, ra, rb, xo) \
+    ((uint32_t)(opcd) << 26 | (((rt6) & 0x1F)) << 21 | ((ra) & 0x1F) << 16 | ((rb) & 0x1F) << 11 | ((xo) & 0x3FF) << 1 | (((rt6) >> 5) & 1))
+// MFVSRD — move from VSR doubleword to GPR (supports vs0-vs63)
+#define MFVSRD(Ra, Xs)         EMIT(XX1_form_gen(31, Xs, Ra, 0, 51))
+// MTVSRD — move to VSR doubleword from GPR (supports vs0-vs63)
+#define MTVSRD(Xt, Ra)         EMIT(XX1_form_gen(31, Xt, Ra, 0, 179))
+// MFVSRWZ — move from VSR word (zero-extended) to GPR (supports vs0-vs63)
+#define MFVSRWZ(Ra, Xs)        EMIT(XX1_form_gen(31, Xs, Ra, 0, 115))
+// MTVSRWZ — move to VSR word (zero-extended) from GPR (supports vs0-vs63)
+#define MTVSRWZ(Xt, Ra)        EMIT(XX1_form_gen(31, Xt, Ra, 0, 243))
+// MTVSRDD — move to VSR double doubleword from 2 GPRs (POWER9, supports vs0-vs63)
+// Xt = (RA || RB), 128 bits
+#define MTVSRDD(Xt, Ra, Rb)    EMIT(XX1_form_gen(31, Xt, Ra, Rb, 435))
+// MFVSRLD — move from VSR lower doubleword to GPR (POWER9, supports vs0-vs63)
+#define MFVSRLD(Ra, Xs)        EMIT(XX1_form_gen(31, Xs, Ra, 0, 307))
+
+// --- VSX Select (XX4-form) ---
+// XX4-form: OPCD(6) | T(5) | A(5) | B(5) | C(5) | XO(2) | CX(1) | AX(1) | BX(1) | TX(1)
+#define XX4_form_gen(opcd, t, a, b, c, xo) \
+    ((uint32_t)(opcd) << 26 | (((t) & 0x1F)) << 21 | (((a) & 0x1F)) << 16 | (((b) & 0x1F)) << 11 | (((c) & 0x1F)) << 6 | ((xo) & 0x3) << 4 | ((((c) >> 5) & 1)) << 3 | ((((a) >> 5) & 1)) << 2 | ((((b) >> 5) & 1)) << 1 | ((((t) >> 5) & 1)))
+// XXSEL — VSX select: XT = (XA & ~XC) | (XB & XC)
+#define XXSEL(Xt, Xa, Xb, Xc)  EMIT(XX4_form_gen(60, Xt, Xa, Xb, Xc, 3))
+
+// --- Vector Extract / Insert (POWER9, VX-form) ---
+// VEXTRACTUB — vector extract unsigned byte to VSR
+#define VEXTRACTUB(Vrt, Vrb, uimm) EMIT(VX_form_gen(Vrt, (uimm) & 0xF, Vrb, 525))
+// VEXTRACTUH — vector extract unsigned halfword to VSR
+#define VEXTRACTUH(Vrt, Vrb, uimm) EMIT(VX_form_gen(Vrt, (uimm) & 0xF, Vrb, 589))
+// VEXTRACTUW — vector extract unsigned word to VSR
+#define VEXTRACTUW(Vrt, Vrb, uimm) EMIT(VX_form_gen(Vrt, (uimm) & 0xF, Vrb, 653))
+// VEXTRACTD — vector extract doubleword to VSR
+#define VEXTRACTD(Vrt, Vrb, uimm)  EMIT(VX_form_gen(Vrt, (uimm) & 0x1, Vrb, 717))
+// VINSERTB — vector insert byte from VSR
+#define VINSERTB(Vrt, Vrb, uimm)   EMIT(VX_form_gen(Vrt, (uimm) & 0xF, Vrb, 781))
+// VINSERTH — vector insert halfword from VSR
+#define VINSERTH(Vrt, Vrb, uimm)   EMIT(VX_form_gen(Vrt, (uimm) & 0xF, Vrb, 845))
+// VINSERTW — vector insert word from VSR
+#define VINSERTW(Vrt, Vrb, uimm)   EMIT(VX_form_gen(Vrt, (uimm) & 0xF, Vrb, 909))
+// VINSERTD — vector insert doubleword from VSR
+#define VINSERTD(Vrt, Vrb, uimm)   EMIT(VX_form_gen(Vrt, (uimm) & 0x1, Vrb, 973))
+
+// --- Vector Convert (VX-form) ---
+// VCFSX — vector convert from signed fixed-point word (to SP float)
+#define VCFSX(Vrt, Vrb, uimm)  EMIT(VX_form_gen(Vrt, (uimm) & 0x1F, Vrb, 842))
+// VCFUX — vector convert from unsigned fixed-point word (to SP float)
+#define VCFUX(Vrt, Vrb, uimm)  EMIT(VX_form_gen(Vrt, (uimm) & 0x1F, Vrb, 778))
+// VCTSXS — vector convert to signed fixed-point word saturate (from SP float)
+#define VCTSXS(Vrt, Vrb, uimm) EMIT(VX_form_gen(Vrt, (uimm) & 0x1F, Vrb, 970))
+// VCTUXS — vector convert to unsigned fixed-point word saturate (from SP float)
+#define VCTUXS(Vrt, Vrb, uimm) EMIT(VX_form_gen(Vrt, (uimm) & 0x1F, Vrb, 906))
+
+// --- MOVD/MOVQ helpers ---
+// XXSPLTW — VSX splat word: replicate word XB[UIM2] to all 4 words (XX2-form)
+// UIM2 is encoded in bits 16-17
+#define XXSPLTW(Xt, Xb, uim2) \
+    EMIT(XX2_form_gen(60, Xt, Xb, (((uim2) & 0x3) << 7) | 40))
 
 // ===========================================================================
 // Trap / debug

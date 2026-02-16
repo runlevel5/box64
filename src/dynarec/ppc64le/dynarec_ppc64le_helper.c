@@ -1532,7 +1532,7 @@ int sse_get_reg(dynarec_ppc64le_t* dyn, int ninst, int s1, int a, int forwrite)
     dyn->v.ssecache[a].reg = fpu_get_reg_xmm(dyn, forwrite ? VMX_CACHE_XMMW : VMX_CACHE_XMMR, a);
     int ret = dyn->v.ssecache[a].reg;
     dyn->v.ssecache[a].write = forwrite;
-    if(need_vld) LXV(ret, offsetof(x64emu_t, xmm[a]), xEmu); //skip load if migrate from avx
+    if(need_vld) LXV(VSXREG(ret), offsetof(x64emu_t, xmm[a]), xEmu); //skip load if migrate from avx
     return ret;
 }
 
@@ -1562,7 +1562,7 @@ void sse_forget_reg(dynarec_ppc64le_t* dyn, int ninst, int a)
     if (dyn->v.ssecache[a].v == -1)
         return;
     if (dyn->v.vmxcache[dyn->v.ssecache[a].reg].t == VMX_CACHE_XMMW) {
-        STXV(dyn->v.ssecache[a].reg, offsetof(x64emu_t, xmm[a]), xEmu);
+        STXV(VSXREG(dyn->v.ssecache[a].reg), offsetof(x64emu_t, xmm[a]), xEmu);
     }
     fpu_free_reg(dyn, dyn->v.ssecache[a].reg);
     dyn->v.ssecache[a].v = -1;
@@ -1575,7 +1575,7 @@ void sse_reflect_reg(dynarec_ppc64le_t* dyn, int ninst, int a)
     if (dyn->v.ssecache[a].v == -1)
         return;
     if (dyn->v.vmxcache[dyn->v.ssecache[a].reg].t == VMX_CACHE_XMMW) {
-        STXV(dyn->v.ssecache[a].reg, offsetof(x64emu_t, xmm[a]), xEmu);
+        STXV(VSXREG(dyn->v.ssecache[a].reg), offsetof(x64emu_t, xmm[a]), xEmu);
     }
 }
 
@@ -1591,7 +1591,7 @@ void sse_purge07cache(dynarec_ppc64le_t* dyn, int ninst, int s1)
             }
             dyn->v.xmm_used |= 1 << i;
             if (dyn->v.vmxcache[dyn->v.avxcache[i].reg].t == VMX_CACHE_YMMW) {
-                STXV(dyn->v.avxcache[i].reg, offsetof(x64emu_t, xmm[i]), xEmu);
+                STXV(VSXREG(dyn->v.avxcache[i].reg), offsetof(x64emu_t, xmm[i]), xEmu);
                 if(dyn->v.avxcache[i].zero_upper == 1){
                     XXLXOR(SCRATCH, SCRATCH, SCRATCH);
                 } else {
@@ -1601,7 +1601,7 @@ void sse_purge07cache(dynarec_ppc64le_t* dyn, int ninst, int s1)
                 fpu_free_reg(dyn, dyn->v.avxcache[i].reg);
                 dyn->v.avxcache[i].v = -1;
             } else if (dyn->v.vmxcache[dyn->v.ssecache[i].reg].t == VMX_CACHE_XMMW) {
-                STXV(dyn->v.ssecache[i].reg, offsetof(x64emu_t, xmm[i]), xEmu);
+                STXV(VSXREG(dyn->v.ssecache[i].reg), offsetof(x64emu_t, xmm[i]), xEmu);
                 fpu_free_reg(dyn, dyn->v.ssecache[i].reg);
                 dyn->v.ssecache[i].v = -1;
             }
@@ -1623,7 +1623,7 @@ static void sse_purgecache(dynarec_ppc64le_t* dyn, int ninst, int next, int s1)
                     MESSAGE(LOG_DUMP, "\tPurge %sSSE Cache ------\n", next ? "locally " : "");
                     ++old;
                 }
-                STXV(dyn->v.ssecache[i].reg, offsetof(x64emu_t, xmm[i]), xEmu);
+                STXV(VSXREG(dyn->v.ssecache[i].reg), offsetof(x64emu_t, xmm[i]), xEmu);
             }
             if (!next) {
                 fpu_free_reg(dyn, dyn->v.ssecache[i].reg);
@@ -1641,7 +1641,7 @@ static void sse_reflectcache(dynarec_ppc64le_t* dyn, int ninst, int s1)
         if (dyn->v.ssecache[i].v != -1) {
             dyn->v.xmm_used |= 1 << i;
             if (dyn->v.ssecache[i].write) {
-                STXV(dyn->v.ssecache[i].reg, offsetof(x64emu_t, xmm[i]), xEmu);
+                STXV(VSXREG(dyn->v.ssecache[i].reg), offsetof(x64emu_t, xmm[i]), xEmu);
             }
         }
 }
@@ -1688,10 +1688,10 @@ int avx_get_reg(dynarec_ppc64le_t* dyn, int ninst, int s1, int a, int forwrite, 
     dyn->v.avxcache[a].width = width;
     if (width == VMX_AVX_WIDTH_128) {
         if(forwrite) dyn->v.avxcache[a].zero_upper = 1;
-        LXV(ret, offsetof(x64emu_t, xmm[a]), xEmu);
+        LXV(VSXREG(ret), offsetof(x64emu_t, xmm[a]), xEmu);
     } else {
         // load lower 128 from xmm[a]
-        LXV(ret, offsetof(x64emu_t, xmm[a]), xEmu);
+        LXV(VSXREG(ret), offsetof(x64emu_t, xmm[a]), xEmu);
         // upper 128 stays in ymm[a] memory — nothing to load into register
         dyn->v.avxcache[a].zero_upper = 0;
     }
@@ -1756,7 +1756,7 @@ void avx_forget_reg(dynarec_ppc64le_t* dyn, int ninst, int a)
     if (dyn->v.avxcache[a].v == -1)
         return;
     if (dyn->v.vmxcache[dyn->v.avxcache[a].reg].t == VMX_CACHE_YMMW) {
-        STXV(dyn->v.avxcache[a].reg, offsetof(x64emu_t, xmm[a]), xEmu);
+        STXV(VSXREG(dyn->v.avxcache[a].reg), offsetof(x64emu_t, xmm[a]), xEmu);
         if (dyn->v.avxcache[a].zero_upper == 1) {
             XXLXOR(SCRATCH, SCRATCH, SCRATCH);
         }
@@ -1776,7 +1776,7 @@ void avx_reflect_reg(dynarec_ppc64le_t* dyn, int ninst, int a)
     if (dyn->v.avxcache[a].v == -1)
         return;
     if (dyn->v.vmxcache[dyn->v.avxcache[a].reg].t == VMX_CACHE_YMMW) {
-        STXV(dyn->v.avxcache[a].reg, offsetof(x64emu_t, xmm[a]), xEmu);
+        STXV(VSXREG(dyn->v.avxcache[a].reg), offsetof(x64emu_t, xmm[a]), xEmu);
         if (dyn->v.avxcache[a].zero_upper == 1) {
             XXLXOR(SCRATCH, SCRATCH, SCRATCH);
             STXV(SCRATCH, offsetof(x64emu_t, ymm[a]), xEmu);
@@ -1799,7 +1799,7 @@ static void avx_purgecache(dynarec_ppc64le_t* dyn, int ninst, int next, int s1)
                     ++old;
                 }
                 if (dyn->v.vmxcache[dyn->v.avxcache[i].reg].t == VMX_CACHE_YMMW) {
-                    STXV(dyn->v.avxcache[i].reg, offsetof(x64emu_t, xmm[i]), xEmu);
+                    STXV(VSXREG(dyn->v.avxcache[i].reg), offsetof(x64emu_t, xmm[i]), xEmu);
                     if (dyn->v.avxcache[i].zero_upper == 1) {
                         XXLXOR(SCRATCH, SCRATCH, SCRATCH);
                     }
@@ -1849,10 +1849,10 @@ void fpu_pushcache(dynarec_ppc64le_t* dyn, int ninst, int s1, int not07)
         MESSAGE(LOG_DUMP, "\tPush XMM/YMM Cache (%d)------\n", n);
         for (int i = start; i < 16; ++i) {
             if ((dyn->v.ssecache[i].v != -1) && (dyn->v.ssecache[i].write)) {
-                STXV(dyn->v.ssecache[i].reg, offsetof(x64emu_t, xmm[i]), xEmu);
+                STXV(VSXREG(dyn->v.ssecache[i].reg), offsetof(x64emu_t, xmm[i]), xEmu);
             }
             if ((dyn->v.avxcache[i].v != -1) && (dyn->v.avxcache[i].write)) {
-                STXV(dyn->v.avxcache[i].reg, offsetof(x64emu_t, xmm[i]), xEmu);
+                STXV(VSXREG(dyn->v.avxcache[i].reg), offsetof(x64emu_t, xmm[i]), xEmu);
                 // upper 128: if zero_upper==0, it's already in ymm[] memory; nothing to do
                 // if zero_upper==1, we don't need to push zeros (will be handled on reflect/purge)
             }
@@ -1875,10 +1875,10 @@ void fpu_popcache(dynarec_ppc64le_t* dyn, int ninst, int s1, int not07)
         MESSAGE(LOG_DUMP, "\tPop XMM/YMM Cache (%d)------\n", n);
         for (int i = start; i < 16; ++i) {
             if (dyn->v.ssecache[i].v != -1) {
-                LXV(dyn->v.ssecache[i].reg, offsetof(x64emu_t, xmm[i]), xEmu);
+                LXV(VSXREG(dyn->v.ssecache[i].reg), offsetof(x64emu_t, xmm[i]), xEmu);
             }
             if (dyn->v.avxcache[i].v != -1) {
-                LXV(dyn->v.avxcache[i].reg, offsetof(x64emu_t, xmm[i]), xEmu);
+                LXV(VSXREG(dyn->v.avxcache[i].reg), offsetof(x64emu_t, xmm[i]), xEmu);
                 // upper 128 stays in ymm[i] memory — nothing to load
             }
         }
@@ -2073,10 +2073,10 @@ static void swapCache(dynarec_ppc64le_t* dyn, int ninst, int i, int j, vmxcache_
         MESSAGE(LOG_DUMP, "\t  - Moving %d <- %d\n", i, j);
         switch (quad) {
             case 1:
-                XXLOR(i, j, j);     // 128-bit copy
+                XXLOR(VSXREG(i), VSXREG(j), VSXREG(j));     // 128-bit copy
                 break;
             default:
-                FMR(i, j);          // 64-bit copy (ST/MM)
+                FMR(i, j);          // 64-bit copy (ST/MM, indices 16-23)
                 break;
         }
         cache->vmxcache[i].v = cache->vmxcache[j].v;
@@ -2089,12 +2089,12 @@ static void swapCache(dynarec_ppc64le_t* dyn, int ninst, int i, int j, vmxcache_
     // Use SCRATCH as temporary
     switch (quad) {
         case 1:
-            XXLOR(SCRATCH, i, i);    // 128-bit swap via scratch
-            XXLOR(i, j, j);
-            XXLOR(j, SCRATCH, SCRATCH);
+            XXLOR(SCRATCH, VSXREG(i), VSXREG(i));    // 128-bit swap via scratch
+            XXLOR(VSXREG(i), VSXREG(j), VSXREG(j));
+            XXLOR(VSXREG(j), SCRATCH, SCRATCH);
             break;
         default:
-            FMR(SCRATCH, i);         // 64-bit swap via scratch
+            FMR(SCRATCH, i);         // 64-bit swap via scratch (ST/MM, indices 16-23)
             FMR(i, j);
             FMR(j, SCRATCH);
             break;
@@ -2122,10 +2122,10 @@ static void loadCache(dynarec_ppc64le_t* dyn, int ninst, int stack_cnt, int s1, 
         MESSAGE(LOG_DUMP, "\t  - Moving away %d\n", i);
         switch (quad) {
             case 1:
-                XXLOR(j, i, i);     // 128-bit move
+                XXLOR(VSXREG(j), VSXREG(i), VSXREG(i));     // 128-bit move
                 break;
             default:
-                FMR(j, i);          // 64-bit move (ST/MM)
+                FMR(j, i);          // 64-bit move (ST/MM, indices 16-23)
                 break;
         }
         cache->vmxcache[j].v = cache->vmxcache[i].v;
@@ -2135,12 +2135,12 @@ static void loadCache(dynarec_ppc64le_t* dyn, int ninst, int stack_cnt, int s1, 
         case VMX_CACHE_YMMW:
             MESSAGE(LOG_DUMP, "\t  - Loading %s\n", getCacheName(t, n));
             // Load lower 128 from xmm[n]; upper 128 stays in ymm[n] memory
-            LXV(i, offsetof(x64emu_t, xmm[n]), xEmu);
+            LXV(VSXREG(i), offsetof(x64emu_t, xmm[n]), xEmu);
             break;
         case VMX_CACHE_XMMR:
         case VMX_CACHE_XMMW:
             MESSAGE(LOG_DUMP, "\t  - Loading %s\n", getCacheName(t, n));
-            LXV(i, offsetof(x64emu_t, xmm[n]), xEmu);
+            LXV(VSXREG(i), offsetof(x64emu_t, xmm[n]), xEmu);
             break;
         case VMX_CACHE_MM:
             MESSAGE(LOG_DUMP, "\t  - Loading %s\n", getCacheName(t, n));
@@ -2190,12 +2190,12 @@ static void unloadCache(dynarec_ppc64le_t* dyn, int ninst, int stack_cnt, int s1
             break;
         case VMX_CACHE_XMMW:
             MESSAGE(LOG_DUMP, "\t  - Unloading %s\n", getCacheName(t, n));
-            STXV(i, offsetof(x64emu_t, xmm[n]), xEmu);
+            STXV(VSXREG(i), offsetof(x64emu_t, xmm[n]), xEmu);
             break;
         case VMX_CACHE_YMMW:
             MESSAGE(LOG_DUMP, "\t  - Unloading %s\n", getCacheName(t, n));
             // Store lower 128 to xmm[n]; upper 128 is already in ymm[n] memory
-            STXV(i, offsetof(x64emu_t, xmm[n]), xEmu);
+            STXV(VSXREG(i), offsetof(x64emu_t, xmm[n]), xEmu);
             break;
         case VMX_CACHE_MM:
             MESSAGE(LOG_DUMP, "\t  - Unloading %s\n", getCacheName(t, n));
@@ -2347,12 +2347,12 @@ static void fpuCacheTransform(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2,
                     // refresh cache...
                     MESSAGE(LOG_DUMP, "\t  - Refreh %s\n", getCacheName(cache.vmxcache[i].t, cache.vmxcache[i].n));
                     // Store lower 128 to xmm[n]; upper 128 is already in ymm[n] memory
-                    STXV(i, offsetof(x64emu_t, xmm[cache.vmxcache[i].n]), xEmu);
+                    STXV(VSXREG(i), offsetof(x64emu_t, xmm[cache.vmxcache[i].n]), xEmu);
                     cache.vmxcache[i].t = VMX_CACHE_YMMR;
                 } else if (cache.vmxcache[i].t == VMX_CACHE_XMMW && cache_i2.vmxcache[i].t == VMX_CACHE_XMMR) {
                     // refresh cache...
                     MESSAGE(LOG_DUMP, "\t  - Refreh %s\n", getCacheName(cache.vmxcache[i].t, cache.vmxcache[i].n));
-                    STXV(i, offsetof(x64emu_t, xmm[cache.vmxcache[i].n]), xEmu);
+                    STXV(VSXREG(i), offsetof(x64emu_t, xmm[cache.vmxcache[i].n]), xEmu);
                     cache.vmxcache[i].t = VMX_CACHE_XMMR;
                 }
             }

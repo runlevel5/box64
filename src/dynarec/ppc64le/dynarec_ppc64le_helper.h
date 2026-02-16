@@ -539,14 +539,14 @@
         SMREAD();                                                                            \
         addr = geted(dyn, addr, ninst, nextop, &ed, x3, x2, &fixedaddress, rex, NULL, 1, D); \
         a = fpu_get_scratch(dyn);                                                            \
-        LXV(a, fixedaddress, ed);                                                            \
+        LXV(VSXREG(a), fixedaddress, ed);                                                    \
     }
 
 // Put Back EX if it was a memory and not an emm register
-#define PUTEX(a)                   \
-    if (!MODREG) {                 \
-        STXV(a, fixedaddress, ed); \
-        SMWRITE2();                \
+#define PUTEX(a)                            \
+    if (!MODREG) {                          \
+        STXV(VSXREG(a), fixedaddress, ed);  \
+        SMWRITE2();                         \
     }
 
 // Get Ex as a double, not a quad (warning, x1 get used, x2 might too)
@@ -672,7 +672,7 @@
         SMREAD();                                                                            \
         addr = geted(dyn, addr, ninst, nextop, &ed, x2, x1, &fixedaddress, rex, NULL, 1, D); \
         a = fpu_get_scratch(dyn);                                                            \
-        LXV(a, fixedaddress, ed);                                                            \
+        LXV(VSXREG(a), fixedaddress, ed);                                                    \
     }
 
 #define GETEYy(a, w, D)                                                                      \
@@ -683,7 +683,7 @@
         addr = geted(dyn, addr, ninst, nextop, &ed, x2, x1, &fixedaddress, rex, NULL, 1, D); \
         a = fpu_get_scratch(dyn);                                                            \
         /* TODO: load 256-bit (2x LXV) */                                                    \
-        LXV(a, fixedaddress, ed);                                                            \
+        LXV(VSXREG(a), fixedaddress, ed);                                                    \
     }
 
 #define GETEYx_empty(a, D)                                                                     \
@@ -784,13 +784,13 @@
 #define PUTEYy(a)                   \
     if (!MODREG) {                  \
         /* TODO: store 256-bit */   \
-        STXV(a, fixedaddress, ed);  \
+        STXV(VSXREG(a), fixedaddress, ed);  \
         SMWRITE2();                 \
     }
 
 #define PUTEYx(a)                   \
     if (!MODREG) {                  \
-        STXV(a, fixedaddress, ed);  \
+        STXV(VSXREG(a), fixedaddress, ed);  \
         SMWRITE2();                 \
     }
 
