@@ -976,6 +976,9 @@
 // VRT = (VRA || VRB) << (SHB*8), take upper 128 bits
 #define VSLDOI(Vrt, Vra, Vrb, shb)  EMIT(VA_form_gen(4, Vrt, Vra, Vrb, (shb) & 0xF, 44))
 
+// VBPERMQ — vector bit permute quadword (result in VRT[dw0] bits 48:63 and VRT[dw1] bits 48:63)
+#define VBPERMQ(Vrt, Vra, Vrb)  EMIT(VX_form_gen(Vrt, Vra, Vrb, 1356))
+
 // --- Logical (VMX — use XXLAND/XXLOR/XXLXOR for VSX range instead) ---
 // VAND — vector AND
 #define VAND(Vrt, Vra, Vrb)    EMIT(VX_form_gen(Vrt, Vra, Vrb, 1028))
@@ -1027,6 +1030,8 @@
 #define VMSUMUHM(Vrt, Vra, Vrb, Vrc) EMIT(VA_form_gen(4, Vrt, Vra, Vrb, Vrc, 38))
 // VMSUMSHS — vector multiply-sum signed halfword saturate
 #define VMSUMSHS(Vrt, Vra, Vrb, Vrc) EMIT(VA_form_gen(4, Vrt, Vra, Vrb, Vrc, 41))
+// VMSUMSHM — vector multiply-sum signed halfword modulo
+#define VMSUMSHM(Vrt, Vra, Vrb, Vrc) EMIT(VA_form_gen(4, Vrt, Vra, Vrb, Vrc, 40))
 // VMSUMMBM — vector multiply-sum mixed-sign byte modulo
 #define VMSUMMBM(Vrt, Vra, Vrb, Vrc) EMIT(VA_form_gen(4, Vrt, Vra, Vrb, Vrc, 37))
 // VMHADDSHS — vector multiply-high-add signed halfword saturate
@@ -1112,6 +1117,20 @@
 #define XVDIVSP(Xt, Xa, Xb)   EMIT(XX3_form_gen(60, Xt, Xa, Xb, 88))
 // XVSQRTSP — vector square root single-precision (XX2-form)
 #define XVSQRTSP(Xt, Xb)      EMIT(XX2_form_gen(60, Xt, Xb, 139))
+// XVRESP — vector reciprocal estimate single-precision (XX2-form)
+#define XVRESP(Xt, Xb)        EMIT(XX2_form_gen(60, Xt, Xb, 154))
+// XVRSQRTESP — vector reciprocal square root estimate single-precision (XX2-form)
+#define XVRSQRTESP(Xt, Xb)    EMIT(XX2_form_gen(60, Xt, Xb, 138))
+// XVMAXSP — vector maximum single-precision (XX3-form)
+#define XVMAXSP(Xt, Xa, Xb)   EMIT(XX3_form_gen(60, Xt, Xa, Xb, 192))
+// XVMINSP — vector minimum single-precision (XX3-form)
+#define XVMINSP(Xt, Xa, Xb)   EMIT(XX3_form_gen(60, Xt, Xa, Xb, 200))
+// XVCVSPUXWS — VSX vector convert 4 singles to 4 unsigned int32
+#define XVCVSPUXWS(Xt, Xb)    EMIT(XX2_form_gen(60, Xt, Xb, 136))
+// XVABSSP — VSX vector absolute single
+#define XVABSSP(Xt, Xb)       EMIT(XX2_form_gen(60, Xt, Xb, 409))
+// XVNEGSP — VSX vector negate single
+#define XVNEGSP(Xt, Xb)       EMIT(XX2_form_gen(60, Xt, Xb, 441))
 
 // --- VSX Scalar FP Arithmetic (XX3-form, opcode 60) ---
 // Single-precision (ISA 2.07/POWER8+, XX3-form, full vs0-vs63 range)
