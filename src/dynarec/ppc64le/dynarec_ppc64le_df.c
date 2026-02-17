@@ -72,8 +72,7 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                     ANDId(x2, x2, 0x7);
                 }
                 LHZ(x1, offsetof(x64emu_t, sw), xEmu);
-                MOV32w(x3, 0b1100011111111111); // mask = ~0x3800
-                AND(x1, x1, x3);
+                ANDId(x1, x1, 0xC7FF); // mask off TOP bits (clear bits 11-13)
                 SLDI(x2, x2, 11);
                 OR(x1, x1, x2); // inject top
                 STH(x1, offsetof(x64emu_t, sw), xEmu);
@@ -129,9 +128,9 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                     FCTIWZ(s0, v1);
                 }
                 MFVSRWZ(x4, VSXREG(s0));
+                // MFVSRWZ zero-extends to 64 bits; sign-extend int32 first for correct comparison
+                EXTSW(x4, x4);
                 // Clamp to int16 range: if value overflows, use 0x8000 (indefinite)
-                // FCTIWZ already produces 0x80000000 for overflow/NaN
-                // We check if value fits in int16 range
                 EXTSH(x5, x4);
                 BEQ_MARK(x5, x4);
                 // overflow
@@ -150,6 +149,8 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 FCTIW(s0, v1);
                 MFVSRWZ(x4, VSXREG(s0));
                 x87_restoreround(dyn, ninst, u8);
+                // MFVSRWZ zero-extends to 64 bits; sign-extend int32 first for correct comparison
+                EXTSW(x4, x4);
                 // Clamp to int16 range
                 EXTSH(x5, x4);
                 BEQ_MARK(x5, x4);
@@ -167,6 +168,8 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 FCTIW(s0, v1);
                 MFVSRWZ(x4, VSXREG(s0));
                 x87_restoreround(dyn, ninst, u8);
+                // MFVSRWZ zero-extends to 64 bits; sign-extend int32 first for correct comparison
+                EXTSW(x4, x4);
                 // Clamp to int16 range
                 EXTSH(x5, x4);
                 BEQ_MARK(x5, x4);

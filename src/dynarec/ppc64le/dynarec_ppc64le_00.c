@@ -3490,7 +3490,9 @@ uintptr_t dynarec64_00(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                         MARK3;
                     }
                     DIVWU(x3, x2, ed); // warning: x2 and ed must be zero extended!
-                    MOD_WU(x4, x2, ed);
+                    // Remainder = dividend - quotient * divisor
+                    MULLW(x4, x3, ed);
+                    SUB(x4, x2, x4);
                     BSTRINS_D(xRAX, x3, 7, 0);
                     BSTRINS_D(xRAX, x4, 15, 8);
                     FORCE_DFNONE();
@@ -3524,7 +3526,9 @@ uintptr_t dynarec64_00(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                     }
                     EXTSH(x2, xRAX);
                     DIVW(x3, x2, ed); // warning: x2 and ed must be sign extended!
-                    MOD_W(x4, x2, ed);
+                    // Remainder = dividend - quotient * divisor
+                    MULLW(x4, x3, ed);
+                    SUB(x4, x2, x4);
                     BSTRINS_D(xRAX, x3, 7, 0);
                     BSTRINS_D(xRAX, x4, 15, 8);
                     FORCE_DFNONE();
@@ -3661,7 +3665,9 @@ uintptr_t dynarec64_00(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                                 ed = x4;
                             }
                             DIVDU(x2, x3, ed);
-                            MOD_DU(xRDX, x3, ed);
+                            // Remainder = dividend - quotient * divisor
+                            MULLD(xRDX, x2, ed);
+                            SUB(xRDX, x3, xRDX);
                             ZEROUP2(xRAX, x2);
                             ZEROUP(xRDX);
                         }
@@ -3682,7 +3688,9 @@ uintptr_t dynarec64_00(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                                 MARK3;
                             }
                             DIVDU(x2, xRAX, ed);
-                            MOD_DU(xRDX, xRAX, ed);
+                            // Remainder = dividend - quotient * divisor
+                            MULLD(xRDX, x2, ed);
+                            SUB(xRDX, xRAX, xRDX);
                             MR(xRAX, x2);
                         } else {
                             GETEDH(x4, x1, 0); // get edd changed addr, so cannot be called 2 times for same op...
@@ -3701,7 +3709,9 @@ uintptr_t dynarec64_00(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                             B_NEXT_nocond;
                             MARK;
                             DIVDU(x2, xRAX, ed);
-                            MOD_DU(xRDX, xRAX, ed);
+                            // Remainder = dividend - quotient * divisor
+                            MULLD(xRDX, x2, ed);
+                            SUB(xRDX, xRAX, xRDX);
                             MR(xRAX, x2);
                         }
                     }
@@ -3721,8 +3731,11 @@ uintptr_t dynarec64_00(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                         SLDI(x3, xRDX, 32);
                         ZEROUP2(x2, xRAX);
                         OR(x3, x3, x2);
+                        // x3 = RDX:RAX combined 64-bit dividend (sign-extended 32-bit)
                         DIVD(x2, x3, ed);
-                        MOD_D(xRDX, x3, ed);
+                        // Remainder = dividend - quotient * divisor
+                        MULLD(xRDX, x2, ed);
+                        SUB(xRDX, x3, xRDX);
                         ZEROUP2(xRAX, x2);
                         ZEROUP(xRDX);
                     } else {
@@ -3733,7 +3746,9 @@ uintptr_t dynarec64_00(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                             FORCE_DFNONE();
                             GETED(0);
                             DIVD(x2, xRAX, ed);
-                            MOD_D(xRDX, xRAX, ed);
+                            // Remainder = dividend - quotient * divisor
+                            MULLD(xRDX, x2, ed);
+                            SUB(xRDX, xRAX, xRDX);
                             MR(xRAX, x2);
                         } else {
                             GETEDH(x4, x1, 0); // get edd changed addr, so cannot be called 2 times for same op...
@@ -3750,7 +3765,9 @@ uintptr_t dynarec64_00(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                             B_NEXT_nocond;
                             MARK;
                             DIVD(x2, xRAX, ed);
-                            MOD_D(xRDX, xRAX, ed);
+                            // Remainder = dividend - quotient * divisor
+                            MULLD(xRDX, x2, ed);
+                            SUB(xRDX, xRAX, xRDX);
                             MR(xRAX, x2);
                             FORCE_DFNONE();
                         }

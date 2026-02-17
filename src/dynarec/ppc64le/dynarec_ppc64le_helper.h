@@ -2373,25 +2373,22 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
 //  +40: OR / STH          (end)
 #define FCOM(w, v1, v2, s1, s2, s3)                                 \
     LHZ(s3, offsetof(x64emu_t, sw), xEmu);                          \
-    MOV32w(s1, 0b1011100011111111); /* 0xB8FF: mask off C0-C3 */    \
-    AND(s3, s3, s1);                                                \
+    ANDId(s3, s3, 0xB8FF);  /* mask off C0(8),C2(10),C3(14) */     \
     FCMPU(0, v1, v2);                                               \
-    BC(BO_TRUE, BI(CR0, CR_SO), 5*4);  /* -> UN at +20 */           \
-    BEQ(6*4);                          /* -> EQ at +28 */           \
-    BLT(7*4);                          /* -> LT at +36 */          \
-    /* GT: s1 = 0 (nothing to set) */                               \
-    LI(s1, 0);                                                      \
-    B(6*4);                            /* -> end at +40 */          \
-    /* UN: C0|C2|C3 bits 8,10,14 = 0x4500 */                        \
-    LI(s1, 0x4500);                                                 \
-    B(4*4);                            /* -> end at +40 */          \
-    /* EQ: C3 bit 14 = 0x4000 */                                    \
-    LI(s1, 0x4000);                                                 \
-    B(2*4);                            /* -> end at +40 */          \
-    /* LT: C0 bit 8 = 0x0100 */                                     \
-    LI(s1, 0x0100);                                                 \
-    /* end: merge and store */                                      \
-    OR(s3, s3, s1);                                                 \
+    /* Build result branchlessly using ISEL */                       \
+    LI(s1, 0);             /* zero for ISEL false case */            \
+    /* LT → C0 (0x0100) */                                          \
+    LI(s2, 0x0100);                                                  \
+    ISEL(s2, s2, s1, BI(CR0, CR_LT));  /* s2 = LT ? 0x0100 : 0 */ \
+    OR(s3, s3, s2);                                                  \
+    /* EQ → C3 (0x4000) */                                          \
+    LI(s2, 0x4000);                                                  \
+    ISEL(s2, s2, s1, BI(CR0, CR_EQ));  /* s2 = EQ ? 0x4000 : 0 */ \
+    OR(s3, s3, s2);                                                  \
+    /* SO → C0|C2|C3 (0x4500) */                                    \
+    LI(s2, 0x4500);                                                  \
+    ISEL(s2, s2, s1, BI(CR0, CR_SO));  /* s2 = SO ? 0x4500 : 0 */  \
+    OR(s3, s3, s2);                                                  \
     STH(s3, offsetof(x64emu_t, sw), xEmu);
 
 #define FCOMS(v1, v2, s1, s2, s3) FCOM(S, v1, v2, s1, s2, s3)

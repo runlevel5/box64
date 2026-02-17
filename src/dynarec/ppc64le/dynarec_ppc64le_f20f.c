@@ -56,16 +56,15 @@ uintptr_t dynarec64_F20F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
                 // reg-reg: merge low 64 bits of source into dest, keep upper 64 bits
                 v0 = sse_get_reg(dyn, ninst, x1, gd, 1);
                 v1 = sse_get_reg(dyn, ninst, x1, (nextop & 7) + (rex.b << 3), 0);
-                // Merge low 64 bits of v1 into low 64 bits of v0, keep high 64 bits of v0
-                XXMRGLD(VSXREG(v0), VSXREG(v0), VSXREG(v1));
+                // Keep v0 high (ISA dw0), take v1 low (ISA dw1)
+                XXPERMDI(VSXREG(v0), VSXREG(v0), VSXREG(v1), 1);
             } else {
                 // mem: zero dest, load 64-bit double into low 64 bits
                 v0 = sse_get_reg_empty(dyn, ninst, x1, gd);
                 SMREAD();
                 addr = geted(dyn, addr, ninst, nextop, &ed, x2, x3, &fixedaddress, rex, NULL, 1, 0);
-                XXLXOR(VSXREG(v0), VSXREG(v0), VSXREG(v0));
                 LD(x4, fixedaddress, ed);
-                MTVSRDD(VSXREG(v0), 0, x4);
+                MTVSRDD(VSXREG(v0), 0, x4);  // high=0, low=x4 (x86 scalar in LE low)
             }
             break;
         case 0x11:
@@ -76,11 +75,12 @@ uintptr_t dynarec64_F20F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
             if (MODREG) {
                 // reg-reg: merge low 64 bits of source into dest
                 v1 = sse_get_reg(dyn, ninst, x1, (nextop & 7) + (rex.b << 3), 1);
-                XXMRGLD(VSXREG(v1), VSXREG(v1), VSXREG(v0));
+                // Keep v1 high (ISA dw0), take v0 low (ISA dw1)
+                XXPERMDI(VSXREG(v1), VSXREG(v1), VSXREG(v0), 1);
             } else {
                 // mem: store low 64 bits
                 addr = geted(dyn, addr, ninst, nextop, &ed, x2, x3, &fixedaddress, rex, NULL, 1, 0);
-                MFVSRD(x4, VSXREG(v0));
+                MFVSRLD(x4, VSXREG(v0));
                 STD(x4, fixedaddress, ed);
                 SMWRITE2();
             }
@@ -92,8 +92,8 @@ uintptr_t dynarec64_F20F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
             if (MODREG) {
                 v1 = sse_get_reg(dyn, ninst, x1, (nextop & 7) + (rex.b << 3), 0);
                 v0 = sse_get_reg_empty(dyn, ninst, x1, gd);
-                // Duplicate low 64 bits of source to both halves
-                MFVSRD(x4, VSXREG(v1));
+                // Duplicate low 64 bits (ISA dw1) of source to both halves
+                MFVSRLD(x4, VSXREG(v1));
                 MTVSRDD(VSXREG(v0), x4, x4);
             } else {
                 SMREAD();
@@ -120,9 +120,8 @@ uintptr_t dynarec64_F20F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
                 XSCVSXDDP(VSXREG(d0), VSXREG(d0));
             }
             // Result is in d0 as double-precision scalar; insert into low 64 bits of v0
-            MFVSRD(x4, VSXREG(d0));
-            MTVSRDD(VSXREG(d0), 0, x4);
-            XXMRGLD(VSXREG(v0), VSXREG(v0), VSXREG(d0));
+            // FPR scalar result is in ISA dw0; use XXPERMDI to place it into v0's ISA dw1 (x86 low)
+            XXPERMDI(VSXREG(v0), VSXREG(v0), VSXREG(d0), 0);
             break;
         case 0x2C:
             INST_NAME("CVTTSD2SI Gd, Ex");
@@ -131,8 +130,8 @@ uintptr_t dynarec64_F20F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
             GETEXSD(d0, 0, 0);
             d1 = fpu_get_scratch(dyn);
             if (MODREG) {
-                // d0 is SSE register; extract low 64 bits (double) to FPR scratch
-                MFVSRD(x4, VSXREG(d0));
+                // d0 is SSE register; extract x86 low 64 bits (double) to FPR scratch
+                MFVSRLD(x4, VSXREG(d0));
                 MTVSRD(VSXREG(d1), x4);
             } else {
                 // d0 is FPR loaded via LFD, already a double
@@ -154,7 +153,7 @@ uintptr_t dynarec64_F20F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
             GETEXSD(d0, 0, 0);
             d1 = fpu_get_scratch(dyn);
             if (MODREG) {
-                MFVSRD(x4, VSXREG(d0));
+                MFVSRLD(x4, VSXREG(d0));
                 MTVSRD(VSXREG(d1), x4);
             } else {
                 FMR(d1, d0);
@@ -175,16 +174,14 @@ uintptr_t dynarec64_F20F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
             GETEXSD(d0, 0, 0);
             d1 = fpu_get_scratch(dyn);
             if (MODREG) {
-                MFVSRD(x4, VSXREG(d0));
+                MFVSRLD(x4, VSXREG(d0));
                 MTVSRD(VSXREG(d1), x4);
             } else {
                 FMR(d1, d0);
             }
             XSSQRTDP(VSXREG(d1), VSXREG(d1));
-            // Insert result double into low 64 bits of v0
-            MFVSRD(x4, VSXREG(d1));
-            MTVSRDD(VSXREG(d1), 0, x4);
-            XXMRGLD(VSXREG(v0), VSXREG(v0), VSXREG(d1));
+            // Insert FPR result (dw0) into v0's x86 low (ISA dw1), keep v0's x86 high (ISA dw0)
+            XXPERMDI(VSXREG(v0), VSXREG(v0), VSXREG(d1), 0);
             break;
         case 0x58:
             INST_NAME("ADDSD Gx, Ex");
@@ -193,21 +190,19 @@ uintptr_t dynarec64_F20F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
             GETEXSD(d0, 0, 0);
             d1 = fpu_get_scratch(dyn);
             q0 = fpu_get_scratch(dyn);
-            // Extract Gx double to FPR scratch
-            MFVSRD(x4, VSXREG(v0));
+            // Extract Gx x86 low double (ISA dw1) to FPR scratch
+            MFVSRLD(x4, VSXREG(v0));
             MTVSRD(VSXREG(d1), x4);
             // Get Ex double
             if (MODREG) {
-                MFVSRD(x4, VSXREG(d0));
+                MFVSRLD(x4, VSXREG(d0));
                 MTVSRD(VSXREG(q0), x4);
             } else {
                 FMR(q0, d0);
             }
             FADD(d1, d1, q0);
-            // Insert result back into v0 low 64 bits
-            MFVSRD(x4, VSXREG(d1));
-            MTVSRDD(VSXREG(d1), 0, x4);
-            XXMRGLD(VSXREG(v0), VSXREG(v0), VSXREG(d1));
+            // Insert FPR result back into v0 x86 low
+            XXPERMDI(VSXREG(v0), VSXREG(v0), VSXREG(d1), 0);
             break;
         case 0x59:
             INST_NAME("MULSD Gx, Ex");
@@ -216,18 +211,16 @@ uintptr_t dynarec64_F20F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
             GETEXSD(d0, 0, 0);
             d1 = fpu_get_scratch(dyn);
             q0 = fpu_get_scratch(dyn);
-            MFVSRD(x4, VSXREG(v0));
+            MFVSRLD(x4, VSXREG(v0));
             MTVSRD(VSXREG(d1), x4);
             if (MODREG) {
-                MFVSRD(x4, VSXREG(d0));
+                MFVSRLD(x4, VSXREG(d0));
                 MTVSRD(VSXREG(q0), x4);
             } else {
                 FMR(q0, d0);
             }
             FMUL(d1, d1, q0);
-            MFVSRD(x4, VSXREG(d1));
-            MTVSRDD(VSXREG(d1), 0, x4);
-            XXMRGLD(VSXREG(v0), VSXREG(v0), VSXREG(d1));
+            XXPERMDI(VSXREG(v0), VSXREG(v0), VSXREG(d1), 0);
             break;
         case 0x5A:
             INST_NAME("CVTSD2SS Gx, Ex");
@@ -236,7 +229,7 @@ uintptr_t dynarec64_F20F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
             GETEXSD(d0, 0, 0);
             d1 = fpu_get_scratch(dyn);
             if (MODREG) {
-                MFVSRD(x4, VSXREG(d0));
+                MFVSRLD(x4, VSXREG(d0));
                 MTVSRD(VSXREG(d1), x4);
             } else {
                 FMR(d1, d0);
@@ -255,18 +248,16 @@ uintptr_t dynarec64_F20F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
             GETEXSD(d0, 0, 0);
             d1 = fpu_get_scratch(dyn);
             q0 = fpu_get_scratch(dyn);
-            MFVSRD(x4, VSXREG(v0));
+            MFVSRLD(x4, VSXREG(v0));
             MTVSRD(VSXREG(d1), x4);
             if (MODREG) {
-                MFVSRD(x4, VSXREG(d0));
+                MFVSRLD(x4, VSXREG(d0));
                 MTVSRD(VSXREG(q0), x4);
             } else {
                 FMR(q0, d0);
             }
             FSUB(d1, d1, q0);
-            MFVSRD(x4, VSXREG(d1));
-            MTVSRDD(VSXREG(d1), 0, x4);
-            XXMRGLD(VSXREG(v0), VSXREG(v0), VSXREG(d1));
+            XXPERMDI(VSXREG(v0), VSXREG(v0), VSXREG(d1), 0);
             break;
         case 0x5D:
             INST_NAME("MINSD Gx, Ex");
@@ -275,12 +266,12 @@ uintptr_t dynarec64_F20F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
             GETEXSD(d0, 0, 0);
             d1 = fpu_get_scratch(dyn);
             q0 = fpu_get_scratch(dyn);
-            // Extract Gx double
-            MFVSRD(x4, VSXREG(v0));
+            // Extract Gx x86 low double
+            MFVSRLD(x4, VSXREG(v0));
             MTVSRD(VSXREG(d1), x4);
             // Get Ex double
             if (MODREG) {
-                MFVSRD(x4, VSXREG(d0));
+                MFVSRLD(x4, VSXREG(d0));
                 MTVSRD(VSXREG(q0), x4);
             } else {
                 FMR(q0, d0);
@@ -298,10 +289,8 @@ uintptr_t dynarec64_F20F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
             MARK;
             FMR(d1, q0);
             MARK2;
-            // Insert result back
-            MFVSRD(x4, VSXREG(d1));
-            MTVSRDD(VSXREG(d1), 0, x4);
-            XXMRGLD(VSXREG(v0), VSXREG(v0), VSXREG(d1));
+            // Insert result back into v0 x86 low
+            XXPERMDI(VSXREG(v0), VSXREG(v0), VSXREG(d1), 0);
             break;
         case 0x5E:
             INST_NAME("DIVSD Gx, Ex");
@@ -310,18 +299,16 @@ uintptr_t dynarec64_F20F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
             GETEXSD(d0, 0, 0);
             d1 = fpu_get_scratch(dyn);
             q0 = fpu_get_scratch(dyn);
-            MFVSRD(x4, VSXREG(v0));
+            MFVSRLD(x4, VSXREG(v0));
             MTVSRD(VSXREG(d1), x4);
             if (MODREG) {
-                MFVSRD(x4, VSXREG(d0));
+                MFVSRLD(x4, VSXREG(d0));
                 MTVSRD(VSXREG(q0), x4);
             } else {
                 FMR(q0, d0);
             }
             FDIV(d1, d1, q0);
-            MFVSRD(x4, VSXREG(d1));
-            MTVSRDD(VSXREG(d1), 0, x4);
-            XXMRGLD(VSXREG(v0), VSXREG(v0), VSXREG(d1));
+            XXPERMDI(VSXREG(v0), VSXREG(v0), VSXREG(d1), 0);
             break;
         case 0x5F:
             INST_NAME("MAXSD Gx, Ex");
@@ -330,12 +317,12 @@ uintptr_t dynarec64_F20F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
             GETEXSD(d0, 0, 0);
             d1 = fpu_get_scratch(dyn);
             q0 = fpu_get_scratch(dyn);
-            // Extract Gx double
-            MFVSRD(x4, VSXREG(v0));
+            // Extract Gx x86 low double
+            MFVSRLD(x4, VSXREG(v0));
             MTVSRD(VSXREG(d1), x4);
             // Get Ex double
             if (MODREG) {
-                MFVSRD(x4, VSXREG(d0));
+                MFVSRLD(x4, VSXREG(d0));
                 MTVSRD(VSXREG(q0), x4);
             } else {
                 FMR(q0, d0);
@@ -352,9 +339,7 @@ uintptr_t dynarec64_F20F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
             MARK;
             FMR(d1, q0);
             MARK2;
-            MFVSRD(x4, VSXREG(d1));
-            MTVSRDD(VSXREG(d1), 0, x4);
-            XXMRGLD(VSXREG(v0), VSXREG(v0), VSXREG(d1));
+            XXPERMDI(VSXREG(v0), VSXREG(v0), VSXREG(d1), 0);
             break;
         case 0x70:
             INST_NAME("PSHUFLW Gx, Ex, Ib");
@@ -368,7 +353,7 @@ uintptr_t dynarec64_F20F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
                 // PPC64LE LE word layout: word0=byte0-1, word1=byte2-3, word2=byte4-5, word3=byte6-7
                 // Extract low 64 bits as 4 halfwords, shuffle, recombine
                 d0 = fpu_get_scratch(dyn);
-                MFVSRD(x4, VSXREG(v1));  // low 64 bits
+                MFVSRLD(x4, VSXREG(v1));  // x86 low 64 bits (ISA dw1)
 
                 // Build result in x5 by selecting halfwords
                 // word i comes from word (u8 >> (i*2)) & 3
@@ -404,9 +389,8 @@ uintptr_t dynarec64_F20F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
                 SLDI(x6, x6, 48);
                 OR(x5, x5, x6);
 
-                // Get high 64 bits from source
-                XXPERMDI(VSXREG(d0), VSXREG(v1), VSXREG(v1), 2);  // swap high/low
-                MFVSRD(x6, VSXREG(d0));
+                // Get high 64 bits from source (x86 high = ISA dw0)
+                MFVSRD(x6, VSXREG(v1));
 
                 // Build result: high 64 from source, low 64 = shuffled
                 MTVSRDD(VSXREG(v0), x6, x5);
@@ -430,12 +414,12 @@ uintptr_t dynarec64_F20F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
             u8 = F8;
             d1 = fpu_get_scratch(dyn);
             q0 = fpu_get_scratch(dyn);
-            // Extract Gx double
-            MFVSRD(x4, VSXREG(v0));
+            // Extract Gx scalar double (x86 low = ISA dw1)
+            MFVSRLD(x4, VSXREG(v0));
             MTVSRD(VSXREG(d1), x4);
             // Get Ex double
             if (MODREG) {
-                MFVSRD(x4, VSXREG(d0));
+                MFVSRLD(x4, VSXREG(d0));
                 MTVSRD(VSXREG(q0), x4);
             } else {
                 FMR(q0, d0);
@@ -487,9 +471,9 @@ uintptr_t dynarec64_F20F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
             }
             // x5 is 0 or 1; need to expand to 0 or 0xFFFFFFFFFFFFFFFF
             NEG(x5, x5);  // 0->0, 1->-1 (0xFFFF...)
-            // Insert into low 64 bits of v0
-            MTVSRDD(VSXREG(d1), 0, x5);
-            XXMRGLD(VSXREG(v0), VSXREG(v0), VSXREG(d1));
+            // Insert into low 64 bits of v0 (keep v0 high, put result in low)
+            MTVSRD(VSXREG(d1), x5);
+            XXPERMDI(VSXREG(v0), VSXREG(v0), VSXREG(d1), 0);
             break;
         case 0xD0:
             INST_NAME("ADDSUBPS Gx, Ex");
@@ -518,8 +502,8 @@ uintptr_t dynarec64_F20F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
             nextop = F8;
             GETGM(v0);
             v1 = sse_get_reg(dyn, ninst, x1, (nextop & 7) + (rex.b << 3), 0);
-            // Copy low 64 bits of SSE to MMX
-            MFVSRD(x4, VSXREG(v1));
+            // Copy low 64 bits of SSE to MMX (x86 low = ISA dw1)
+            MFVSRLD(x4, VSXREG(v1));
             MTVSRD(VSXREG(v0), x4);
             break;
         case 0xE6:
@@ -530,14 +514,13 @@ uintptr_t dynarec64_F20F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
             // Convert 2 packed doubles to 2 packed dwords in low 64 bits, zero upper 64 bits
             d0 = fpu_get_scratch(dyn);
             d1 = fpu_get_scratch(dyn);
-            // Extract low double (element 0)
-            MFVSRD(x4, VSXREG(v1));
+            // Extract low double (element 0, x86 low = ISA dw1)
+            MFVSRLD(x4, VSXREG(v1));
             MTVSRD(VSXREG(d0), x4);
             XSCVDPSXWS(VSXREG(d0), VSXREG(d0));  // convert to 32-bit int
             MFVSRWZ(x4, VSXREG(d0));
-            // Extract high double (element 1)
-            XXPERMDI(VSXREG(d1), VSXREG(v1), VSXREG(v1), 2);  // swap halves
-            MFVSRD(x5, VSXREG(d1));
+            // Extract high double (element 1, x86 high = ISA dw0)
+            MFVSRD(x5, VSXREG(v1));
             MTVSRD(VSXREG(d1), x5);
             XSCVDPSXWS(VSXREG(d1), VSXREG(d1));
             MFVSRWZ(x5, VSXREG(d1));

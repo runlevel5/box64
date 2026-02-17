@@ -76,9 +76,9 @@ uintptr_t dynarec64_F30F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
                 v1 = sse_get_reg(dyn, ninst, x1, (nextop & 7) + (rex.b << 3), 1);
                 VINSERTW(VRREG(v1), VRREG(v0), 12);
             } else {
-                // mem: store low 32 bits
+                // mem: store low 32 bits (x86 scalar float = LE word 0)
                 addr = geted(dyn, addr, ninst, nextop, &ed, x2, x3, &fixedaddress, rex, NULL, 1, 0);
-                MFVSRWZ(x4, VSXREG(v0));
+                MFVSRLD(x4, VSXREG(v0));  // x86 low 64 bits; float is in low 32
                 STW(x4, fixedaddress, ed);
                 SMWRITE2();
             }
@@ -236,12 +236,8 @@ uintptr_t dynarec64_F30F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
                 FMR(d1, d0);  // LFS already converts to double
             }
             // Result is now a double in d1; insert into low 64 bits of v0
-            // MTVSRD puts value in low 64 bits (for VSX scalar position)
-            // But d1 is already in FPR/VSX scalar position, just need to merge into v0
-            MFVSRD(x4, VSXREG(d1));
-            MTVSRDD(VSXREG(d1), 0, x4);
-            // Insert low doubleword of d1 into low doubleword of v0
-            XXMRGLD(VSXREG(v0), VSXREG(v0), VSXREG(d1));
+            // d1 FPR scalar result is in ISA dw0; insert into v0's ISA dw1 (x86 low)
+            XXPERMDI(VSXREG(v0), VSXREG(v0), VSXREG(d1), 0);
             break;
         case 0x5C:
             INST_NAME("SUBSS Gx, Ex");
@@ -305,8 +301,8 @@ uintptr_t dynarec64_F30F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
             GETGX_empty(v0);
             if (MODREG) {
                 v1 = sse_get_reg(dyn, ninst, x1, (nextop & 7) + (rex.b << 3), 0);
-                // Copy low 64 bits, zero upper 64 bits
-                MFVSRD(x4, VSXREG(v1));
+                // Copy low 64 bits, zero upper 64 bits (x86 low = ISA dw1)
+                MFVSRLD(x4, VSXREG(v1));
                 MTVSRDD(VSXREG(v0), 0, x4);
             } else {
                 SMREAD();
@@ -336,7 +332,7 @@ uintptr_t dynarec64_F30F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
             GETGX_empty(v0);
             // Convert 2 int32 from low 64 bits of source to 2 doubles
             // Extract low 2 dwords
-            MFVSRD(x4, VSXREG(v1));  // low 64 bits
+            MFVSRLD(x4, VSXREG(v1));  // x86 low 64 bits (ISA dw1)
             // Low 32 bits = int0
             EXTSW(x5, x4);
             // High 32 bits = int1
