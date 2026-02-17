@@ -55,6 +55,9 @@ ppc64le_epilog:
     lwz     0, 8(1)
     mtcrf   0xFF, 0
 
+    // Restore callee-saved VMX register vr20 (= vs52)
+    lxv     52, 208(1)
+
     // Restore callee-saved GPRs
     ld      14, 32(1)
     ld      15, 40(1)
@@ -76,7 +79,7 @@ ppc64le_epilog:
     ld      31, 168(1)
 
     // Deallocate frame
-    addi    1, 1, 256
+    addi    1, 1, 272
 
     // Restore LR and return
     ld      0, 16(1)

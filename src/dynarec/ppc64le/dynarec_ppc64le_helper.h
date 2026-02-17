@@ -566,7 +566,8 @@
         SMREAD(); /* TODO */                                                                 \
         a = fpu_get_scratch(dyn);                                                            \
         addr = geted(dyn, addr, ninst, nextop, &ed, x1, x2, &fixedaddress, rex, NULL, 1, D); \
-        LFD(a, fixedaddress, ed);                                                            \
+        LD(x4, fixedaddress, ed);                                                            \
+        MTVSRD(VSXREG(a), x4);                                                              \
     }
 
 // Get Ex as 64bits, not a quad (warning, x1 get used, x2 might too)
@@ -580,7 +581,10 @@
         SMREAD();                                                                            \
         a = fpu_get_scratch(dyn);                                                            \
         addr = geted(dyn, addr, ninst, nextop, &ed, x1, x2, &fixedaddress, rex, NULL, 1, D); \
-        LFS(a, fixedaddress, ed);                                                            \
+        LWZ(x4, fixedaddress, ed);                                                           \
+        SLDI(x4, x4, 32);                                                                   \
+        MTVSRD(VSXREG(a), x4);                                                              \
+        XSCVSPDPN(VSXREG(a), VSXREG(a));                                                    \
     }
 
 // Get Ex as 32bits, not a quad (warning, x1 get used)

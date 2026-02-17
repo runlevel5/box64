@@ -123,14 +123,14 @@ uintptr_t dynarec64_F30F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
             // d0 may be a VR (SSE register). Extract low float to scratch FPR for scalar conversion
             // For MODREG case, d0 is the full SSE register - need to get scalar from it
             if (MODREG) {
-                // d0 is actually the SSE register; extract float from LE word 0
-                // LE word 0 is at BE byte offset 12; XSCVSPDPN reads from BE word 0
-                // So first move LE word 0 to BE word 0 position in scratch d1
-                VEXTRACTUW(VRREG(d1), VRREG(d0), 12);
+                // d0 is actually the SSE register; extract float from x86 word 0
+                // x86 word 0 = ISA word 3; XSCVSPDPN reads from ISA word 0
+                // Use XXSPLTW to broadcast ISA word 3 to all positions including word 0
+                XXSPLTW(VSXREG(d1), VSXREG(d0), 3);
                 XSCVSPDPN(VSXREG(d1), VSXREG(d1));
             } else {
-                // d0 is a scratch FPR loaded via LFS (already double-precision in FPR)
-                FMR(d1, d0);
+                // d0 is a scratch loaded via LFS (already double-precision)
+                XXLOR(VSXREG(d1), VSXREG(d0), VSXREG(d0));
             }
             if (rex.w) {
                 XSCVDPSXDS(VSXREG(d1), VSXREG(d1));  // truncate to signed 64-bit
@@ -148,10 +148,10 @@ uintptr_t dynarec64_F30F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
             GETEXSS(d0, 0, 0);
             d1 = fpu_get_scratch(dyn);
             if (MODREG) {
-                VEXTRACTUW(VRREG(d1), VRREG(d0), 12);
+                XXSPLTW(VSXREG(d1), VSXREG(d0), 3);
                 XSCVSPDPN(VSXREG(d1), VSXREG(d1));
             } else {
-                FMR(d1, d0);
+                XXLOR(VSXREG(d1), VSXREG(d0), VSXREG(d0));
             }
             if (rex.w) {
                 XSCVDPSXDS(VSXREG(d1), VSXREG(d1));  // round to signed 64-bit (current rounding mode)
@@ -170,10 +170,10 @@ uintptr_t dynarec64_F30F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
             GETEXSS(d0, 0, 0);
             d1 = fpu_get_scratch(dyn);
             if (MODREG) {
-                VEXTRACTUW(VRREG(d1), VRREG(d0), 12);
+                XXSPLTW(VSXREG(d1), VSXREG(d0), 3);
                 XSCVSPDPN(VSXREG(d1), VSXREG(d1));
             } else {
-                FMR(d1, d0);
+                XXLOR(VSXREG(d1), VSXREG(d0), VSXREG(d0));
             }
             XSSQRTDP(VSXREG(d1), VSXREG(d1));
             XSCVDPSPN(VSXREG(d1), VSXREG(d1));
@@ -189,16 +189,16 @@ uintptr_t dynarec64_F30F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
             d1 = fpu_get_scratch(dyn);
             q0 = fpu_get_scratch(dyn);
             // Extract Gx float to double
-            VEXTRACTUW(VRREG(d1), VRREG(v0), 12);
+            XXSPLTW(VSXREG(d1), VSXREG(v0), 3);
             XSCVSPDPN(VSXREG(d1), VSXREG(d1));
             // Extract Ex float to double
             if (MODREG) {
-                VEXTRACTUW(VRREG(q0), VRREG(d0), 12);
+                XXSPLTW(VSXREG(q0), VSXREG(d0), 3);
                 XSCVSPDPN(VSXREG(q0), VSXREG(q0));
             } else {
-                FMR(q0, d0);
+                XXLOR(VSXREG(q0), VSXREG(d0), VSXREG(d0));
             }
-            FADDS(d1, d1, q0);
+            XSADDSP(VSXREG(d1), VSXREG(d1), VSXREG(q0));
             XSCVDPSPN(VSXREG(d1), VSXREG(d1));
             VEXTRACTUW(VRREG(d1), VRREG(d1), 0);
             VINSERTW(VRREG(v0), VRREG(d1), 12);
@@ -210,15 +210,15 @@ uintptr_t dynarec64_F30F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
             GETEXSS(d0, 0, 0);
             d1 = fpu_get_scratch(dyn);
             q0 = fpu_get_scratch(dyn);
-            VEXTRACTUW(VRREG(d1), VRREG(v0), 12);
+            XXSPLTW(VSXREG(d1), VSXREG(v0), 3);
             XSCVSPDPN(VSXREG(d1), VSXREG(d1));
             if (MODREG) {
-                VEXTRACTUW(VRREG(q0), VRREG(d0), 12);
+                XXSPLTW(VSXREG(q0), VSXREG(d0), 3);
                 XSCVSPDPN(VSXREG(q0), VSXREG(q0));
             } else {
-                FMR(q0, d0);
+                XXLOR(VSXREG(q0), VSXREG(d0), VSXREG(d0));
             }
-            FMULS(d1, d1, q0);
+            XSMULSP(VSXREG(d1), VSXREG(d1), VSXREG(q0));
             XSCVDPSPN(VSXREG(d1), VSXREG(d1));
             VEXTRACTUW(VRREG(d1), VRREG(d1), 0);
             VINSERTW(VRREG(v0), VRREG(d1), 12);
@@ -230,10 +230,10 @@ uintptr_t dynarec64_F30F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
             GETEXSS(d0, 0, 0);
             d1 = fpu_get_scratch(dyn);
             if (MODREG) {
-                VEXTRACTUW(VRREG(d1), VRREG(d0), 12);
+                XXSPLTW(VSXREG(d1), VSXREG(d0), 3);
                 XSCVSPDPN(VSXREG(d1), VSXREG(d1));
             } else {
-                FMR(d1, d0);  // LFS already converts to double
+                XXLOR(VSXREG(d1), VSXREG(d0), VSXREG(d0));  // LFS already converts to double
             }
             // Result is now a double in d1; insert into low 64 bits of v0
             // d1 FPR scalar result is in ISA dw0; insert into v0's ISA dw1 (x86 low)
@@ -246,15 +246,15 @@ uintptr_t dynarec64_F30F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
             GETEXSS(d0, 0, 0);
             d1 = fpu_get_scratch(dyn);
             q0 = fpu_get_scratch(dyn);
-            VEXTRACTUW(VRREG(d1), VRREG(v0), 12);
+            XXSPLTW(VSXREG(d1), VSXREG(v0), 3);
             XSCVSPDPN(VSXREG(d1), VSXREG(d1));
             if (MODREG) {
-                VEXTRACTUW(VRREG(q0), VRREG(d0), 12);
+                XXSPLTW(VSXREG(q0), VSXREG(d0), 3);
                 XSCVSPDPN(VSXREG(q0), VSXREG(q0));
             } else {
-                FMR(q0, d0);
+                XXLOR(VSXREG(q0), VSXREG(d0), VSXREG(d0));
             }
-            FSUBS(d1, d1, q0);
+            XSSUBSP(VSXREG(d1), VSXREG(d1), VSXREG(q0));
             XSCVDPSPN(VSXREG(d1), VSXREG(d1));
             VEXTRACTUW(VRREG(d1), VRREG(d1), 0);
             VINSERTW(VRREG(v0), VRREG(d1), 12);
@@ -266,15 +266,15 @@ uintptr_t dynarec64_F30F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
             GETEXSS(d0, 0, 0);
             d1 = fpu_get_scratch(dyn);
             q0 = fpu_get_scratch(dyn);
-            VEXTRACTUW(VRREG(d1), VRREG(v0), 12);
+            XXSPLTW(VSXREG(d1), VSXREG(v0), 3);
             XSCVSPDPN(VSXREG(d1), VSXREG(d1));
             if (MODREG) {
-                VEXTRACTUW(VRREG(q0), VRREG(d0), 12);
+                XXSPLTW(VSXREG(q0), VSXREG(d0), 3);
                 XSCVSPDPN(VSXREG(q0), VSXREG(q0));
             } else {
-                FMR(q0, d0);
+                XXLOR(VSXREG(q0), VSXREG(d0), VSXREG(d0));
             }
-            FDIVS(d1, d1, q0);
+            XSDIVSP(VSXREG(d1), VSXREG(d1), VSXREG(q0));
             XSCVDPSPN(VSXREG(d1), VSXREG(d1));
             VEXTRACTUW(VRREG(d1), VRREG(d1), 0);
             VINSERTW(VRREG(v0), VRREG(d1), 12);

@@ -135,7 +135,7 @@ uintptr_t dynarec64_F20F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
                 MTVSRD(VSXREG(d1), x4);
             } else {
                 // d0 is FPR loaded via LFD, already a double
-                FMR(d1, d0);
+                XXLOR(VSXREG(d1), VSXREG(d0), VSXREG(d0));
             }
             if (rex.w) {
                 XSCVDPSXDS(VSXREG(d1), VSXREG(d1));  // truncate to signed 64-bit
@@ -156,7 +156,7 @@ uintptr_t dynarec64_F20F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
                 MFVSRLD(x4, VSXREG(d0));
                 MTVSRD(VSXREG(d1), x4);
             } else {
-                FMR(d1, d0);
+                XXLOR(VSXREG(d1), VSXREG(d0), VSXREG(d0));
             }
             if (rex.w) {
                 XSCVDPSXDS(VSXREG(d1), VSXREG(d1));  // round to signed 64-bit (current rounding mode)
@@ -177,7 +177,7 @@ uintptr_t dynarec64_F20F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
                 MFVSRLD(x4, VSXREG(d0));
                 MTVSRD(VSXREG(d1), x4);
             } else {
-                FMR(d1, d0);
+                XXLOR(VSXREG(d1), VSXREG(d0), VSXREG(d0));
             }
             XSSQRTDP(VSXREG(d1), VSXREG(d1));
             // Insert FPR result (dw0) into v0's x86 low (ISA dw1), keep v0's x86 high (ISA dw0)
@@ -198,9 +198,9 @@ uintptr_t dynarec64_F20F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
                 MFVSRLD(x4, VSXREG(d0));
                 MTVSRD(VSXREG(q0), x4);
             } else {
-                FMR(q0, d0);
+                XXLOR(VSXREG(q0), VSXREG(d0), VSXREG(d0));
             }
-            FADD(d1, d1, q0);
+            XSADDDP(VSXREG(d1), VSXREG(d1), VSXREG(q0));
             // Insert FPR result back into v0 x86 low
             XXPERMDI(VSXREG(v0), VSXREG(v0), VSXREG(d1), 0);
             break;
@@ -217,9 +217,9 @@ uintptr_t dynarec64_F20F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
                 MFVSRLD(x4, VSXREG(d0));
                 MTVSRD(VSXREG(q0), x4);
             } else {
-                FMR(q0, d0);
+                XXLOR(VSXREG(q0), VSXREG(d0), VSXREG(d0));
             }
-            FMUL(d1, d1, q0);
+            XSMULDP(VSXREG(d1), VSXREG(d1), VSXREG(q0));
             XXPERMDI(VSXREG(v0), VSXREG(v0), VSXREG(d1), 0);
             break;
         case 0x5A:
@@ -232,12 +232,11 @@ uintptr_t dynarec64_F20F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
                 MFVSRLD(x4, VSXREG(d0));
                 MTVSRD(VSXREG(d1), x4);
             } else {
-                FMR(d1, d0);
+                XXLOR(VSXREG(d1), VSXREG(d0), VSXREG(d0));
             }
-            // Convert double to single (result in double format in FPR)
-            FRSP(d1, d1);
-            // Convert to SP in BE word 0 of VSX, then move to LE word 0
-            XSCVDPSPN(VSXREG(d1), VSXREG(d1));
+            // XSCVDPSP rounds DP to SP precision and converts to SP format in word 0
+            // (replaces FRSP + XSCVDPSPN combo)
+            XSCVDPSP(VSXREG(d1), VSXREG(d1));
             VEXTRACTUW(VRREG(d1), VRREG(d1), 0);
             VINSERTW(VRREG(v0), VRREG(d1), 12);
             break;
@@ -254,9 +253,9 @@ uintptr_t dynarec64_F20F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
                 MFVSRLD(x4, VSXREG(d0));
                 MTVSRD(VSXREG(q0), x4);
             } else {
-                FMR(q0, d0);
+                XXLOR(VSXREG(q0), VSXREG(d0), VSXREG(d0));
             }
-            FSUB(d1, d1, q0);
+            XSSUBDP(VSXREG(d1), VSXREG(d1), VSXREG(q0));
             XXPERMDI(VSXREG(v0), VSXREG(v0), VSXREG(d1), 0);
             break;
         case 0x5D:
@@ -274,11 +273,11 @@ uintptr_t dynarec64_F20F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
                 MFVSRLD(x4, VSXREG(d0));
                 MTVSRD(VSXREG(q0), x4);
             } else {
-                FMR(q0, d0);
+                XXLOR(VSXREG(q0), VSXREG(d0), VSXREG(d0));
             }
             // x86 MINSD semantics: if either is NaN, return source (Ex); if equal, return source
-            FCMPU(0, d1, q0);
-            // CR0 after FCMPU: LT if a<b, GT if a>b, EQ if a==b, SO if unordered
+            XSCMPUDP(0, VSXREG(d1), VSXREG(q0));
+            // CR0 after XSCMPUDP: LT if a<b, GT if a>b, EQ if a==b, SO if unordered
             // Branch to MARK if unordered (SO bit set) — use source
             j64 = GETMARK - dyn->native_size;
             BC(BO_TRUE, BI(CR0, CR_SO), j64);
@@ -287,7 +286,7 @@ uintptr_t dynarec64_F20F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
             BLE(j64);
             // dest > src: take src
             MARK;
-            FMR(d1, q0);
+            XXLOR(VSXREG(d1), VSXREG(q0), VSXREG(q0));
             MARK2;
             // Insert result back into v0 x86 low
             XXPERMDI(VSXREG(v0), VSXREG(v0), VSXREG(d1), 0);
@@ -305,9 +304,9 @@ uintptr_t dynarec64_F20F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
                 MFVSRLD(x4, VSXREG(d0));
                 MTVSRD(VSXREG(q0), x4);
             } else {
-                FMR(q0, d0);
+                XXLOR(VSXREG(q0), VSXREG(d0), VSXREG(d0));
             }
-            FDIV(d1, d1, q0);
+            XSDIVDP(VSXREG(d1), VSXREG(d1), VSXREG(q0));
             XXPERMDI(VSXREG(v0), VSXREG(v0), VSXREG(d1), 0);
             break;
         case 0x5F:
@@ -325,10 +324,10 @@ uintptr_t dynarec64_F20F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
                 MFVSRLD(x4, VSXREG(d0));
                 MTVSRD(VSXREG(q0), x4);
             } else {
-                FMR(q0, d0);
+                XXLOR(VSXREG(q0), VSXREG(d0), VSXREG(d0));
             }
             // x86 MAXSD semantics: if either is NaN, return source (Ex); if equal, return source
-            FCMPU(0, d1, q0);
+            XSCMPUDP(0, VSXREG(d1), VSXREG(q0));
             // Branch to MARK if unordered (SO bit set) — use source
             j64 = GETMARK - dyn->native_size;
             BC(BO_TRUE, BI(CR0, CR_SO), j64);
@@ -337,7 +336,7 @@ uintptr_t dynarec64_F20F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
             BGE(j64);
             // dest < src: take src
             MARK;
-            FMR(d1, q0);
+            XXLOR(VSXREG(d1), VSXREG(q0), VSXREG(q0));
             MARK2;
             XXPERMDI(VSXREG(v0), VSXREG(v0), VSXREG(d1), 0);
             break;
@@ -422,10 +421,10 @@ uintptr_t dynarec64_F20F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
                 MFVSRLD(x4, VSXREG(d0));
                 MTVSRD(VSXREG(q0), x4);
             } else {
-                FMR(q0, d0);
+                XXLOR(VSXREG(q0), VSXREG(d0), VSXREG(d0));
             }
             // Compare and set result to all-ones or all-zeros
-            FCMPU(0, d1, q0);
+            XSCMPUDP(0, VSXREG(d1), VSXREG(q0));
             // Read CR0 bits: LT=0, GT=1, EQ=2, SO/UN=3
             switch (u8 & 7) {
                 case 0: // EQ

@@ -1114,6 +1114,19 @@
 #define XVSQRTSP(Xt, Xb)      EMIT(XX2_form_gen(60, Xt, Xb, 139))
 
 // --- VSX Scalar FP Arithmetic (XX3-form, opcode 60) ---
+// Single-precision (ISA 2.07/POWER8+, XX3-form, full vs0-vs63 range)
+// XSADDSP — scalar add single-precision
+#define XSADDSP(Xt, Xa, Xb)   EMIT(XX3_form_gen(60, Xt, Xa, Xb, 0))
+// XSSUBSP — scalar subtract single-precision
+#define XSSUBSP(Xt, Xa, Xb)   EMIT(XX3_form_gen(60, Xt, Xa, Xb, 8))
+// XSMULSP — scalar multiply single-precision
+#define XSMULSP(Xt, Xa, Xb)   EMIT(XX3_form_gen(60, Xt, Xa, Xb, 16))
+// XSDIVSP — scalar divide single-precision
+#define XSDIVSP(Xt, Xa, Xb)   EMIT(XX3_form_gen(60, Xt, Xa, Xb, 24))
+// XSSQRTSP — scalar square root single-precision (XX2-form)
+#define XSSQRTSP(Xt, Xb)      EMIT(XX2_form_gen(60, Xt, Xb, 11))
+
+// Double-precision (XX3-form, full vs0-vs63 range)
 // XSADDDP — scalar add double-precision
 #define XSADDDP(Xt, Xa, Xb)   EMIT(XX3_form_gen(60, Xt, Xa, Xb, 32))
 // XSSUBDP — scalar subtract double-precision
@@ -1198,9 +1211,9 @@
 
 // --- MOVD/MOVQ helpers ---
 // XXSPLTW — VSX splat word: replicate word XB[UIM2] to all 4 words (XX2-form)
-// UIM2 is encoded in bits 16-17
+// UIM2 is encoded in bits 16-17 (C-shift), XO = 164
 #define XXSPLTW(Xt, Xb, uim2) \
-    EMIT(XX2_form_gen(60, Xt, Xb, (((uim2) & 0x3) << 7) | 40))
+    EMIT(XX2_form_gen(60, Xt, Xb, 164) | (((uim2) & 0x3) << 16))
 
 // XXSPLTIB — VSX splat immediate byte: replicate IMM8 to all 16 bytes (POWER9, X_RD6_IMM8-form)
 // Encoding: [60 | XT[0:4] | 00 | IMM8 | 360 | XT[5]]

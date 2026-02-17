@@ -339,7 +339,8 @@ uintptr_t dynarec64_660F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
                 SMREAD();
                 d1 = fpu_get_scratch(dyn);
                 addr = geted(dyn, addr, ninst, nextop, &ed, x1, x2, &fixedaddress, rex, NULL, 1, 0);
-                LFD(d1, fixedaddress, ed);
+                LD(x4, fixedaddress, ed);
+                MTVSRD(VSXREG(d1), x4);
             }
             CLEAR_FLAGS(x1);
             // Compare scalar double: Gx[63:0] vs Ex[63:0]
@@ -3166,7 +3167,10 @@ uintptr_t dynarec64_660F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
                         SMREAD();
                         addr = geted(dyn, addr, ninst, nextop, &ed, x1, x2, &fixedaddress, rex, NULL, 1, 1);
                         v1 = fpu_get_scratch(dyn);
-                        LFS(v1, fixedaddress, ed); // loads single as double in FPR (= VSX high dword)
+                        LWZ(x4, fixedaddress, ed);
+                        SLDI(x4, x4, 32);
+                        MTVSRD(VSXREG(v1), x4);
+                        XSCVSPDPN(VSXREG(v1), VSXREG(v1));
                         u8 = F8;
                         // Scalar double round
                         if (u8 & 4) {
@@ -3221,7 +3225,8 @@ uintptr_t dynarec64_660F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
                         SMREAD();
                         addr = geted(dyn, addr, ninst, nextop, &ed, x1, x2, &fixedaddress, rex, NULL, 1, 1);
                         v1 = fpu_get_scratch(dyn);
-                        LFD(v1, fixedaddress, ed); // loads double into FPR (= VSX bits 0:63)
+                        LD(x4, fixedaddress, ed);
+                        MTVSRD(VSXREG(v1), x4);
                         u8 = F8;
                         // Scalar double round (operates on bits 0:63)
                         if (u8 & 4) {
@@ -3526,8 +3531,11 @@ uintptr_t dynarec64_660F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
                         u8 = F8;
                         // Memory: load single float, source index is always 0
                         int dst_idx = (u8 >> 4) & 3;
-                        LFS(d0, fixedaddress, ed);
-                        // LFS loads single→double into FPR = VSX bits 0:63
+                        LWZ(x4, fixedaddress, ed);
+                        SLDI(x4, x4, 32);
+                        MTVSRD(VSXREG(d0), x4);
+                        XSCVSPDPN(VSXREG(d0), VSXREG(d0));
+                        // Converts single→double into VSX dw0
                         // Convert back to single: XSCVDPSP puts single in bits 0:31 (BE word 0, byte offset 0)
                         XSCVDPSP(VSXREG(d0), VSXREG(d0));
                         // Extract from BE byte offset 0 (word 0)

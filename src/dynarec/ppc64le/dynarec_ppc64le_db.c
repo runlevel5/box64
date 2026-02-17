@@ -147,8 +147,8 @@ uintptr_t dynarec64_DB(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 s0 = fpu_get_scratch(dyn);
                 // Truncate double to int32 (round toward zero)
                 FCTIWZ(s0, v1);
-                // Move low 32 bits from FPR to GPR
-                MFVSRWZ(x5, VSXREG(s0));
+                // Move low 32 bits from FPR to GPR (use raw s0, not VSXREG, since FCTIWZ writes to FPR space)
+                MFVSRWZ(x5, s0);
                 // Check for overflow: int32 overflow gives 0x80000000
                 // FCTIWZ already produces 0x80000000 for overflow/NaN, which is the
                 // correct x86 "integer indefinite" value
@@ -163,8 +163,8 @@ uintptr_t dynarec64_DB(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 s0 = fpu_get_scratch(dyn);
                 // Convert double to int32 using current rounding mode
                 FCTIW(s0, v1);
-                // Move low 32 bits from FPR to GPR
-                MFVSRWZ(x5, VSXREG(s0));
+                // Move low 32 bits from FPR to GPR (use raw s0, not VSXREG, since FCTIW writes to FPR space)
+                MFVSRWZ(x5, s0);
                 STW(x5, fixedaddress, wback);
                 x87_restoreround(dyn, ninst, u8);
                 break;
@@ -176,8 +176,8 @@ uintptr_t dynarec64_DB(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 s0 = fpu_get_scratch(dyn);
                 // Convert double to int32 using current rounding mode
                 FCTIW(s0, v1);
-                // Move low 32 bits from FPR to GPR
-                MFVSRWZ(x5, VSXREG(s0));
+                // Move low 32 bits from FPR to GPR (use raw s0, not VSXREG, since FCTIW writes to FPR space)
+                MFVSRWZ(x5, s0);
                 STW(x5, fixedaddress, wback);
                 x87_restoreround(dyn, ninst, u8);
                 X87_POP_OR_FAIL(dyn, ninst, x3);

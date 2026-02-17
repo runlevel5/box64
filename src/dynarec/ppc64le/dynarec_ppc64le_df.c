@@ -127,7 +127,8 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 } else {
                     FCTIWZ(s0, v1);
                 }
-                MFVSRWZ(x4, VSXREG(s0));
+                // Use raw s0 (not VSXREG) since FCTIWZ writes to FPR space
+                MFVSRWZ(x4, s0);
                 // MFVSRWZ zero-extends to 64 bits; sign-extend int32 first for correct comparison
                 EXTSW(x4, x4);
                 // Clamp to int16 range: if value overflows, use 0x8000 (indefinite)
@@ -147,7 +148,8 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 s0 = fpu_get_scratch(dyn);
                 // Convert to int32 using current rounding mode
                 FCTIW(s0, v1);
-                MFVSRWZ(x4, VSXREG(s0));
+                // Use raw s0 (not VSXREG) since FCTIW writes to FPR space
+                MFVSRWZ(x4, s0);
                 x87_restoreround(dyn, ninst, u8);
                 // MFVSRWZ zero-extends to 64 bits; sign-extend int32 first for correct comparison
                 EXTSW(x4, x4);
@@ -166,7 +168,8 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 s0 = fpu_get_scratch(dyn);
                 // Convert to int32 using current rounding mode
                 FCTIW(s0, v1);
-                MFVSRWZ(x4, VSXREG(s0));
+                // Use raw s0 (not VSXREG) since FCTIW writes to FPR space
+                MFVSRWZ(x4, s0);
                 x87_restoreround(dyn, ninst, u8);
                 // MFVSRWZ zero-extends to 64 bits; sign-extend int32 first for correct comparison
                 EXTSW(x4, x4);

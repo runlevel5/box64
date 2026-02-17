@@ -373,7 +373,8 @@ uintptr_t dynarec64_D9(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                     MOV64x(x3, 0x4340000000000000ULL);
                 }
                 v1 = fpu_get_scratch(dyn);
-                MTVSRD(VSXREG(v1), x3);
+                // Use raw v1 (not VSXREG) since FCMPU/FCTID/FCFID use FPR space
+                MTVSRD(v1, x3);
                 v2 = fpu_get_scratch(dyn);
                 FABS(v2, v0);
                 FCMPU(0, v2, v1);
