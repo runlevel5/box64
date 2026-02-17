@@ -80,6 +80,8 @@ uintptr_t getConst(ppc64le_consts_t which)
         case const_direct_fsin: return (uintptr_t)direct_fsin;
         case const_native_fsincos: return (uintptr_t)native_fsincos;
         case const_direct_fscale: return (uintptr_t)direct_fscale;
+        case const_native_fprem: return (uintptr_t)native_fprem;
+        case const_native_fprem1: return (uintptr_t)native_fprem1;
         case const_native_fld: return (uintptr_t)native_fld;
         case const_native_fstp: return (uintptr_t)native_fstp;
         case const_native_frstor: return (uintptr_t)native_frstor;

@@ -43,6 +43,8 @@ typedef enum ppc64le_consts_s {
     const_direct_fsin,
     const_native_fsincos,
     const_direct_fscale,
+    const_native_fprem,
+    const_native_fprem1,
     const_native_fld,
     const_native_fstp,
     const_native_frstor,
