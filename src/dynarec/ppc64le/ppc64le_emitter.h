@@ -1383,10 +1383,16 @@
 
 // XSCVDPSP — VSX scalar convert double to single (result in word 0)
 #define XSCVDPSP(Xt, Xb)      EMIT(XX2_form_gen(60, Xt, Xb, 265))
+// XSCVDPSPN — VSX scalar convert double to single non-signaling (result in word 0, no exceptions)
+#define XSCVDPSPN(Xt, Xb)     EMIT(XX2_form_gen(60, Xt, Xb, 267))
 // XSCVSPDP — VSX scalar convert single (word 0) to double
 #define XSCVSPDP(Xt, Xb)      EMIT(XX2_form_gen(60, Xt, Xb, 329))
+// XSCVSPDPN — VSX scalar convert single (word 0) to double non-signaling (no exceptions)
+#define XSCVSPDPN(Xt, Xb)     EMIT(XX2_form_gen(60, Xt, Xb, 331))
 // XSCVSXDDP — VSX scalar convert signed int64 to double
 #define XSCVSXDDP(Xt, Xb)     EMIT(XX2_form_gen(60, Xt, Xb, 376))
+// XSCVSXDSP — VSX scalar convert signed int64 to single
+#define XSCVSXDSP(Xt, Xb)     EMIT(XX2_form_gen(60, Xt, Xb, 408))
 // XSCVDPSXDS — VSX scalar convert double to signed int64 (truncation)
 #define XSCVDPSXDS(Xt, Xb)    EMIT(XX2_form_gen(60, Xt, Xb, 344))
 // XSCVDPSXWS — VSX scalar convert double to signed int32 (truncation)
