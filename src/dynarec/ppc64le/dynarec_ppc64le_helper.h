@@ -2464,9 +2464,8 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
 // ========================================================================
 // REVBxw — byte-reverse (BSWAP) for 32 or 64 bits
 // ========================================================================
-// 32-bit: pure register approach, 3 instructions, no scratch needed
-// 64-bit: uses stack red zone + scratch register for store-load byte-reverse
-// Note: tmp is a scratch GPR, only needed for 64-bit mode
+// Uses stack red zone + scratch register for store-load byte-reverse
+// Note: tmp is a scratch GPR
 #define REVBxw(Rd, Rs, tmp)                              \
     do {                                                  \
         if (rex.w) {                                      \
@@ -2474,9 +2473,10 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             LI(tmp, -8);                                  \
             LDBRX(Rd, xSP, tmp);                          \
         } else {                                          \
-            RLWINM(Rd, Rs, 8, 0, 31);                     \
-            RLWIMI(Rd, Rs, 24, 0, 7);                     \
-            RLWIMI(Rd, Rs, 24, 16, 23);                   \
+            STW(Rs, -4, xSP);                             \
+            LI(tmp, -4);                                  \
+            LWBRX(Rd, xSP, tmp);                          \
+            ZEROUP(Rd);                                   \
         }                                                 \
     } while (0)
 
