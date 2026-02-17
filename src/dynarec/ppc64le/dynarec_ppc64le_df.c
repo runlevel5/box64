@@ -121,63 +121,83 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 v1 = x87_get_st(dyn, ninst, x1, x2, 0, VMX_CACHE_ST_F);
                 addr = geted(dyn, addr, ninst, nextop, &wback, x3, x4, &fixedaddress, rex, NULL, 1, 0);
                 s0 = fpu_get_scratch(dyn);
+                // Clear FPSCR VXCVI bit before conversion
+                MTFSB0(23);
                 // Truncate to int32 (round toward zero), then store low 16 bits
-                if (ST_IS_F(0)) {
-                    FCTIWZ(s0, v1);
-                } else {
-                    FCTIWZ(s0, v1);
-                }
+                FCTIWZ(s0, v1);
                 // Use raw s0 (not VSXREG) since FCTIWZ writes to FPR space
                 MFVSRWZ(x4, s0);
+                // Check FPSCR VXCVI: if set, Inf/NaN overflow → use 0x8000
+                MFFS(s0);           // read FPSCR into FPR (overwrites s0, result already in x4)
+                MFVSRD(x5, s0);     // FPSCR to GPR (VXCVI = bit 23 from LSB)
+                RLWINM(x5, x5, 24, 31, 31);  // extract VXCVI (ISA bit 23) → bit 0
+                BNEZ_MARK(x5);      // if VXCVI set, jump to indefinite
                 // MFVSRWZ zero-extends to 64 bits; sign-extend int32 first for correct comparison
                 EXTSW(x4, x4);
                 // Clamp to int16 range: if value overflows, use 0x8000 (indefinite)
                 EXTSH(x5, x4);
-                BEQ_MARK(x5, x4);
-                // overflow
-                MOV32w(x4, 0x8000);
+                BEQ_MARK2(x5, x4);  // if fits in int16, skip to store
                 MARK;
+                // overflow or Inf/NaN
+                MOV32w(x4, 0x8000);
+                MARK2;
                 STH(x4, fixedaddress, wback);
                 X87_POP_OR_FAIL(dyn, ninst, x3);
                 break;
             case 2:
                 INST_NAME("FIST Ew, ST0");
                 v1 = x87_get_st(dyn, ninst, x1, x2, 0, VMX_CACHE_ST_F);
-                u8 = x87_setround(dyn, ninst, x1, x5);
+                u8 = x87_setround(dyn, ninst, x1, x7);
                 addr = geted(dyn, addr, ninst, nextop, &wback, x2, x3, &fixedaddress, rex, NULL, 1, 0);
                 s0 = fpu_get_scratch(dyn);
+                // Clear FPSCR VXCVI bit before conversion
+                MTFSB0(23);
                 // Convert to int32 using current rounding mode
                 FCTIW(s0, v1);
                 // Use raw s0 (not VSXREG) since FCTIW writes to FPR space
                 MFVSRWZ(x4, s0);
+                // Check FPSCR VXCVI BEFORE restoreround (which overwrites entire FPSCR)
+                MFFS(s0);           // read FPSCR into FPR (overwrites s0, result already in x4)
+                MFVSRD(x5, s0);     // FPSCR to GPR (VXCVI = ISA bit 23)
+                RLWINM(x5, x5, 24, 31, 31);  // extract VXCVI (ISA bit 23) → bit 0
                 x87_restoreround(dyn, ninst, u8);
+                BNEZ_MARK(x5);      // if VXCVI set, jump to indefinite
                 // MFVSRWZ zero-extends to 64 bits; sign-extend int32 first for correct comparison
                 EXTSW(x4, x4);
                 // Clamp to int16 range
                 EXTSH(x5, x4);
-                BEQ_MARK(x5, x4);
-                MOV32w(x4, 0x8000);
+                BEQ_MARK2(x5, x4);
                 MARK;
+                MOV32w(x4, 0x8000);
+                MARK2;
                 STH(x4, fixedaddress, wback);
                 break;
             case 3:
                 INST_NAME("FISTP Ew, ST0");
                 v1 = x87_get_st(dyn, ninst, x1, x2, 0, VMX_CACHE_ST_F);
-                u8 = x87_setround(dyn, ninst, x1, x5);
+                u8 = x87_setround(dyn, ninst, x1, x7);
                 addr = geted(dyn, addr, ninst, nextop, &wback, x2, x3, &fixedaddress, rex, NULL, 1, 0);
                 s0 = fpu_get_scratch(dyn);
+                // Clear FPSCR VXCVI bit before conversion
+                MTFSB0(23);
                 // Convert to int32 using current rounding mode
                 FCTIW(s0, v1);
                 // Use raw s0 (not VSXREG) since FCTIW writes to FPR space
                 MFVSRWZ(x4, s0);
+                // Check FPSCR VXCVI BEFORE restoreround (which overwrites entire FPSCR)
+                MFFS(s0);           // read FPSCR into FPR (overwrites s0, result already in x4)
+                MFVSRD(x5, s0);     // FPSCR to GPR (VXCVI = ISA bit 23)
+                RLWINM(x5, x5, 24, 31, 31);  // extract VXCVI (ISA bit 23) → bit 0
                 x87_restoreround(dyn, ninst, u8);
+                BNEZ_MARK(x5);      // if VXCVI set, jump to indefinite
                 // MFVSRWZ zero-extends to 64 bits; sign-extend int32 first for correct comparison
                 EXTSW(x4, x4);
                 // Clamp to int16 range
                 EXTSH(x5, x4);
-                BEQ_MARK(x5, x4);
-                MOV32w(x4, 0x8000);
+                BEQ_MARK2(x5, x4);
                 MARK;
+                MOV32w(x4, 0x8000);
+                MARK2;
                 STH(x4, fixedaddress, wback);
                 X87_POP_OR_FAIL(dyn, ninst, x3);
                 break;
@@ -259,9 +279,20 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                         MARK;
                     }
 
+                    // Clear FPSCR VXCVI bit before conversion
+                    MTFSB0(23);
                     // Convert double to int64 using current rounding mode
                     FCTID(v2, v1);
-                    STFD(v2, fixedaddress, wback);
+                    // Move int64 result to GPR
+                    MFVSRD(x5, v2);
+                    // Check FPSCR VXCVI: PPC gives wrong result for Inf/NaN, x86 wants 0x8000000000000000
+                    MFFS(v2);           // read FPSCR into FPR (overwrites v2, result already in x5)
+                    MFVSRD(x4, v2);     // FPSCR to GPR (VXCVI = bit 23 from LSB)
+                    RLWINM(x4, x4, 24, 31, 31);  // extract VXCVI (ISA bit 23) → bit 0
+                    BEQZ_MARK2(x4);     // if no overflow, skip
+                    MOV64x(x5, 0x8000000000000000LL);  // x86 integer indefinite (int64)
+                    MARK2;
+                    STD(x5, fixedaddress, wback);
                     MARK3;
                     x87_restoreround(dyn, ninst, u8);
                 }

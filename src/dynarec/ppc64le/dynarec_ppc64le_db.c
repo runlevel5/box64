@@ -145,13 +145,19 @@ uintptr_t dynarec64_DB(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 v1 = x87_get_st(dyn, ninst, x1, x2, 0, VMX_CACHE_ST_D);
                 addr = geted(dyn, addr, ninst, nextop, &wback, x3, x4, &fixedaddress, rex, NULL, 1, 0);
                 s0 = fpu_get_scratch(dyn);
+                // Clear FPSCR VXCVI bit before conversion
+                MTFSB0(23);
                 // Truncate double to int32 (round toward zero)
                 FCTIWZ(s0, v1);
-                // Move low 32 bits from FPR to GPR (use raw s0, not VSXREG, since FCTIWZ writes to FPR space)
+                // Move int32 result to GPR (use raw s0 since FCTIWZ writes to FPR space)
                 MFVSRWZ(x5, s0);
-                // Check for overflow: int32 overflow gives 0x80000000
-                // FCTIWZ already produces 0x80000000 for overflow/NaN, which is the
-                // correct x86 "integer indefinite" value
+                // Check FPSCR VXCVI: PPC gives 0x7FFFFFFF for +Inf, x86 wants 0x80000000
+                MFFS(s0);           // read FPSCR into FPR (overwrites s0, result already in x5)
+                MFVSRD(x4, s0);     // FPSCR to GPR (VXCVI = bit 23 from LSB)
+                RLWINM(x4, x4, 24, 31, 31);  // extract VXCVI (ISA bit 23) → bit 0
+                BEQZ_MARK(x4);     // if no overflow, skip to MARK
+                MOV32w(x5, 0x80000000);  // x86 integer indefinite
+                MARK;
                 STW(x5, fixedaddress, wback);
                 X87_POP_OR_FAIL(dyn, ninst, x3);
                 break;
@@ -161,10 +167,19 @@ uintptr_t dynarec64_DB(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 u8 = x87_setround(dyn, ninst, x1, x5);
                 addr = geted(dyn, addr, ninst, nextop, &wback, x2, x3, &fixedaddress, rex, NULL, 1, 0);
                 s0 = fpu_get_scratch(dyn);
+                // Clear FPSCR VXCVI bit before conversion
+                MTFSB0(23);
                 // Convert double to int32 using current rounding mode
                 FCTIW(s0, v1);
                 // Move low 32 bits from FPR to GPR (use raw s0, not VSXREG, since FCTIW writes to FPR space)
                 MFVSRWZ(x5, s0);
+                // Check FPSCR VXCVI: PPC gives 0x7FFFFFFF for +Inf, x86 wants 0x80000000
+                MFFS(s0);           // read FPSCR into FPR (overwrites s0, result already in x5)
+                MFVSRD(x4, s0);     // FPSCR to GPR (VXCVI = bit 23 from LSB)
+                RLWINM(x4, x4, 24, 31, 31);  // extract VXCVI (ISA bit 23) → bit 0
+                BEQZ_MARK(x4);     // if no overflow, skip
+                MOV32w(x5, 0x80000000);  // x86 integer indefinite
+                MARK;
                 STW(x5, fixedaddress, wback);
                 x87_restoreround(dyn, ninst, u8);
                 break;
@@ -174,10 +189,19 @@ uintptr_t dynarec64_DB(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 u8 = x87_setround(dyn, ninst, x1, x5);
                 addr = geted(dyn, addr, ninst, nextop, &wback, x2, x3, &fixedaddress, rex, NULL, 1, 0);
                 s0 = fpu_get_scratch(dyn);
+                // Clear FPSCR VXCVI bit before conversion
+                MTFSB0(23);
                 // Convert double to int32 using current rounding mode
                 FCTIW(s0, v1);
                 // Move low 32 bits from FPR to GPR (use raw s0, not VSXREG, since FCTIW writes to FPR space)
                 MFVSRWZ(x5, s0);
+                // Check FPSCR VXCVI: PPC gives 0x7FFFFFFF for +Inf, x86 wants 0x80000000
+                MFFS(s0);           // read FPSCR into FPR (overwrites s0, result already in x5)
+                MFVSRD(x4, s0);     // FPSCR to GPR (VXCVI = bit 23 from LSB)
+                RLWINM(x4, x4, 24, 31, 31);  // extract VXCVI (ISA bit 23) → bit 0
+                BEQZ_MARK(x4);     // if no overflow, skip
+                MOV32w(x5, 0x80000000);  // x86 integer indefinite
+                MARK;
                 STW(x5, fixedaddress, wback);
                 x87_restoreround(dyn, ninst, u8);
                 X87_POP_OR_FAIL(dyn, ninst, x3);

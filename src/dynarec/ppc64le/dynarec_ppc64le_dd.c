@@ -116,9 +116,20 @@ uintptr_t dynarec64_DD(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 if (ST_IS_I64(0)) {
                     STFD(v1, fixedaddress, wback);
                 } else {
+                    // Clear FPSCR VXCVI bit before conversion
+                    MTFSB0(23);
                     // Truncate double to int64 (round toward zero)
                     FCTIDZ(v2, v1);
-                    STFD(v2, fixedaddress, wback);
+                    // Move int64 result to GPR
+                    MFVSRD(x5, v2);
+                    // Check FPSCR VXCVI: PPC gives wrong result for Inf/NaN, x86 wants 0x8000000000000000
+                    MFFS(v2);           // read FPSCR into FPR (overwrites v2, result already in x5)
+                    MFVSRD(x4, v2);     // FPSCR to GPR (VXCVI = bit 23 from LSB)
+                    RLWINM(x4, x4, 24, 31, 31);  // extract VXCVI (ISA bit 23) → bit 0
+                    BEQZ_MARK(x4);     // if no overflow, skip
+                    MOV64x(x5, 0x8000000000000000LL);  // x86 integer indefinite (int64)
+                    MARK;
+                    STD(x5, fixedaddress, wback);
                 }
                 X87_POP_OR_FAIL(dyn, ninst, x3);
                 break;
