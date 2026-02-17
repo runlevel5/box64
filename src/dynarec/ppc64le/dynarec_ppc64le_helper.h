@@ -2351,18 +2351,98 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
         }
 
 // ========================================================================
-// FCOM / FCOMI — stub implementations for PPC64LE
+// FCOM — set x87 Status Word C0/C2/C3 from FP comparison
 // ========================================================================
-// TODO: implement proper FP comparison using fcmpu
-#define FCOM(w, v1, v2, s1, s2, s3)       \
-    /* stub: FCOM not yet implemented */   \
-    NOP();
+// x87 SW bits: C0=bit8, C2=bit10, C3=bit14
+// GT: C3=0,C2=0,C0=0 -> 0x0000
+// LT: C3=0,C2=0,C0=1 -> 0x0100
+// EQ: C3=1,C2=0,C0=0 -> 0x4000
+// UN: C3=1,C2=1,C0=1 -> 0x4500
+// Mask to clear C0,C1,C2,C3: ~(0x4700) = 0xB8FF
+// Layout after FCMPU (all MOV32w values fit in signed 16-bit = 1 insn each):
+//   +0: BC SO -> +5*4    (-> UN handler at +20)
+//   +4: BEQ -> +6*4      (-> EQ handler at +28)
+//   +8: BLT -> +7*4      (-> LT handler at +36)
+//  +12: LI s1, 0         (GT)
+//  +16: B +6*4            (-> end at +40)
+//  +20: LI s1, 0x4500    (UN)
+//  +24: B +4*4            (-> end at +40)
+//  +28: LI s1, 0x4000    (EQ)
+//  +32: B +2*4            (-> end at +40)
+//  +36: LI s1, 0x0100    (LT)
+//  +40: OR / STH          (end)
+#define FCOM(w, v1, v2, s1, s2, s3)                                 \
+    LHZ(s3, offsetof(x64emu_t, sw), xEmu);                          \
+    MOV32w(s1, 0b1011100011111111); /* 0xB8FF: mask off C0-C3 */    \
+    AND(s3, s3, s1);                                                \
+    FCMPU(0, v1, v2);                                               \
+    BC(BO_TRUE, BI(CR0, CR_SO), 5*4);  /* -> UN at +20 */           \
+    BEQ(6*4);                          /* -> EQ at +28 */           \
+    BLT(7*4);                          /* -> LT at +36 */          \
+    /* GT: s1 = 0 (nothing to set) */                               \
+    LI(s1, 0);                                                      \
+    B(6*4);                            /* -> end at +40 */          \
+    /* UN: C0|C2|C3 bits 8,10,14 = 0x4500 */                        \
+    LI(s1, 0x4500);                                                 \
+    B(4*4);                            /* -> end at +40 */          \
+    /* EQ: C3 bit 14 = 0x4000 */                                    \
+    LI(s1, 0x4000);                                                 \
+    B(2*4);                            /* -> end at +40 */          \
+    /* LT: C0 bit 8 = 0x0100 */                                     \
+    LI(s1, 0x0100);                                                 \
+    /* end: merge and store */                                      \
+    OR(s3, s3, s1);                                                 \
+    STH(s3, offsetof(x64emu_t, sw), xEmu);
 
 #define FCOMS(v1, v2, s1, s2, s3) FCOM(S, v1, v2, s1, s2, s3)
 #define FCOMD(v1, v2, s1, s2, s3) FCOM(D, v1, v2, s1, s2, s3)
 
-#define FCOMI(w, v1, v2, s1, s2)           \
-    /* stub: FCOMI not yet implemented */  \
+// ========================================================================
+// FCOMI — set EFLAGS CF/PF/ZF from FP comparison
+// ========================================================================
+// GT: CF=0,PF=0,ZF=0 -> 0x00
+// LT: CF=1,PF=0,ZF=0 -> 0x01 (bit 0)
+// EQ: CF=0,PF=0,ZF=1 -> 0x40 (bit 6)
+// UN: CF=1,PF=1,ZF=1 -> 0x45 (bits 0,2,6)
+// Also clear OF(bit11), AF(bit4), SF(bit7)
+// Layout after FCMPU (all values fit in signed 16-bit = 1 insn each):
+//   +0: BC SO -> +5*4    (-> UN handler at +20)
+//   +4: BEQ -> +6*4      (-> EQ handler at +28)
+//   +8: BLT -> +7*4      (-> LT handler at +36)
+//  +12: LI s1, 0         (GT)
+//  +16: B +6*4            (-> end at +40)
+//  +20: MR s1, s2         (UN: s2 still has 0x45)
+//  +24: B +4*4            (-> end at +40)
+//  +28: LI s1, 0x40      (EQ)
+//  +32: B +2*4            (-> end at +40)
+//  +36: LI s1, 1          (LT)
+//  +40: OR                (end)
+#define FCOMI(w, v1, v2, s1, s2)                                    \
+    IFX (X_OF | X_AF | X_SF | X_PEND) {                             \
+        MOV64x(s2, ((1 << F_OF) | (1 << F_AF) | (1 << F_SF)));     \
+        ANDC(xFlags, xFlags, s2);                                   \
+    }                                                               \
+    IFX (X_CF | X_PF | X_ZF | X_PEND) {                             \
+        MOV32w(s2, 0b01000101); /* CF|PF|ZF mask = 0x45 */         \
+        ANDC(xFlags, xFlags, s2);                                   \
+        FCMPU(0, v1, v2);                                           \
+        BC(BO_TRUE, BI(CR0, CR_SO), 5*4);  /* -> UN at +20 */       \
+        BEQ(6*4);                          /* -> EQ at +28 */       \
+        BLT(7*4);                          /* -> LT at +36 */      \
+        /* GT: s1 = 0 */                                            \
+        LI(s1, 0);                                                  \
+        B(6*4);                            /* -> end at +40 */      \
+        /* UN: CF|PF|ZF = 0x45 */                                   \
+        MR(s1, s2);  /* s2 already has 0x45 */                      \
+        B(4*4);                            /* -> end at +40 */      \
+        /* EQ: ZF = 0x40 */                                         \
+        LI(s1, 0b01000000);                                         \
+        B(2*4);                            /* -> end at +40 */      \
+        /* LT: CF = 1 */                                            \
+        LI(s1, 1);                                                  \
+        /* end: merge into flags */                                 \
+        OR(xFlags, xFlags, s1);                                     \
+    }                                                               \
     SET_DFNONE()
 
 #define FCOMIS(v1, v2, s1, s2) FCOMI(S, v1, v2, s1, s2)
