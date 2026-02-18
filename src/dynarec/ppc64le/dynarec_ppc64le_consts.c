@@ -105,6 +105,8 @@ uintptr_t getConst(ppc64le_consts_t which)
         case const_cpuid: return (uintptr_t)my_cpuid;
         case const_getsegmentbase: return (uintptr_t)GetSegmentBaseEmu;
         case const_reset_fpu: return (uintptr_t)reset_fpu;
+        case const_sha1nexte: return (uintptr_t)sha1nexte;
+        case const_sha1msg1: return (uintptr_t)sha1msg1;
         case const_sha1msg2: return (uintptr_t)sha1msg2;
         case const_sha1rnds4: return (uintptr_t)sha1rnds4;
         case const_sha256msg1: return (uintptr_t)sha256msg1;

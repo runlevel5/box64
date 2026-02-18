@@ -504,6 +504,71 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                     SDxw(x1, wback, fixedaddress);
                     SMWRITE2();
                     break;
+                case 0xC8:
+                case 0xC9:
+                case 0xCA:
+                case 0xCB:
+                case 0xCC:
+                case 0xCD:
+                    u8 = nextop;
+                    switch (u8) {
+                        case 0xC8: INST_NAME("SHA1NEXTE Gx, Ex"); break;
+                        case 0xC9: INST_NAME("SHA1MSG1 Gx, Ex"); break;
+                        case 0xCA: INST_NAME("SHA1MSG2 Gx, Ex"); break;
+                        case 0xCB: INST_NAME("SHA256RNDS2 Gx, Ex"); break;
+                        case 0xCC: INST_NAME("SHA256MSG1 Gx, Ex"); break;
+                        case 0xCD: INST_NAME("SHA256MSG2 Gx, Ex"); break;
+                    }
+                    nextop = F8;
+                    if (MODREG) {
+                        ed = (nextop & 7) + (rex.b << 3);
+                        sse_reflect_reg(dyn, ninst, ed);
+                        ADDI(x2, xEmu, offsetof(x64emu_t, xmm[ed]));
+                        ed = x2;
+                    } else {
+                        SMREAD();
+                        addr = geted(dyn, addr, ninst, nextop, &ed, x2, x1, &fixedaddress, rex, NULL, 0, 0);
+                    }
+                    GETG;
+                    sse_forget_reg(dyn, ninst, gd);
+                    ADDI(x1, xEmu, offsetof(x64emu_t, xmm[gd]));
+                    sse_reflect_reg(dyn, ninst, 0);
+                    switch (u8) {
+                        case 0xC8: CALL(const_sha1nexte, -1, x1, ed); break;
+                        case 0xC9: CALL(const_sha1msg1, -1, x1, ed); break;
+                        case 0xCA: CALL(const_sha1msg2, -1, x1, ed); break;
+                        case 0xCB: CALL(const_sha256rnds2, -1, x1, ed); break;
+                        case 0xCC: CALL(const_sha256msg1, -1, x1, ed); break;
+                        case 0xCD: CALL(const_sha256msg2, -1, x1, ed); break;
+                    }
+                    break;
+                default:
+                    DEFAULT;
+            }
+            break;
+
+        case 0x3A:
+            opcode = F8;
+            switch (opcode) {
+                case 0xCC:
+                    INST_NAME("SHA1RNDS4 Gx, Ex, Ib");
+                    nextop = F8;
+                    if (MODREG) {
+                        ed = (nextop & 7) + (rex.b << 3);
+                        sse_reflect_reg(dyn, ninst, ed);
+                        ADDI(x2, xEmu, offsetof(x64emu_t, xmm[ed]));
+                        wback = x2;
+                    } else {
+                        SMREAD();
+                        addr = geted(dyn, addr, ninst, nextop, &wback, x2, x1, &fixedaddress, rex, NULL, 0, 1);
+                    }
+                    u8 = F8;
+                    GETG;
+                    sse_forget_reg(dyn, ninst, gd);
+                    ADDI(x1, xEmu, offsetof(x64emu_t, xmm[gd]));
+                    MOV32w(x3, u8);
+                    CALL4(const_sha1rnds4, -1, x1, wback, x3, 0);
+                    break;
                 default:
                     DEFAULT;
             }

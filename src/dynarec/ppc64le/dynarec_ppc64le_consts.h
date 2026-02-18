@@ -68,6 +68,8 @@ typedef enum ppc64le_consts_s {
     const_cpuid,
     const_getsegmentbase,
     const_reset_fpu,
+    const_sha1nexte,
+    const_sha1msg1,
     const_sha1msg2,
     const_sha1rnds4,
     const_sha256msg1,

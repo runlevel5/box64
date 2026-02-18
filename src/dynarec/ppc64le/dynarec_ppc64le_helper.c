@@ -632,12 +632,19 @@ void call_c(dynarec_ppc64le_t* dyn, int ninst, ppc64le_consts_t fnc, int reg, in
         STD(xRIP, offsetof(x64emu_t, ip), xEmu);
     }
     TABLE64C(reg, fnc);
-    if (arg1) MV(A1, arg1);
-    if (arg2) MV(A2, arg2);
-    if (arg3) MV(A3, arg3);
-    if (arg4) MV(A4, arg4);
-    if (arg5) MV(A5, arg5);
+    // PPC64LE register aliasing fix: scratch registers x1-x6 map to the SAME
+    // hardware registers as ABI argument registers A0-A5 (x1=r3=A0, x2=r4=A1,
+    // x3=r5=A2, x4=r6=A3, x5=r7=A4, x6=r8=A5).
+    // The most common calling pattern is arg1=x1, arg2=x2, arg3=x3, ...
+    // which is a "shift up by one" permutation (x1→A1, x2→A2, x3→A3, ...).
+    // Processing in REVERSE order (high args first) prevents each MV from
+    // clobbering the source register of a later (lower-index) arg.
     if (arg6) MV(A6, arg6);
+    if (arg5) MV(A5, arg5);
+    if (arg4) MV(A4, arg4);
+    if (arg3) MV(A3, arg3);
+    if (arg2) MV(A2, arg2);
+    if (arg1) MV(A1, arg1);
     MV(A0, xEmu);
     // ELFv2 ABI: r12 must be set to the function entry address
     // for global entry point TOC setup

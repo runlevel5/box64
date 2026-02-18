@@ -984,6 +984,15 @@
 // Branch to MARK3 if reg1>=reg2 (use j64)
 #define BGE_MARK3(reg1, reg2) Bxx_gen(GE, MARK3, reg1, reg2)
 
+// Branch to MARKLOCK on CR0.EQ=0 (for STWCX./STDCX. retry loops)
+#define BNE_MARKLOCK_CR0                         \
+    j64 = GETMARKLOCK - dyn->native_size;        \
+    BNE(j64)
+// Branch to MARKLOCK2 on CR0.EQ=0 (for STWCX./STDCX. retry loops)
+#define BNE_MARKLOCK2_CR0                        \
+    j64 = GETMARKLOCK2 - dyn->native_size;       \
+    BNE(j64)
+
 // Branch to MARK unconditional (use j64)
 #define B_MARK_nocond                            \
     j64 = GETMARK - dyn->native_size;            \
@@ -2526,17 +2535,63 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
 #define ALIGNED_ATOMICH  ((fixedaddress && !(fixedaddress & 1)) || BOX64ENV(dynarec_aligned_atomics))
 
 // ========================================================================
-// LOCK_* macros — stubs for PPC64LE
+// LOCK_* macros for PPC64LE using LL/SC (lwarx/stwcx., ldarx/stdcx.)
 // ========================================================================
-// TODO: implement lock macros using PPC64LE LL/SC (lwarx/stwcx., ldarx/stdcx.)
-#define LOCK_3264_CROSS_8BYTE(op, s1, wback, s4, s5, s6) \
-    /* stub: LOCK_3264_CROSS_8BYTE not yet implemented */
+// PPC64LE has byte/half/word/dword LL/SC, so byte ops can use LBARX/STBCXd directly.
 
+// LOCK_8_OP: atomic byte operation using LBARX/STBCXd
+// s1 = old byte value (output), wback = address, op uses s1 as input and puts result in s4
+// Typical: LOCK_8_OP(ADD(s4, s1, gd), s1, wback, s3, s4, s5, s6)
+#define LOCK_8_OP(op, s1, wback, s3, s4, s5, s6)    \
+    do {                                              \
+        MARKLOCK;                                     \
+        LBARX(s1, 0, wback);                          \
+        op;                                           \
+        STBCXd(s4, 0, wback);                         \
+        BNE_MARKLOCK_CR0;                             \
+    } while (0)
+
+// LOCK_32_IN_8BYTE: atomic 32-bit op on unaligned address within an 8-byte block
+// Uses LDARX/STDCXd on the containing 8-byte-aligned address
+// s1 = old 32-bit value (output), wback = original address, op computes new value in s4
 #define LOCK_32_IN_8BYTE(op, s1, wback, s3, s4, s5, s6) \
-    /* stub: LOCK_32_IN_8BYTE not yet implemented */
+    do {                                                  \
+        ANDI(s3, wback, 0b100);   /* byte offset within 8B: 0 or 4 */ \
+        SLDI(s3, s3, 3);          /* bit offset: 0 or 32 */           \
+        RLDICR(s6, wback, 0, 60); /* align to 8 bytes: wback & ~7 */ \
+        MARKLOCK;                                                      \
+        LDARX(s5, 0, s6);        /* load-linked 8 bytes */            \
+        SRD(s1, s5, s3);         /* shift old 32-bit value down */    \
+        RLDICL(s1, s1, 0, 32);   /* zero upper 32 bits */            \
+        op;                       /* s4 = f(s1, operand) */           \
+        /* insert s4 back: clear 32-bit field, OR in new value */     \
+        LI(s1, -1);              /* temp all-ones */                  \
+        RLDICL(s1, s1, 0, 32);   /* mask = 0x00000000FFFFFFFF */     \
+        SLD(s1, s1, s3);         /* shift mask to position */         \
+        ANDC(s5, s5, s1);        /* clear old field */                \
+        RLDICL(s4, s4, 0, 32);   /* zero upper bits of new value */  \
+        SLD(s4, s4, s3);         /* shift new value to position */   \
+        OR(s5, s5, s4);          /* insert new value */               \
+        STDCXd(s5, 0, s6);       /* store-conditional */              \
+        BNE_MARKLOCK_CR0;                                              \
+        /* restore s1 = old 32-bit value */                            \
+        SRD(s1, s5, s3);                                               \
+        RLDICL(s1, s1, 0, 32);                                        \
+    } while (0)
 
-#define LOCK_8_OP(op, s1, wback, s3, s4, s5, s6) \
-    /* stub: LOCK_8_OP not yet implemented */
+// LOCK_3264_CROSS_8BYTE: best-effort atomic for values crossing an 8-byte boundary
+// Uses LDARX/STDCXd as a lock on the lower aligned 8B, then non-atomic load/modify/store
+#define LOCK_3264_CROSS_8BYTE(op, s1, wback, s4, s5, s6) \
+    do {                                                    \
+        RLDICR(s6, wback, 0, 60); /* align to 8 bytes */  \
+        MARKLOCK;                                            \
+        LDARX(s5, 0, s6);        /* reservation lock */    \
+        if (rex.w) { LD(s1, 0, wback); } else { LWZ(s1, 0, wback); } \
+        op;                       /* s4 = f(s1, operand) */ \
+        if (rex.w) { STD(s4, 0, wback); } else { STW(s4, 0, wback); } \
+        STDCXd(s5, 0, s6);       /* release reservation */ \
+        BNE_MARKLOCK_CR0;                                    \
+    } while (0)
 
 #ifndef SCRATCH_USAGE
 #define SCRATCH_USAGE(usage)
