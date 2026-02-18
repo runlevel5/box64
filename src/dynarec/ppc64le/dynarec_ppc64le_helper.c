@@ -638,13 +638,15 @@ void call_c(dynarec_ppc64le_t* dyn, int ninst, ppc64le_consts_t fnc, int reg, in
         STD(xRIP, offsetof(x64emu_t, ip), xEmu);
     }
     TABLE64C(reg, fnc);
-    // PPC64LE register aliasing fix: scratch registers x1-x6 map to the SAME
-    // hardware registers as ABI argument registers A0-A5 (x1=r3=A0, x2=r4=A1,
-    // x3=r5=A2, x4=r6=A3, x5=r7=A4, x6=r8=A5).
-    // The most common calling pattern is arg1=x1, arg2=x2, arg3=x3, ...
-    // which is a "shift up by one" permutation (x1→A1, x2→A2, x3→A3, ...).
-    // Processing in REVERSE order (high args first) prevents each MV from
-    // clobbering the source register of a later (lower-index) arg.
+    // Save function pointer to CTR immediately, before argument shuffling.
+    // On PPC64LE, scratch registers x1-x6 alias ABI argument registers A0-A5
+    // (x1=r3=A0, ..., x6=r8=A5). The function pointer is loaded into reg
+    // (=x6=r8=A5), so any MV(A5, arg5) during argument shuffling would
+    // clobber it. Saving to CTR first avoids this, since CTR is unaffected
+    // by the MV (register-to-register move) instructions.
+    MTCTR(reg);
+    // Argument shuffling: reverse order to handle the "shift up by one"
+    // permutation (x1→A1, x2→A2, ...) without clobbering sources.
     if (arg6) MV(A6, arg6);
     if (arg5) MV(A5, arg5);
     if (arg4) MV(A4, arg4);
@@ -653,9 +655,8 @@ void call_c(dynarec_ppc64le_t* dyn, int ninst, ppc64le_consts_t fnc, int reg, in
     if (arg1) MV(A1, arg1);
     MV(A0, xEmu);
     // ELFv2 ABI: r12 must be set to the function entry address
-    // for global entry point TOC setup
-    MR(12, reg);
-    MTCTR(reg);
+    // for global entry point TOC setup. Recover from CTR.
+    MFCTR(12);
     BCTRL();
     if (ret >= 0) {
         MV(ret, A0);
