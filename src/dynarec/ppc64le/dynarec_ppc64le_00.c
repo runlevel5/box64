@@ -1208,9 +1208,10 @@ uintptr_t dynarec64_00(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             } else {
                 GETGBEB(x1, x2, 0);
                 // simple non-atomic swap: ed has byte from memory, gd has byte from register
-                MR(x3, gd);
+                // Use x4 as temp (not x3, which may be wback from geted)
+                MR(x4, gd);
                 MR(gd, ed);
-                MR(ed, x3);
+                MR(ed, x4);
                 GBBACK();
                 EBBACK();
             }
