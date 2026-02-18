@@ -10,37 +10,21 @@
 void CreateJmpNext(void* addr, void* next)
 {
     uint32_t* block = (uint32_t*)addr;
-    // PPC64LE can't do PC-relative data load like ARM64's LDR literal.
-    // We load the 64-bit address from the 'next' pointer using a 5-instruction
-    // sequence (worst case), then branch via CTR.
-    // However, 'next' here is a pointer to the jump target address stored
-    // right after this code sequence, so we load it indirectly.
-    // Actually, looking at the ARM64 version: LDRx_literal loads from a
-    // PC-relative offset. For PPC64LE we need to load the 64-bit value
-    // stored at 'next' into a register and branch to it.
-    // The value at *next is the target address.
-    // We use: load the address of 'next' into r12, then ld r12, 0(r12), then mtctr+bctr
-    // But we need to materialize the address of 'next' itself...
-    // Simpler approach: materialize the 64-bit value at *next directly.
-    uint64_t target = *(uint64_t*)next;
-    // Load 64-bit immediate into r12 (scratch, also used for function entry in ELFv2)
-    // Use up to 5 instructions to load a 64-bit constant
-    // lis r12, highest
-    // ori r12, r12, higher
-    // rldicr r12, r12, 32, 31
-    // oris r12, r12, hi16
-    // ori r12, r12, lo16
+    // PC-relative load of the target address stored at 'next'.
+    // BCL 20,31,.+4 sets LR = address of the next instruction (addr+4).
+    // We compute the offset from LR to 'next' and use LD to load it.
+    //   BCL 20,31,.+4       -> LR = addr+4
+    //   MFLR r12            -> r12 = addr+4
+    //   LD r12, offset(r12) -> r12 = *(addr+4+offset) = *(next) = target
+    //   MTCTR r12
+    //   BCTR
+    // Total: 5 instructions = 20 bytes, fits in JMPNEXT_SIZE (40 bytes)
+    // with 8 bytes for block ptr at start and 8 bytes for target ptr at end.
     int reg = 12;   // r12 is scratch
-    uint16_t lo = target & 0xFFFF;
-    uint16_t hi = (target >> 16) & 0xFFFF;
-    uint16_t higher = (target >> 32) & 0xFFFF;
-    uint16_t highest = (target >> 48) & 0xFFFF;
-
-    LIS(reg, highest);
-    ORI(reg, reg, higher);
-    RLDICR(reg, reg, 32, 31);
-    ORIS(reg, reg, hi);
-    ORI(reg, reg, lo);
+    intptr_t offset = (intptr_t)next - ((intptr_t)addr + 4);
+    BCL(20, 31, 4);
+    MFLR(reg);
+    LD(reg, (int16_t)offset, reg);
     MTCTR(reg);
     BCTR();
 }

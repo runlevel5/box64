@@ -39,6 +39,7 @@ extern void* create_updateflags();
 
 #define ARCH_NOP    0b11010101000000110010000000011111
 #define ARCH_UDF    0xcafe
+#define JMPNEXT_SIZE    (4*sizeof(void*))
 #elif defined(LA64)
 
 #define instruction_native_t        instruction_la64_t
@@ -69,6 +70,7 @@ extern void* create_updateflags();
 #define ARCH_UNALIGNED(A, B) 0
 extern uint32_t la64_crc(void* p, uint32_t len);
 #define ARCH_CRC(A, B)       return la64_crc(A, B)
+#define JMPNEXT_SIZE    (4*sizeof(void*))
 
 #elif defined(RV64)
 
@@ -101,6 +103,8 @@ extern uint32_t la64_crc(void* p, uint32_t len);
 #define ARCH_ADJUST(A, B, C, D) {}
 #define STOP_NATIVE_FLAGS(A, B) {}
 #define ARCH_UNALIGNED(A, B) arch_unaligned(A, B)
+#define JMPNEXT_SIZE    (4*sizeof(void*))
+
 #elif defined(PPC64LE)
 
 #define instruction_native_t        instruction_ppc64le_t
@@ -135,6 +139,9 @@ extern uint32_t ppc64le_crc(void* p, uint32_t len);
 
 #define ARCH_NOP    0x60000000  /* ori 0,0,0 */
 #define ARCH_UDF    0x00000000  /* illegal instruction (all zeros) */
+// PPC64LE CreateJmpNext needs 5 instructions (20 bytes) for PC-relative load + branch,
+// so the jmpnext area needs 5 void* slots (40 bytes) instead of the default 4 (32 bytes).
+#define JMPNEXT_SIZE    (5*sizeof(void*))
 
 #else
 #error Unsupported platform
