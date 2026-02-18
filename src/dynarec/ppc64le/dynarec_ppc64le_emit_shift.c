@@ -272,9 +272,9 @@ void emit_shl32(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, int s1, int s2, in
         SLW(s1, s1, s2);
     }
     IFX (X_SF) {
-        // test sign bit before zeroup
-        CMPDI(s1, 0);
-        BGE(8);
+        SRDI(s3, s1, rex.w ? 63 : 31);
+        CMPDI(s3, 0);
+        BEQ(8);
         ORI(xFlags, xFlags, 1 << F_SF);
     }
     if (!rex.w) ZEROUP(s1);
@@ -330,9 +330,9 @@ void emit_shl32c(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, int s1, uint32_t 
     }
 
     IFX (X_SF) {
-        // test sign bit before zeroup
-        CMPDI(s1, 0);
-        BGE(8);
+        SRDI(s3, s1, rex.w ? 63 : 31);
+        CMPDI(s3, 0);
+        BEQ(8);
         ORI(xFlags, xFlags, 1 << F_SF);
     }
     if (!rex.w) {

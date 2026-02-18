@@ -235,8 +235,11 @@ void emit_cmp32(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, int s1, int s2, in
         SDxw(s6, xEmu, offsetof(x64emu_t, res));
     }
     IFX(X_SF) {
-        CMPDI(s6, 0);
-        BGE(8);
+        // Check sign bit (bit 31 for 32-bit, bit 63 for 64-bit)
+        // Can't use CMPDI after SUBxw because zero-extension makes result always >= 0
+        SRDI(s3, s6, rex.w ? 63 : 31);
+        CMPDI(s3, 0);
+        BEQ(8);
         ORI(xFlags, xFlags, 1 << F_SF);
     }
     if (!rex.w) {
