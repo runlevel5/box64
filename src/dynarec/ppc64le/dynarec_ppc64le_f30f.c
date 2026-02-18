@@ -247,6 +247,25 @@ uintptr_t dynarec64_F30F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
                 XXLOR(VSXREG(d1), VSXREG(d0), VSXREG(d0));
             }
             XSSQRTDP(VSXREG(d1), VSXREG(d1));
+            if (!BOX64ENV(dynarec_fastnan)) {
+                // If input was negative (not NaN), sqrt produces positive NaN
+                // x86 expects negative NaN — OR in the sign bit
+                MFVSRD(x4, VSXREG(d1));     // extract result (double precision)
+                SRDI(x5, x4, 63);           // sign bit → bit 0
+                CMPDI(x5, 0);
+                j64 = GETMARK - dyn->native_size;
+                BNE(j64);                   // skip if result is already negative
+                // Check if result is NaN
+                XSCMPUDP(6, VSXREG(d1), VSXREG(d1));
+                j64 = GETMARK - dyn->native_size;
+                BC(BO_FALSE, BI(CR6, CR_SO), j64);  // skip if not NaN
+                // Result is positive NaN, flip sign bit
+                LI(x5, 1);
+                SLDI(x5, x5, 63);
+                XOR(x4, x4, x5);
+                MTVSRD(VSXREG(d1), x4);
+                MARK;
+            }
             XSCVDPSPN(VSXREG(d1), VSXREG(d1));
             VEXTRACTUW(VRREG(d1), VRREG(d1), 0);
             VINSERTW(VRREG(v0), VRREG(d1), 12);
@@ -316,7 +335,23 @@ uintptr_t dynarec64_F30F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
             } else {
                 XXLOR(VSXREG(q0), VSXREG(d0), VSXREG(d0));
             }
+            if (!BOX64ENV(dynarec_fastnan)) {
+                XSCMPUDP(6, VSXREG(d1), VSXREG(q0));
+            }
             XSADDSP(VSXREG(d1), VSXREG(d1), VSXREG(q0));
+            if (!BOX64ENV(dynarec_fastnan)) {
+                j64 = GETMARK - dyn->native_size;
+                BC(BO_TRUE, BI(CR6, CR_SO), j64);
+                XSCMPUDP(6, VSXREG(d1), VSXREG(d1));
+                j64 = GETMARK - dyn->native_size;
+                BC(BO_FALSE, BI(CR6, CR_SO), j64);
+                MFVSRD(x4, VSXREG(d1));
+                LI(x5, 1);
+                SLDI(x5, x5, 63);
+                XOR(x4, x4, x5);
+                MTVSRD(VSXREG(d1), x4);
+                MARK;
+            }
             XSCVDPSPN(VSXREG(d1), VSXREG(d1));
             VEXTRACTUW(VRREG(d1), VRREG(d1), 0);
             VINSERTW(VRREG(v0), VRREG(d1), 12);
@@ -336,7 +371,23 @@ uintptr_t dynarec64_F30F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
             } else {
                 XXLOR(VSXREG(q0), VSXREG(d0), VSXREG(d0));
             }
+            if (!BOX64ENV(dynarec_fastnan)) {
+                XSCMPUDP(6, VSXREG(d1), VSXREG(q0));
+            }
             XSMULSP(VSXREG(d1), VSXREG(d1), VSXREG(q0));
+            if (!BOX64ENV(dynarec_fastnan)) {
+                j64 = GETMARK - dyn->native_size;
+                BC(BO_TRUE, BI(CR6, CR_SO), j64);
+                XSCMPUDP(6, VSXREG(d1), VSXREG(d1));
+                j64 = GETMARK - dyn->native_size;
+                BC(BO_FALSE, BI(CR6, CR_SO), j64);
+                MFVSRD(x4, VSXREG(d1));
+                LI(x5, 1);
+                SLDI(x5, x5, 63);
+                XOR(x4, x4, x5);
+                MTVSRD(VSXREG(d1), x4);
+                MARK;
+            }
             XSCVDPSPN(VSXREG(d1), VSXREG(d1));
             VEXTRACTUW(VRREG(d1), VRREG(d1), 0);
             VINSERTW(VRREG(v0), VRREG(d1), 12);
@@ -388,7 +439,23 @@ uintptr_t dynarec64_F30F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
             } else {
                 XXLOR(VSXREG(q0), VSXREG(d0), VSXREG(d0));
             }
+            if (!BOX64ENV(dynarec_fastnan)) {
+                XSCMPUDP(6, VSXREG(d1), VSXREG(q0));
+            }
             XSSUBSP(VSXREG(d1), VSXREG(d1), VSXREG(q0));
+            if (!BOX64ENV(dynarec_fastnan)) {
+                j64 = GETMARK - dyn->native_size;
+                BC(BO_TRUE, BI(CR6, CR_SO), j64);
+                XSCMPUDP(6, VSXREG(d1), VSXREG(d1));
+                j64 = GETMARK - dyn->native_size;
+                BC(BO_FALSE, BI(CR6, CR_SO), j64);
+                MFVSRD(x4, VSXREG(d1));
+                LI(x5, 1);
+                SLDI(x5, x5, 63);
+                XOR(x4, x4, x5);
+                MTVSRD(VSXREG(d1), x4);
+                MARK;
+            }
             XSCVDPSPN(VSXREG(d1), VSXREG(d1));
             VEXTRACTUW(VRREG(d1), VRREG(d1), 0);
             VINSERTW(VRREG(v0), VRREG(d1), 12);
@@ -416,9 +483,9 @@ uintptr_t dynarec64_F30F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
             // Branch to MARK if unordered (SO) — use source (Ex)
             j64 = GETMARK - dyn->native_size;
             BC(BO_TRUE, BI(CR0, CR_SO), j64);
-            // Not unordered; if dest <= src, keep dest (skip to MARK2)
+            // Not unordered; if dest < src, keep dest (skip to MARK2)
             j64 = GETMARK2 - dyn->native_size;
-            BLE(j64);
+            BLT(j64);
             // dest > src: take src
             MARK;
             XXLOR(VSXREG(d1), VSXREG(q0), VSXREG(q0));
@@ -442,7 +509,23 @@ uintptr_t dynarec64_F30F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
             } else {
                 XXLOR(VSXREG(q0), VSXREG(d0), VSXREG(d0));
             }
+            if (!BOX64ENV(dynarec_fastnan)) {
+                XSCMPUDP(6, VSXREG(d1), VSXREG(q0));
+            }
             XSDIVSP(VSXREG(d1), VSXREG(d1), VSXREG(q0));
+            if (!BOX64ENV(dynarec_fastnan)) {
+                j64 = GETMARK - dyn->native_size;
+                BC(BO_TRUE, BI(CR6, CR_SO), j64);
+                XSCMPUDP(6, VSXREG(d1), VSXREG(d1));
+                j64 = GETMARK - dyn->native_size;
+                BC(BO_FALSE, BI(CR6, CR_SO), j64);
+                MFVSRD(x4, VSXREG(d1));
+                LI(x5, 1);
+                SLDI(x5, x5, 63);
+                XOR(x4, x4, x5);
+                MTVSRD(VSXREG(d1), x4);
+                MARK;
+            }
             XSCVDPSPN(VSXREG(d1), VSXREG(d1));
             VEXTRACTUW(VRREG(d1), VRREG(d1), 0);
             VINSERTW(VRREG(v0), VRREG(d1), 12);
@@ -469,9 +552,9 @@ uintptr_t dynarec64_F30F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
             // Branch to MARK if unordered (SO) — use source (Ex)
             j64 = GETMARK - dyn->native_size;
             BC(BO_TRUE, BI(CR0, CR_SO), j64);
-            // Not unordered; if dest >= src, keep dest (skip to MARK2)
+            // Not unordered; if dest > src, keep dest (skip to MARK2)
             j64 = GETMARK2 - dyn->native_size;
-            BGE(j64);
+            BGT(j64);
             // dest < src: take src
             MARK;
             XXLOR(VSXREG(d1), VSXREG(q0), VSXREG(q0));

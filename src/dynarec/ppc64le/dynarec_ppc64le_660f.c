@@ -417,7 +417,19 @@ uintptr_t dynarec64_660F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
             nextop = F8;
             GETEX(q0, 0, 0);
             GETGX_empty(v0);
+            if (!BOX64ENV(dynarec_fastnan)) {
+                q1 = fpu_get_scratch(dyn);
+                d0 = fpu_get_scratch(dyn);
+                XVCMPEQDP(VSXREG(q1), VSXREG(q0), VSXREG(q0));  // q1 = -1 where input is NOT NaN
+            }
             XVSQRTDP(VSXREG(v0), VSXREG(q0));
+            if (!BOX64ENV(dynarec_fastnan)) {
+                XVCMPEQDP(VSXREG(d0), VSXREG(v0), VSXREG(v0));  // d0 = -1 where result is NOT NaN
+                XXLANDC(VSXREG(d0), VSXREG(q1), VSXREG(d0));    // d0 = input ordered AND result NaN (new NaNs)
+                XXSPLTIB(VSXREG(q1), 63);
+                VSLD(VRREG(d0), VRREG(d0), VRREG(q1));           // d0 = 0x8000... in new NaN lanes
+                XXLOR(VSXREG(v0), VSXREG(v0), VSXREG(d0));      // OR sign bit into result
+            }
             break;
 
         case 0x54:
@@ -464,14 +476,42 @@ uintptr_t dynarec64_660F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
             nextop = F8;
             GETEX(q0, 0, 0);
             GETGX(v0, 1);
+            if (!BOX64ENV(dynarec_fastnan)) {
+                q1 = fpu_get_scratch(dyn);
+                d0 = fpu_get_scratch(dyn);
+                XVCMPEQDP(VSXREG(q1), VSXREG(v0), VSXREG(v0));  // q1 = -1 where Gx not NaN
+                XVCMPEQDP(VSXREG(d0), VSXREG(q0), VSXREG(q0));  // d0 = -1 where Ex not NaN
+                XXLAND(VSXREG(q1), VSXREG(q1), VSXREG(d0));      // q1 = -1 where BOTH not NaN
+            }
             XVADDDP(VSXREG(v0), VSXREG(v0), VSXREG(q0));
+            if (!BOX64ENV(dynarec_fastnan)) {
+                XVCMPEQDP(VSXREG(d0), VSXREG(v0), VSXREG(v0));  // d0 = -1 where result not NaN
+                XXLANDC(VSXREG(d0), VSXREG(q1), VSXREG(d0));    // d0 = both-ordered AND result-NaN (new NaN)
+                XXSPLTIB(VSXREG(q1), 63);
+                VSLD(VRREG(d0), VRREG(d0), VRREG(q1));
+                XXLOR(VSXREG(v0), VSXREG(v0), VSXREG(d0));
+            }
             break;
         case 0x59:
             INST_NAME("MULPD Gx, Ex");
             nextop = F8;
             GETEX(q0, 0, 0);
             GETGX(v0, 1);
+            if (!BOX64ENV(dynarec_fastnan)) {
+                q1 = fpu_get_scratch(dyn);
+                d0 = fpu_get_scratch(dyn);
+                XVCMPEQDP(VSXREG(q1), VSXREG(v0), VSXREG(v0));
+                XVCMPEQDP(VSXREG(d0), VSXREG(q0), VSXREG(q0));
+                XXLAND(VSXREG(q1), VSXREG(q1), VSXREG(d0));
+            }
             XVMULDP(VSXREG(v0), VSXREG(v0), VSXREG(q0));
+            if (!BOX64ENV(dynarec_fastnan)) {
+                XVCMPEQDP(VSXREG(d0), VSXREG(v0), VSXREG(v0));
+                XXLANDC(VSXREG(d0), VSXREG(q1), VSXREG(d0));
+                XXSPLTIB(VSXREG(q1), 63);
+                VSLD(VRREG(d0), VRREG(d0), VRREG(q1));
+                XXLOR(VSXREG(v0), VSXREG(v0), VSXREG(d0));
+            }
             break;
         case 0x5A:
             INST_NAME("CVTPD2PS Gx, Ex");
@@ -524,34 +564,56 @@ uintptr_t dynarec64_660F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
             nextop = F8;
             GETEX(q0, 0, 0);
             GETGX(v0, 1);
+            if (!BOX64ENV(dynarec_fastnan)) {
+                q1 = fpu_get_scratch(dyn);
+                d0 = fpu_get_scratch(dyn);
+                XVCMPEQDP(VSXREG(q1), VSXREG(v0), VSXREG(v0));
+                XVCMPEQDP(VSXREG(d0), VSXREG(q0), VSXREG(q0));
+                XXLAND(VSXREG(q1), VSXREG(q1), VSXREG(d0));
+            }
             XVSUBDP(VSXREG(v0), VSXREG(v0), VSXREG(q0));
+            if (!BOX64ENV(dynarec_fastnan)) {
+                XVCMPEQDP(VSXREG(d0), VSXREG(v0), VSXREG(v0));
+                XXLANDC(VSXREG(d0), VSXREG(q1), VSXREG(d0));
+                XXSPLTIB(VSXREG(q1), 63);
+                VSLD(VRREG(d0), VRREG(d0), VRREG(q1));
+                XXLOR(VSXREG(v0), VSXREG(v0), VSXREG(d0));
+            }
             break;
         case 0x5D:
             INST_NAME("MINPD Gx, Ex");
             nextop = F8;
             GETGX(v0, 1);
             GETEX(v1, 0, 0);
-            // x86 MINPD: if either is NaN, return src2 (Ex)
-            // PPC XVMINDP follows IEEE 754-2008 (returns non-NaN)
-            // So we can't use XVMINDP directly for x86 semantics
-            // Use compare and select: compare v1 <= v0, if true select v1, else keep v0
-            // If either is NaN, compare returns false, so we keep v0 — but x86 wants v1(Ex)
-            // Actually x86: "if either is NaN, return src2" where src2=Ex=v1
-            // XVCMPGEDP(mask, v0, v1) => mask = (v0 >= v1) ? all-ones : 0
-            // If NaN, mask = 0, so XXSEL picks v1
-            // If v0 >= v1, mask = all-ones, pick v1 (the smaller one)
-            // If v0 < v1, mask = 0, pick v0 (keep current, the smaller one)
-            // XXSEL(T, A, B, C): T = (A & ~C) | (B & C)
+            // x86 MINPD: return min, but if either is NaN or both equal, return src2 (Ex)
+            // XVCMPGTDP(q0, v1, v0): q0 = (Ex > Gx) ? -1 : 0
+            //   Ex > Gx:  mask=-1, XXSEL picks B=v0(Gx) — correct (Gx is smaller)
+            //   Ex <= Gx: mask=0,  XXSEL picks A=v1(Ex) — correct (Ex is smaller or equal)
+            //   NaN:      mask=0,  XXSEL picks A=v1(Ex) — correct (x86 returns src2)
             q0 = fpu_get_scratch(dyn);
-            XVCMPGEDP(VSXREG(q0), VSXREG(v0), VSXREG(v1)); // q0 = (Gx >= Ex) ? -1 : 0
-            XXSEL(VSXREG(v0), VSXREG(v0), VSXREG(v1), VSXREG(q0));
+            XVCMPGTDP(VSXREG(q0), VSXREG(v1), VSXREG(v0));
+            XXSEL(VSXREG(v0), VSXREG(v1), VSXREG(v0), VSXREG(q0));
             break;
         case 0x5E:
             INST_NAME("DIVPD Gx, Ex");
             nextop = F8;
             GETEX(q0, 0, 0);
             GETGX(v0, 1);
+            if (!BOX64ENV(dynarec_fastnan)) {
+                q1 = fpu_get_scratch(dyn);
+                d0 = fpu_get_scratch(dyn);
+                XVCMPEQDP(VSXREG(q1), VSXREG(v0), VSXREG(v0));
+                XVCMPEQDP(VSXREG(d0), VSXREG(q0), VSXREG(q0));
+                XXLAND(VSXREG(q1), VSXREG(q1), VSXREG(d0));
+            }
             XVDIVDP(VSXREG(v0), VSXREG(v0), VSXREG(q0));
+            if (!BOX64ENV(dynarec_fastnan)) {
+                XVCMPEQDP(VSXREG(d0), VSXREG(v0), VSXREG(v0));
+                XXLANDC(VSXREG(d0), VSXREG(q1), VSXREG(d0));
+                XXSPLTIB(VSXREG(q1), 63);
+                VSLD(VRREG(d0), VRREG(d0), VRREG(q1));
+                XXLOR(VSXREG(v0), VSXREG(v0), VSXREG(d0));
+            }
             break;
         case 0x5F:
             INST_NAME("MAXPD Gx, Ex");
@@ -1028,15 +1090,27 @@ uintptr_t dynarec64_660F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
             GETEX(v1, 0, 0);
             // HADDPD: dest[0] = dest[0] + dest[1], dest[1] = src[0] + src[1]
             // x86[0]=low=ISA dw1, x86[1]=high=ISA dw0
-            // result ISA dw1 = v0_dw1 + v0_dw0, result ISA dw0 = v1_dw1 + v1_dw0
-            // Since addition is commutative, we just need one vector with all dw0s and one with all dw1s
             q0 = fpu_get_scratch(dyn);
             q1 = fpu_get_scratch(dyn);
             // q0 = {v1_dw0, v0_dw0}: XXPERMDI(q0, v1, v0, 0b00)
             XXPERMDI(VSXREG(q0), VSXREG(v1), VSXREG(v0), 0b00);
             // q1 = {v1_dw1, v0_dw1}: XXPERMDI(q1, v1, v0, 0b11)
             XXPERMDI(VSXREG(q1), VSXREG(v1), VSXREG(v0), 0b11);
+            if (!BOX64ENV(dynarec_fastnan)) {
+                d0 = fpu_get_scratch(dyn);
+                d1 = fpu_get_scratch(dyn);
+                XVCMPEQDP(VSXREG(d0), VSXREG(q0), VSXREG(q0));
+                XVCMPEQDP(VSXREG(d1), VSXREG(q1), VSXREG(q1));
+                XXLAND(VSXREG(d0), VSXREG(d0), VSXREG(d1));  // d0 = both inputs ordered
+            }
             XVADDDP(VSXREG(v0), VSXREG(q0), VSXREG(q1));
+            if (!BOX64ENV(dynarec_fastnan)) {
+                XVCMPEQDP(VSXREG(d1), VSXREG(v0), VSXREG(v0));
+                XXLANDC(VSXREG(d1), VSXREG(d0), VSXREG(d1));
+                XXSPLTIB(VSXREG(d0), 63);
+                VSLD(VRREG(d1), VRREG(d1), VRREG(d0));
+                XXLOR(VSXREG(v0), VSXREG(v0), VSXREG(d1));
+            }
             break;
         case 0x7D:
             INST_NAME("HSUBPD Gx, Ex");
@@ -1054,7 +1128,21 @@ uintptr_t dynarec64_660F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
             XXPERMDI(VSXREG(q0), VSXREG(v1), VSXREG(v0), 0b11);
             // q1 = {v1_dw0, v0_dw0}: XXPERMDI(q1, v1, v0, 0b00)
             XXPERMDI(VSXREG(q1), VSXREG(v1), VSXREG(v0), 0b00);
+            if (!BOX64ENV(dynarec_fastnan)) {
+                d0 = fpu_get_scratch(dyn);
+                d1 = fpu_get_scratch(dyn);
+                XVCMPEQDP(VSXREG(d0), VSXREG(q0), VSXREG(q0));
+                XVCMPEQDP(VSXREG(d1), VSXREG(q1), VSXREG(q1));
+                XXLAND(VSXREG(d0), VSXREG(d0), VSXREG(d1));
+            }
             XVSUBDP(VSXREG(v0), VSXREG(q0), VSXREG(q1));
+            if (!BOX64ENV(dynarec_fastnan)) {
+                XVCMPEQDP(VSXREG(d1), VSXREG(v0), VSXREG(v0));
+                XXLANDC(VSXREG(d1), VSXREG(d0), VSXREG(d1));
+                XXSPLTIB(VSXREG(d0), 63);
+                VSLD(VRREG(d1), VRREG(d1), VRREG(d0));
+                XXLOR(VSXREG(v0), VSXREG(v0), VSXREG(d1));
+            }
             break;
 
         case 0x7E:
@@ -1736,24 +1824,21 @@ uintptr_t dynarec64_660F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
             nextop = F8;
             GETGX(v0, 1);
             GETEX(v1, 0, 0);
-            // Shift right logical packed words by shift count from Ex[63:0]
+            // Shift right logical packed halfwords by count from Ex[63:0]
             // If count >= 16, result is zero
             q0 = fpu_get_scratch(dyn);
             q1 = fpu_get_scratch(dyn);
-            // Splat the x86 low 64 bits of Ex to all elements (ISA dw1)
-            XXPERMDI(VSXREG(q0), VSXREG(v1), VSXREG(v1), 3); // splat x86 low qword (ISA dw1)
-            // Create mask: compare count <= 15 (as unsigned doubleword)
-            // XXSPLTIB(q1, 15) then extend to qword? No, need 64-bit compare
-            // Simpler: load 15 as qword, do VCMPGTUD to check if count > 15
-            LI(x4, 15);
-            MTVSRDD(VSXREG(q1), x4, x4);   // q1 = splat 15 as qword
-            // mask = (count <= 15) ? -1 : 0 — but we need element-level mask
-            // Since shift count is qword but elements are words, we just check once
-            // and broadcast the mask. Use VCMPGTUD: result = (q0 > q1) ? -1 : 0
+            // Extract shift count from x86 low 64 bits (ISA dw1)
+            MFVSRLD(x4, VSXREG(v1));
+            // Overflow mask: if count > 15, zero the result
+            LI(x5, 15);
+            MTVSRDD(VSXREG(q1), x5, x5);           // q1 = 15 in both qwords
+            XXPERMDI(VSXREG(q0), VSXREG(v1), VSXREG(v1), 3); // splat x86 low qword
             VCMPGTUD(VRREG(q1), VRREG(q0), VRREG(q1));  // q1 = (count > 15) ? -1 : 0
             VNOR(VRREG(q1), VRREG(q1), VRREG(q1));       // q1 = (count <= 15) ? -1 : 0
-            // Splat shift count to all halfwords
-            // Since VMX shifts use only low bits of each element, just splat the byte
+            // Splat count to all halfwords
+            MTVSRDD(VSXREG(q0), x4, x4);
+            VSPLTH(VRREG(q0), VRREG(q0), 7);  // ISA hw 7 = LE hw 0 = lo16(x4) = count
             VSRH(VRREG(v0), VRREG(v0), VRREG(q0));
             XXLAND(VSXREG(v0), VSXREG(v0), VSXREG(q1));
             break;
@@ -1764,11 +1849,17 @@ uintptr_t dynarec64_660F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
             GETEX(v1, 0, 0);
             q0 = fpu_get_scratch(dyn);
             q1 = fpu_get_scratch(dyn);
-            XXPERMDI(VSXREG(q0), VSXREG(v1), VSXREG(v1), 3); // splat x86 low qword (ISA dw1)
-            LI(x4, 31);
-            MTVSRDD(VSXREG(q1), x4, x4);
+            // Extract shift count from x86 low 64 bits (ISA dw1)
+            MFVSRLD(x4, VSXREG(v1));
+            // Overflow mask: if count > 31, zero the result
+            LI(x5, 31);
+            MTVSRDD(VSXREG(q1), x5, x5);
+            XXPERMDI(VSXREG(q0), VSXREG(v1), VSXREG(v1), 3);
             VCMPGTUD(VRREG(q1), VRREG(q0), VRREG(q1));
             VNOR(VRREG(q1), VRREG(q1), VRREG(q1));
+            // Splat count to all words
+            MTVSRDD(VSXREG(q0), x4, x4);
+            VSPLTW(VRREG(q0), VRREG(q0), 3);  // ISA word 3 = LE word 0 = lo32(x4)
             VSRW(VRREG(v0), VRREG(v0), VRREG(q0));
             XXLAND(VSXREG(v0), VSXREG(v0), VSXREG(q1));
             break;
@@ -2010,7 +2101,7 @@ uintptr_t dynarec64_660F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
             // If x4 >= 15: CR0.LT=0, pick RB=x5=15
             // Splat to all halfword lanes
             MTVSRDD(VSXREG(q0), x4, x4);
-            XXSPLTW(VSXREG(q0), VSXREG(q0), 1);  // splat low 32 bits
+            VSPLTH(VRREG(q0), VRREG(q0), 7);  // ISA hw 7 = LE hw 0 = lo16(x4) = count
             // VMX shift uses low bits of each element
             VSRAH(VRREG(v0), VRREG(v0), VRREG(q0));
             break;
@@ -2026,7 +2117,7 @@ uintptr_t dynarec64_660F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
             LI(x5, 31);
             ISEL(x4, x4, x5, 0);    // clamp: if x4 < 31 pick x4, else 31
             MTVSRDD(VSXREG(q0), x4, x4);
-            XXSPLTW(VSXREG(q0), VSXREG(q0), 1);
+            VSPLTW(VRREG(q0), VRREG(q0), 3);  // ISA word 3 = LE word 0 = lo32(x4) = count
             VSRAW(VRREG(v0), VRREG(v0), VRREG(q0));
             break;
         case 0xE3:
@@ -2042,23 +2133,24 @@ uintptr_t dynarec64_660F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
             GETGX(v0, 1);
             GETEX(v1, 0, 0);
             // High 16 bits of unsigned halfword multiply
-            // PPC has VMULEUH (even halfwords -> words) and VMULOUH (odd halfwords -> words)
-            // On LE: VMULEUH produces results from even-indexed halfwords (0,2,4,6)
-            //         VMULOUH produces results from odd-indexed halfwords (1,3,5,7)
-            // We need the high 16 bits of each multiply, then interleave back
+            // PPC VMULEUH/VMULOUH produce word-width results from even/odd halfwords
+            // Need to interleave them back before packing
             q0 = fpu_get_scratch(dyn);
             q1 = fpu_get_scratch(dyn);
-            VMULEUH(VRREG(q0), VRREG(v0), VRREG(v1));   // even halfwords -> words
-            VMULOUH(VRREG(q1), VRREG(v0), VRREG(v1));   // odd halfwords -> words
-            // q0 has 32-bit results for even halfwords, q1 for odd
-            // On LE, VMULEUH result words are at even positions, VMULOUH at odd
-            // We need high 16 bits of each 32-bit result
-            // Shift each word right by 16 to get high halves
-            XXSPLTIB(VSXREG(v0), 16);
-            VSRW(VRREG(q0), VRREG(q0), VRREG(v0));
-            VSRW(VRREG(q1), VRREG(q1), VRREG(v0));
-            // Now pack words back to halfwords (unsigned, just low 16 bits)
-            VPKUWUM(VRREG(v0), VRREG(q1), VRREG(q0));
+            {
+                int d2 = fpu_get_scratch(dyn);
+                int d3 = fpu_get_scratch(dyn);
+                VMULEUH(VRREG(q0), VRREG(v0), VRREG(v1));   // even halfwords -> words
+                VMULOUH(VRREG(q1), VRREG(v0), VRREG(v1));   // odd halfwords -> words
+                // Shift each word right by 16 to get high halves
+                XXSPLTIB(VSXREG(d2), 16);
+                VSRW(VRREG(q0), VRREG(q0), VRREG(d2));
+                VSRW(VRREG(q1), VRREG(q1), VRREG(d2));
+                // Interleave even/odd word results before packing
+                VMRGLW(VRREG(d2), VRREG(q0), VRREG(q1));    // low words interleaved
+                VMRGHW(VRREG(d3), VRREG(q0), VRREG(q1));    // high words interleaved
+                VPKUWUM(VRREG(v0), VRREG(d3), VRREG(d2));
+            }
             break;
         case 0xE5:
             INST_NAME("PMULHW Gx, Ex");
@@ -2068,14 +2160,20 @@ uintptr_t dynarec64_660F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
             // High 16 bits of signed halfword multiply
             q0 = fpu_get_scratch(dyn);
             q1 = fpu_get_scratch(dyn);
-            VMULESH(VRREG(q0), VRREG(v0), VRREG(v1));   // even signed halfwords -> words
-            VMULOSH(VRREG(q1), VRREG(v0), VRREG(v1));   // odd signed halfwords -> words
-            // Shift right arithmetic by 16 to get high halves
-            XXSPLTIB(VSXREG(v0), 16);
-            VSRAW(VRREG(q0), VRREG(q0), VRREG(v0));
-            VSRAW(VRREG(q1), VRREG(q1), VRREG(v0));
-            // Pack words back to halfwords
-            VPKUWUM(VRREG(v0), VRREG(q1), VRREG(q0));
+            {
+                int d2 = fpu_get_scratch(dyn);
+                int d3 = fpu_get_scratch(dyn);
+                VMULESH(VRREG(q0), VRREG(v0), VRREG(v1));   // even signed halfwords -> words
+                VMULOSH(VRREG(q1), VRREG(v0), VRREG(v1));   // odd signed halfwords -> words
+                // Shift right arithmetic by 16 to get high halves
+                XXSPLTIB(VSXREG(d2), 16);
+                VSRAW(VRREG(q0), VRREG(q0), VRREG(d2));
+                VSRAW(VRREG(q1), VRREG(q1), VRREG(d2));
+                // Interleave even/odd word results before packing
+                VMRGLW(VRREG(d2), VRREG(q0), VRREG(q1));    // low words interleaved
+                VMRGHW(VRREG(d3), VRREG(q0), VRREG(q1));    // high words interleaved
+                VPKUWUM(VRREG(v0), VRREG(d3), VRREG(d2));
+            }
             break;
         case 0xE6:
             INST_NAME("CVTTPD2DQ Gx, Ex");
@@ -2211,13 +2309,17 @@ uintptr_t dynarec64_660F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
             GETEX(v1, 0, 0);
             q0 = fpu_get_scratch(dyn);
             q1 = fpu_get_scratch(dyn);
-            // Splat x86 low qword of shift count (ISA dw1) to all qword lanes
+            // Extract shift count from x86 low 64 bits (ISA dw1)
+            MFVSRLD(x4, VSXREG(v1));
+            // Overflow mask: if count > 15, zero the result
+            LI(x5, 15);
+            MTVSRDD(VSXREG(q1), x5, x5);
             XXPERMDI(VSXREG(q0), VSXREG(v1), VSXREG(v1), 3);
-            // Check if count > 15 (out of range -> result is 0)
-            LI(x4, 15);
-            MTVSRDD(VSXREG(q1), x4, x4);
             VCMPGTUD(VRREG(q1), VRREG(q0), VRREG(q1));
             VNOR(VRREG(q1), VRREG(q1), VRREG(q1));   // in-range mask
+            // Splat count to all halfwords
+            MTVSRDD(VSXREG(q0), x4, x4);
+            VSPLTH(VRREG(q0), VRREG(q0), 7);  // ISA hw 7 = LE hw 0 = lo16(x4)
             VSLH(VRREG(v0), VRREG(v0), VRREG(q0));
             XXLAND(VSXREG(v0), VSXREG(v0), VSXREG(q1));
             break;
@@ -2228,11 +2330,17 @@ uintptr_t dynarec64_660F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
             GETEX(v1, 0, 0);
             q0 = fpu_get_scratch(dyn);
             q1 = fpu_get_scratch(dyn);
-            XXPERMDI(VSXREG(q0), VSXREG(v1), VSXREG(v1), 3); // splat x86 low qword (ISA dw1)
-            LI(x4, 31);
-            MTVSRDD(VSXREG(q1), x4, x4);
+            // Extract shift count from x86 low 64 bits (ISA dw1)
+            MFVSRLD(x4, VSXREG(v1));
+            // Overflow mask: if count > 31, zero the result
+            LI(x5, 31);
+            MTVSRDD(VSXREG(q1), x5, x5);
+            XXPERMDI(VSXREG(q0), VSXREG(v1), VSXREG(v1), 3);
             VCMPGTUD(VRREG(q1), VRREG(q0), VRREG(q1));
             VNOR(VRREG(q1), VRREG(q1), VRREG(q1));
+            // Splat count to all words
+            MTVSRDD(VSXREG(q0), x4, x4);
+            VSPLTW(VRREG(q0), VRREG(q0), 3);  // ISA word 3 = LE word 0 = lo32(x4)
             VSLW(VRREG(v0), VRREG(v0), VRREG(q0));
             XXLAND(VSXREG(v0), VSXREG(v0), VSXREG(q1));
             break;
@@ -2257,9 +2365,10 @@ uintptr_t dynarec64_660F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
             GETGX(v0, 1);
             GETEX(v1, 0, 0);
             // Multiply unsigned dwords at even positions (0,2) -> qwords
-            // PPC VMULEUW: multiply even unsigned words -> doublewords
-            // On LE, "even" words are at indices 0 and 2 (low word of each qword) - matches x86 semantics
-            VMULEUW(VRREG(v0), VRREG(v0), VRREG(v1));
+            // x86: dst[63:0] = dst[31:0] * src[31:0], dst[127:64] = dst[95:64] * src[95:64]
+            // On PPC64LE, x86 word 0 = LE word 0 = ISA word 3 (odd), x86 word 2 = LE word 2 = ISA word 1 (odd)
+            // So VMULOUW (multiply ISA odd words) matches x86 semantics
+            VMULOUW(VRREG(v0), VRREG(v0), VRREG(v1));
             break;
         case 0xF5:
             INST_NAME("PMADDWD Gx, Ex");
@@ -2282,41 +2391,54 @@ uintptr_t dynarec64_660F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
             GETEX(v1, 0, 0);
             // Sum of absolute differences of unsigned bytes
             // Result: sum of |a[i]-b[i]| for bytes 0-7 in low qword, bytes 8-15 in high qword
-            // VABSDUB (POWER9): absolute difference unsigned bytes
-            q0 = fpu_get_scratch(dyn);
-            VABSDUB(VRREG(q0), VRREG(v0), VRREG(v1));
-            // Now need horizontal sum of bytes within each 64-bit lane
-            // VSUM4UBS: sum groups of 4 unsigned bytes into unsigned words
-            q1 = fpu_get_scratch(dyn);
-            XXLXOR(VSXREG(q1), VSXREG(q1), VSXREG(q1));
-            VSUM4UBS(VRREG(q0), VRREG(q0), VRREG(q1));
-            // Now q0 has 4 word-sized partial sums. Need to sum pairs of words within each qword.
-            // Use VSLDOI to shift and add within each qword lane
-            // Actually, VSUM2SWS would sum pairs of words -> doubleword results
-            // But VSUM2SWS saturates. Since max SAD per 8 bytes is 8*255=2040 which fits in a word, this is fine.
-            // Actually let's do it manually: sum the two words in each 64-bit half
-            // After VSUM4UBS: q0 = [w0, w1, w2, w3] where w0+w1 = low SAD, w2+w3 = high SAD
-            // On LE, element ordering is [w0(bits 0-31), w1(32-63), w2(64-95), w3(96-127)]
-            // Need: result[0:63] = w0+w1, result[64:127] = w2+w3
-            // Shift q0 right by 4 bytes (one word) within each doubleword, add
+            // Use GPR byte extraction for correctness
             {
-                int q2 = fpu_get_scratch(dyn);
-                XXSPLTIB(VSXREG(q2), 0);
-                // Shift the vector by 4 bytes to align even/odd words
-                VSLDOI(VRREG(q1), VRREG(q2), VRREG(q0), 12);  // shift right by 4 bytes
-                VADDUWM(VRREG(q0), VRREG(q0), VRREG(q1));
-                // Now low word of each qword has the sum, but high word has garbage
-                // Mask to keep only low 32 bits of each 64-bit lane, then make result = sum in low word, zeroes elsewhere
-                // Actually x86 PSADBW stores result in low word of each qword, high words zero
-                // So we need: [SAD_low, 0, 0, 0, SAD_high, 0, 0, 0] in halfword layout
-                // Simpler: just zero the upper 32 bits of each doubleword
-                // Use XXPERMDI/XXSPLTW trick or mask
-                // Actually, let's just extract and rebuild
-                MFVSRLD(x4, VSXREG(q0));        // x86 low 64 bits (ISA dw1)
-                MFVSRD(x5, VSXREG(q0));         // x86 high 64 bits (ISA dw0)
-                CLRLDI(x4, x4, 32);              // keep only low 32 bits (the SAD sum)
-                CLRLDI(x5, x5, 32);
-                MTVSRDD(VSXREG(v0), x5, x4);
+                // Process low qword
+                MFVSRLD(x4, VSXREG(v0));    // a low 64 bits
+                MFVSRLD(x5, VSXREG(v1));    // b low 64 bits
+                LI(x3, 0);  // accumulator
+                for (int byte_idx = 0; byte_idx < 8; byte_idx++) {
+                    int shift = byte_idx * 8;
+                    if (shift == 0) {
+                        CLRLDI(x6, x4, 56);
+                        CLRLDI(x7, x5, 56);
+                    } else {
+                        SRDI(x6, x4, shift);
+                        CLRLDI(x6, x6, 56);
+                        SRDI(x7, x5, shift);
+                        CLRLDI(x7, x7, 56);
+                    }
+                    SUBF(x6, x7, x6);      // a_byte - b_byte (signed)
+                    SRADI(x7, x6, 63);      // sign extend
+                    XOR(x6, x6, x7);
+                    SUBF(x6, x7, x6);      // abs()
+                    ADD(x3, x3, x6);
+                }
+                MR(x1, x3);  // x1 = SAD_low (save in x1, will reload high data into x4,x5)
+                
+                // Process high qword
+                MFVSRD(x4, VSXREG(v0));     // a high 64 bits (ISA dw0)
+                MFVSRD(x5, VSXREG(v1));     // b high 64 bits (ISA dw0)
+                LI(x3, 0);  // accumulator
+                for (int byte_idx = 0; byte_idx < 8; byte_idx++) {
+                    int shift = byte_idx * 8;
+                    if (shift == 0) {
+                        CLRLDI(x6, x4, 56);
+                        CLRLDI(x7, x5, 56);
+                    } else {
+                        SRDI(x6, x4, shift);
+                        CLRLDI(x6, x6, 56);
+                        SRDI(x7, x5, shift);
+                        CLRLDI(x7, x7, 56);
+                    }
+                    SUBF(x6, x7, x6);
+                    SRADI(x7, x6, 63);
+                    XOR(x6, x6, x7);
+                    SUBF(x6, x7, x6);
+                    ADD(x3, x3, x6);
+                }
+                // x3 = SAD_high, x1 = SAD_low
+                MTVSRDD(VSXREG(v0), x3, x1);
             }
             break;
         case 0xF7:
@@ -2400,13 +2522,22 @@ uintptr_t dynarec64_660F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
                     d1 = fpu_get_scratch(dyn);
                     // PSHUFB: for each byte i, if bit 7 of Ex[i] is set, result[i]=0, else result[i]=Gx[Ex[i] & 0xF]
                     // VPERM(Vrt, Vra, Vrb, Vrc): Vrt[i] = (Vra||Vrb)[Vrc[i] & 0x1F]
-                    // We want Gx||Gx indexed by Ex & 0xF, then zero where Ex[i] bit 7 is set
-                    VPERM(VRREG(d0), VRREG(v0), VRREG(v0), VRREG(v1));
+                    // VPERM uses big-endian byte numbering even on LE:
+                    //   VPERM index 0 = BE byte 0 = LE byte 15 (highest)
+                    //   VPERM index 15 = BE byte 15 = LE byte 0 (lowest)
+                    // x86 PSHUFB uses LE byte numbering: index 0 = lowest byte
+                    // Fix: XOR low nibble with 0x0F to convert LE→BE indexing
+                    {
+                        int d2 = fpu_get_scratch(dyn);
+                        XXSPLTIB(VSXREG(d2), 0x0F);
+                        VXOR(VRREG(d0), VRREG(v1), VRREG(d2));  // d0 = adjusted indices
+                    }
+                    VPERM(VRREG(d1), VRREG(v0), VRREG(v0), VRREG(d0));
                     // Create mask: where Ex[i] has bit 7 set, zero the result
                     // VSRAB by 7 to broadcast sign bit, then VANDC to zero
-                    VSPLTISB(VRREG(d1), 7);
-                    VSRAB(VRREG(d1), VRREG(v1), VRREG(d1)); // d1 = 0xFF where bit7 set, 0x00 where clear
-                    XXLANDC(VSXREG(v0), VSXREG(d0), VSXREG(d1)); // result = shuffled AND NOT(sign_mask)
+                    VSPLTISB(VRREG(d0), 7);
+                    VSRAB(VRREG(d0), VRREG(v1), VRREG(d0)); // d0 = 0xFF where bit7 set, 0x00 where clear
+                    XXLANDC(VSXREG(v0), VSXREG(d1), VSXREG(d0)); // result = shuffled AND NOT(sign_mask)
                     break;
                 case 0x01:
                     INST_NAME("PHADDW Gx, Ex");
@@ -2660,9 +2791,10 @@ uintptr_t dynarec64_660F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
                         VSRAW(VRREG(d1), VRREG(d1), VRREG(d2_tmp));
                         // Merge even/odd word results back and pack to halfwords
                         // d0 has even results at word positions, d1 has odd results
-                        // Interleave: VMRGLW pairs {d0[0],d1[0],d0[1],d1[1]}, VMRGHW pairs {d0[2],d1[2],d0[3],d1[3]}
-                        VMRGLW(VRREG(d2_tmp), VRREG(d1), VRREG(d0));  // low words interleaved
-                        VMRGHW(VRREG(d3), VRREG(d1), VRREG(d0));      // high words interleaved
+                        // On PPC64LE: VMULESH produces x86 odd-index results, VMULOSH produces even-index
+                        // Interleave with correct order for LE halfword packing
+                        VMRGLW(VRREG(d2_tmp), VRREG(d0), VRREG(d1));  // low words interleaved
+                        VMRGHW(VRREG(d3), VRREG(d0), VRREG(d1));      // high words interleaved
                         // Pack low halfword of each word: gives {r0,r1,r2,r3,r4,r5,r6,r7}
                         VPKUWUM(VRREG(v0), VRREG(d3), VRREG(d2_tmp));
                     }

@@ -604,7 +604,19 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             nextop = F8;
             GETGX(v0, 1);
             GETEX(v1, 0, 0);
+            if (!BOX64ENV(dynarec_fastnan)) {
+                q0 = fpu_get_scratch(dyn);
+                d0 = fpu_get_scratch(dyn);
+                XVCMPEQSP(VSXREG(q0), VSXREG(v1), VSXREG(v1));  // q0 = -1 where input NOT NaN
+            }
             XVSQRTSP(VSXREG(v0), VSXREG(v1));
+            if (!BOX64ENV(dynarec_fastnan)) {
+                XVCMPEQSP(VSXREG(d0), VSXREG(v0), VSXREG(v0));  // d0 = -1 where result NOT NaN
+                XXLANDC(VSXREG(d0), VSXREG(q0), VSXREG(d0));    // d0 = input-ordered AND result-NaN (new NaNs)
+                XXSPLTIB(VSXREG(q0), 31);
+                VSLW(VRREG(d0), VRREG(d0), VRREG(q0));          // d0 = 0x80000000 in new NaN lanes
+                XXLOR(VSXREG(v0), VSXREG(v0), VSXREG(d0));      // OR sign bit into result
+            }
             break;
         case 0x52:
             INST_NAME("RSQRTPS Gx, Ex");
@@ -663,14 +675,42 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             nextop = F8;
             GETEX(q0, 0, 0);
             GETGX(v0, 1);
+            if (!BOX64ENV(dynarec_fastnan)) {
+                q1 = fpu_get_scratch(dyn);
+                d0 = fpu_get_scratch(dyn);
+                XVCMPEQSP(VSXREG(q1), VSXREG(v0), VSXREG(v0));  // -1 where Gx not NaN
+                XVCMPEQSP(VSXREG(d0), VSXREG(q0), VSXREG(q0));  // -1 where Ex not NaN
+                XXLAND(VSXREG(q1), VSXREG(q1), VSXREG(d0));      // -1 where BOTH not NaN
+            }
             XVADDSP(VSXREG(v0), VSXREG(v0), VSXREG(q0));
+            if (!BOX64ENV(dynarec_fastnan)) {
+                XVCMPEQSP(VSXREG(d0), VSXREG(v0), VSXREG(v0));  // -1 where result not NaN
+                XXLANDC(VSXREG(d0), VSXREG(q1), VSXREG(d0));     // both-ordered AND result-NaN
+                XXSPLTIB(VSXREG(q1), 31);
+                VSLW(VRREG(d0), VRREG(d0), VRREG(q1));
+                XXLOR(VSXREG(v0), VSXREG(v0), VSXREG(d0));
+            }
             break;
         case 0x59:
             INST_NAME("MULPS Gx, Ex");
             nextop = F8;
             GETEX(q0, 0, 0);
             GETGX(v0, 1);
+            if (!BOX64ENV(dynarec_fastnan)) {
+                q1 = fpu_get_scratch(dyn);
+                d0 = fpu_get_scratch(dyn);
+                XVCMPEQSP(VSXREG(q1), VSXREG(v0), VSXREG(v0));
+                XVCMPEQSP(VSXREG(d0), VSXREG(q0), VSXREG(q0));
+                XXLAND(VSXREG(q1), VSXREG(q1), VSXREG(d0));
+            }
             XVMULSP(VSXREG(v0), VSXREG(v0), VSXREG(q0));
+            if (!BOX64ENV(dynarec_fastnan)) {
+                XVCMPEQSP(VSXREG(d0), VSXREG(v0), VSXREG(v0));
+                XXLANDC(VSXREG(d0), VSXREG(q1), VSXREG(d0));
+                XXSPLTIB(VSXREG(q1), 31);
+                VSLW(VRREG(d0), VRREG(d0), VRREG(q1));
+                XXLOR(VSXREG(v0), VSXREG(v0), VSXREG(d0));
+            }
             break;
         case 0x5A:
             INST_NAME("CVTPS2PD Gx, Ex");
@@ -801,30 +841,56 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             nextop = F8;
             GETEX(q0, 0, 0);
             GETGX(v0, 1);
+            if (!BOX64ENV(dynarec_fastnan)) {
+                q1 = fpu_get_scratch(dyn);
+                d0 = fpu_get_scratch(dyn);
+                XVCMPEQSP(VSXREG(q1), VSXREG(v0), VSXREG(v0));
+                XVCMPEQSP(VSXREG(d0), VSXREG(q0), VSXREG(q0));
+                XXLAND(VSXREG(q1), VSXREG(q1), VSXREG(d0));
+            }
             XVSUBSP(VSXREG(v0), VSXREG(v0), VSXREG(q0));
+            if (!BOX64ENV(dynarec_fastnan)) {
+                XVCMPEQSP(VSXREG(d0), VSXREG(v0), VSXREG(v0));
+                XXLANDC(VSXREG(d0), VSXREG(q1), VSXREG(d0));
+                XXSPLTIB(VSXREG(q1), 31);
+                VSLW(VRREG(d0), VRREG(d0), VRREG(q1));
+                XXLOR(VSXREG(v0), VSXREG(v0), VSXREG(d0));
+            }
             break;
         case 0x5D:
             INST_NAME("MINPS Gx, Ex");
             nextop = F8;
             GETGX(v0, 1);
             GETEX(v1, 0, 0);
-            // x86 MINPS: if either is NaN, return src2 (Ex)
-            // XVCMPGESP(mask, v0, v1) => mask = (v0 >= v1) ? -1 : 0
-            // NaN: mask = 0, XXSEL picks A (first non-mask) — we want v1
-            // v0 >= v1: mask = -1, XXSEL picks B — we want v1 (the smaller)
-            // v0 < v1: mask = 0, XXSEL picks A — we want v0 (the smaller)
-            // XXSEL(T, A, B, C): T = (A & ~C) | (B & C)
-            // So: XXSEL(v0, v0, v1, mask) → when mask=-1: picks v1; when mask=0: picks v0. ✓
+            // x86 MINPS: return min, but if either is NaN or both equal, return src2 (Ex)
+            // XVCMPGTSP(q0, v1, v0): q0 = (Ex > Gx) ? -1 : 0
+            //   Ex > Gx:  mask=-1, XXSEL picks B=v0(Gx) — correct (Gx is smaller)
+            //   Ex <= Gx: mask=0,  XXSEL picks A=v1(Ex) — correct (Ex is smaller or equal)
+            //   NaN:      mask=0,  XXSEL picks A=v1(Ex) — correct (x86 returns src2)
             q0 = fpu_get_scratch(dyn);
-            XVCMPGESP(VSXREG(q0), VSXREG(v0), VSXREG(v1));
-            XXSEL(VSXREG(v0), VSXREG(v0), VSXREG(v1), VSXREG(q0));
+            XVCMPGTSP(VSXREG(q0), VSXREG(v1), VSXREG(v0));
+            XXSEL(VSXREG(v0), VSXREG(v1), VSXREG(v0), VSXREG(q0));
             break;
         case 0x5E:
             INST_NAME("DIVPS Gx, Ex");
             nextop = F8;
             GETEX(q0, 0, 0);
             GETGX(v0, 1);
+            if (!BOX64ENV(dynarec_fastnan)) {
+                q1 = fpu_get_scratch(dyn);
+                d0 = fpu_get_scratch(dyn);
+                XVCMPEQSP(VSXREG(q1), VSXREG(v0), VSXREG(v0));
+                XVCMPEQSP(VSXREG(d0), VSXREG(q0), VSXREG(q0));
+                XXLAND(VSXREG(q1), VSXREG(q1), VSXREG(d0));
+            }
             XVDIVSP(VSXREG(v0), VSXREG(v0), VSXREG(q0));
+            if (!BOX64ENV(dynarec_fastnan)) {
+                XVCMPEQSP(VSXREG(d0), VSXREG(v0), VSXREG(v0));
+                XXLANDC(VSXREG(d0), VSXREG(q1), VSXREG(d0));
+                XXSPLTIB(VSXREG(q1), 31);
+                VSLW(VRREG(d0), VRREG(d0), VRREG(q1));
+                XXLOR(VSXREG(v0), VSXREG(v0), VSXREG(d0));
+            }
             break;
         case 0x5F:
             INST_NAME("MAXPS Gx, Ex");

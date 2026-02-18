@@ -211,6 +211,31 @@ uintptr_t dynarec64_F20F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
                 XXLOR(VSXREG(d1), VSXREG(d0), VSXREG(d0));
             }
             XSSQRTDP(VSXREG(d1), VSXREG(d1));
+            if (!BOX64ENV(dynarec_fastnan)) {
+                // If input was negative (not NaN), sqrt produces positive NaN
+                // x86 expects negative NaN — OR in the sign bit
+                // First check if result is NaN
+                XSCMPUDP(6, VSXREG(d1), VSXREG(d1));
+                j64 = GETMARK - dyn->native_size;
+                BC(BO_FALSE, BI(CR6, CR_SO), j64);  // skip if result not NaN
+                // Result is NaN: check if input was negative (not NaN itself)
+                if (MODREG) {
+                    MFVSRLD(x4, VSXREG(d0));
+                } else {
+                    MFVSRD(x4, VSXREG(d0));
+                }
+                SRDI(x4, x4, 63);           // sign bit → bit 0
+                CMPDI(x4, 0);
+                j64 = GETMARK - dyn->native_size;
+                BEQ(j64);                    // skip if input was not negative
+                // Input was negative, result is new NaN: flip sign bit
+                MFVSRD(x4, VSXREG(d1));     // extract result (ISA dw0 = scalar)
+                LI(x5, 1);
+                SLDI(x5, x5, 63);           // x5 = 0x8000000000000000
+                XOR(x4, x4, x5);            // flip sign bit
+                MTVSRD(VSXREG(d1), x4);     // put back
+                MARK;
+            }
             // Insert FPR result (dw0) into v0's x86 low (ISA dw1), keep v0's x86 high (ISA dw0)
             XXPERMDI(VSXREG(v0), VSXREG(v0), VSXREG(d1), 0);
             break;
@@ -231,7 +256,27 @@ uintptr_t dynarec64_F20F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
             } else {
                 XXLOR(VSXREG(q0), VSXREG(d0), VSXREG(d0));
             }
+            if (!BOX64ENV(dynarec_fastnan)) {
+                // Check if either input is NaN before the operation
+                XSCMPUDP(6, VSXREG(d1), VSXREG(q0));  // compare to CR6
+            }
             XSADDDP(VSXREG(d1), VSXREG(d1), VSXREG(q0));
+            if (!BOX64ENV(dynarec_fastnan)) {
+                // Skip fixup if either input was NaN (pre-existing NaN passes through)
+                j64 = GETMARK - dyn->native_size;
+                BC(BO_TRUE, BI(CR6, CR_SO), j64);  // branch if unordered (input had NaN)
+                // Check if result is NaN
+                XSCMPUDP(6, VSXREG(d1), VSXREG(d1));
+                j64 = GETMARK - dyn->native_size;
+                BC(BO_FALSE, BI(CR6, CR_SO), j64);  // branch if ordered (result not NaN)
+                // New NaN created (e.g. Inf + -Inf): flip sign bit
+                MFVSRD(x4, VSXREG(d1));
+                LI(x5, 1);
+                SLDI(x5, x5, 63);
+                XOR(x4, x4, x5);
+                MTVSRD(VSXREG(d1), x4);
+                MARK;
+            }
             // Insert FPR result back into v0 x86 low
             XXPERMDI(VSXREG(v0), VSXREG(v0), VSXREG(d1), 0);
             break;
@@ -250,7 +295,27 @@ uintptr_t dynarec64_F20F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
             } else {
                 XXLOR(VSXREG(q0), VSXREG(d0), VSXREG(d0));
             }
+            if (!BOX64ENV(dynarec_fastnan)) {
+                // Check if either input is NaN before the operation
+                XSCMPUDP(6, VSXREG(d1), VSXREG(q0));  // compare to CR6
+            }
             XSMULDP(VSXREG(d1), VSXREG(d1), VSXREG(q0));
+            if (!BOX64ENV(dynarec_fastnan)) {
+                // Skip fixup if either input was NaN (pre-existing NaN passes through)
+                j64 = GETMARK - dyn->native_size;
+                BC(BO_TRUE, BI(CR6, CR_SO), j64);  // branch if unordered (input had NaN)
+                // Check if result is NaN
+                XSCMPUDP(6, VSXREG(d1), VSXREG(d1));
+                j64 = GETMARK - dyn->native_size;
+                BC(BO_FALSE, BI(CR6, CR_SO), j64);  // branch if ordered (result not NaN)
+                // New NaN created: flip sign bit
+                MFVSRD(x4, VSXREG(d1));
+                LI(x5, 1);
+                SLDI(x5, x5, 63);
+                XOR(x4, x4, x5);
+                MTVSRD(VSXREG(d1), x4);
+                MARK;
+            }
             XXPERMDI(VSXREG(v0), VSXREG(v0), VSXREG(d1), 0);
             break;
         case 0x5A:
@@ -286,7 +351,27 @@ uintptr_t dynarec64_F20F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
             } else {
                 XXLOR(VSXREG(q0), VSXREG(d0), VSXREG(d0));
             }
+            if (!BOX64ENV(dynarec_fastnan)) {
+                // Check if either input is NaN before the operation
+                XSCMPUDP(6, VSXREG(d1), VSXREG(q0));  // compare to CR6
+            }
             XSSUBDP(VSXREG(d1), VSXREG(d1), VSXREG(q0));
+            if (!BOX64ENV(dynarec_fastnan)) {
+                // Skip fixup if either input was NaN (pre-existing NaN passes through)
+                j64 = GETMARK - dyn->native_size;
+                BC(BO_TRUE, BI(CR6, CR_SO), j64);  // branch if unordered (input had NaN)
+                // Check if result is NaN
+                XSCMPUDP(6, VSXREG(d1), VSXREG(d1));
+                j64 = GETMARK - dyn->native_size;
+                BC(BO_FALSE, BI(CR6, CR_SO), j64);  // branch if ordered (result not NaN)
+                // New NaN created: flip sign bit
+                MFVSRD(x4, VSXREG(d1));
+                LI(x5, 1);
+                SLDI(x5, x5, 63);
+                XOR(x4, x4, x5);
+                MTVSRD(VSXREG(d1), x4);
+                MARK;
+            }
             XXPERMDI(VSXREG(v0), VSXREG(v0), VSXREG(d1), 0);
             break;
         case 0x5D:
@@ -312,9 +397,9 @@ uintptr_t dynarec64_F20F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
             // Branch to MARK if unordered (SO bit set) — use source
             j64 = GETMARK - dyn->native_size;
             BC(BO_TRUE, BI(CR0, CR_SO), j64);
-            // Not unordered; if dest <= src, keep dest (skip to MARK2)
+            // Not unordered; if dest < src, keep dest (skip to MARK2)
             j64 = GETMARK2 - dyn->native_size;
-            BLE(j64);
+            BLT(j64);
             // dest > src: take src
             MARK;
             XXLOR(VSXREG(d1), VSXREG(q0), VSXREG(q0));
@@ -337,7 +422,27 @@ uintptr_t dynarec64_F20F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
             } else {
                 XXLOR(VSXREG(q0), VSXREG(d0), VSXREG(d0));
             }
+            if (!BOX64ENV(dynarec_fastnan)) {
+                // Check if either input is NaN before the operation
+                XSCMPUDP(6, VSXREG(d1), VSXREG(q0));  // compare to CR6
+            }
             XSDIVDP(VSXREG(d1), VSXREG(d1), VSXREG(q0));
+            if (!BOX64ENV(dynarec_fastnan)) {
+                // Skip fixup if either input was NaN (pre-existing NaN passes through)
+                j64 = GETMARK - dyn->native_size;
+                BC(BO_TRUE, BI(CR6, CR_SO), j64);  // branch if unordered (input had NaN)
+                // Check if result is NaN
+                XSCMPUDP(6, VSXREG(d1), VSXREG(d1));
+                j64 = GETMARK - dyn->native_size;
+                BC(BO_FALSE, BI(CR6, CR_SO), j64);  // branch if ordered (result not NaN)
+                // New NaN created: flip sign bit
+                MFVSRD(x4, VSXREG(d1));
+                LI(x5, 1);
+                SLDI(x5, x5, 63);
+                XOR(x4, x4, x5);
+                MTVSRD(VSXREG(d1), x4);
+                MARK;
+            }
             XXPERMDI(VSXREG(v0), VSXREG(v0), VSXREG(d1), 0);
             break;
         case 0x5F:
@@ -362,9 +467,9 @@ uintptr_t dynarec64_F20F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
             // Branch to MARK if unordered (SO bit set) — use source
             j64 = GETMARK - dyn->native_size;
             BC(BO_TRUE, BI(CR0, CR_SO), j64);
-            // Not unordered; if dest >= src, keep dest (skip to MARK2)
+            // Not unordered; if dest > src, keep dest (skip to MARK2)
             j64 = GETMARK2 - dyn->native_size;
-            BGE(j64);
+            BGT(j64);
             // dest < src: take src
             MARK;
             XXLOR(VSXREG(d1), VSXREG(q0), VSXREG(q0));
