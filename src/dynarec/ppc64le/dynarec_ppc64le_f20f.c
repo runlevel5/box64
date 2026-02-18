@@ -129,21 +129,34 @@ uintptr_t dynarec64_F20F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
             GETGD;
             GETEXSD(d0, 0, 0);
             d1 = fpu_get_scratch(dyn);
+            // Extract double to FPR scratch (raw index for FPR instructions)
             if (MODREG) {
-                // d0 is SSE register; extract x86 low 64 bits (double) to FPR scratch
-                MFVSRLD(x4, VSXREG(d0));
-                MTVSRD(VSXREG(d1), x4);
+                MFVSRLD(x4, VSXREG(d0));  // x86 scalar double is in ISA dw1
+                MTVSRD(d1, x4);            // raw index → FPR space (VS24)
             } else {
-                // d0 is FPR loaded via LFD, already a double
-                XXLOR(VSXREG(d1), VSXREG(d0), VSXREG(d0));
+                MFVSRD(x4, VSXREG(d0));   // memory load put data in ISA dw0 via MTVSRD(VSXREG)
+                MTVSRD(d1, x4);            // raw index → FPR space
             }
+            MTFSB0(23);  // clear VXCVI before conversion
             if (rex.w) {
-                XSCVDPSXDS(VSXREG(d1), VSXREG(d1));  // truncate to signed 64-bit
-                MFVSRD(gd, VSXREG(d1));
+                FCTIDZ(d1, d1);           // truncate to signed 64-bit (FPR instruction)
+                MFVSRD(gd, d1);           // raw index → read from FPR space
             } else {
-                XSCVDPSXWS(VSXREG(d1), VSXREG(d1));  // truncate to signed 32-bit
-                MFVSRWZ(gd, VSXREG(d1));
+                FCTIWZ(d1, d1);           // truncate to signed 32-bit (FPR instruction)
+                MFVSRWZ(gd, d1);          // extract 32-bit result
                 ZEROUP(gd);
+            }
+            // Check VXCVI: PPC gives 0x7FFF... for positive overflow, x86 wants 0x8000...
+            MFFS(SCRATCH0);
+            STFD(SCRATCH0, -8, xSP);
+            LD(x4, -8, xSP);
+            RLWINM(x4, x4, 24, 31, 31);  // extract VXCVI (bit 8 from LSB) → bit 0
+            CMPLDI(x4, 0);
+            CBZ_NEXT(x4);
+            if (rex.w) {
+                MOV64x(gd, 0x8000000000000000LL);
+            } else {
+                MOV32w(gd, 0x80000000);
             }
             break;
         case 0x2D:
@@ -152,19 +165,37 @@ uintptr_t dynarec64_F20F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
             GETGD;
             GETEXSD(d0, 0, 0);
             d1 = fpu_get_scratch(dyn);
+            MTFSB0(23);  // clear VXCVI (always needed on PPC for overflow detection)
+            // Set rounding BEFORE loading value into d1 (sse_setround uses SCRATCH0 which may == d1)
+            u8 = sse_setround(dyn, ninst, x4, x5);
+            // Extract double to FPR scratch (raw index for FPR instructions)
             if (MODREG) {
                 MFVSRLD(x4, VSXREG(d0));
-                MTVSRD(VSXREG(d1), x4);
+                MTVSRD(d1, x4);
             } else {
-                XXLOR(VSXREG(d1), VSXREG(d0), VSXREG(d0));
+                MFVSRD(x4, VSXREG(d0));
+                MTVSRD(d1, x4);
             }
             if (rex.w) {
-                XSCVDPSXDS(VSXREG(d1), VSXREG(d1));  // round to signed 64-bit (current rounding mode)
-                MFVSRD(gd, VSXREG(d1));
+                FCTID(d1, d1);            // round to signed 64-bit using FPSCR rounding mode
+                MFVSRD(gd, d1);
             } else {
-                XSCVDPSXWS(VSXREG(d1), VSXREG(d1));  // round to signed 32-bit
-                MFVSRWZ(gd, VSXREG(d1));
+                FCTIW(d1, d1);            // round to signed 32-bit using FPSCR rounding mode
+                MFVSRWZ(gd, d1);
                 ZEROUP(gd);
+            }
+            // Check VXCVI BEFORE restoreround (restoreround clears VXCVI via MTFSF)
+            MFFS(SCRATCH0);
+            STFD(SCRATCH0, -8, xSP);
+            LD(x4, -8, xSP);
+            RLWINM(x4, x4, 24, 31, 31);
+            x87_restoreround(dyn, ninst, u8);
+            CMPLDI(x4, 0);
+            CBZ_NEXT(x4);
+            if (rex.w) {
+                MOV64x(gd, 0x8000000000000000LL);
+            } else {
+                MOV32w(gd, 0x80000000);
             }
             break;
         case 0x51:
@@ -510,23 +541,38 @@ uintptr_t dynarec64_F20F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
             nextop = F8;
             GETEX(v1, 0, 0);
             GETGX_empty(v0);
-            // Convert 2 packed doubles to 2 packed dwords in low 64 bits, zero upper 64 bits
             d0 = fpu_get_scratch(dyn);
             d1 = fpu_get_scratch(dyn);
-            // Extract low double (element 0, x86 low = ISA dw1)
-            MFVSRLD(x4, VSXREG(v1));
-            MTVSRD(VSXREG(d0), x4);
-            XSCVDPSXWS(VSXREG(d0), VSXREG(d0));  // convert to 32-bit int
-            MFVSRWZ(x4, VSXREG(d0));
-            // Extract high double (element 1, x86 high = ISA dw0)
-            MFVSRD(x5, VSXREG(v1));
-            MTVSRD(VSXREG(d1), x5);
-            XSCVDPSXWS(VSXREG(d1), VSXREG(d1));
-            MFVSRWZ(x5, VSXREG(d1));
-            // Pack: low 32 = x4, next 32 = x5, upper 64 = 0
-            // Combine into 64-bit value
-            SLDI(x5, x5, 32);
-            OR(x4, x4, x5);
+            MTFSB0(23);  // clear VXCVI (always needed on PPC for overflow detection)
+            u8 = sse_setround(dyn, ninst, x4, x5);
+            // Extract and convert each double using FPR-space FCTIW
+            // Note: u8 returns x5 as saved FPSCR, so avoid clobbering x5 before restoreround
+            MFVSRLD(x4, VSXREG(v1));    // double0 (x86 low = ISA dw1)
+            MTVSRD(d0, x4);              // FPR space
+            FCTIW(d0, d0);               // round using FPSCR
+            MFVSRWZ(x4, d0);
+            MFVSRD(x6, VSXREG(v1));     // double1 (x86 high = ISA dw0)
+            MTVSRD(d1, x6);
+            FCTIW(d1, d1);
+            MFVSRWZ(x6, d1);
+            // Check VXCVI BEFORE restoreround (restoreround clears VXCVI)
+            MFFS(SCRATCH0);
+            STFD(SCRATCH0, -8, xSP);
+            LD(x7, -8, xSP);
+            RLWINM(x7, x7, 24, 31, 31);
+            x87_restoreround(dyn, ninst, u8);
+            CMPLDI(x7, 0);
+            BEQZ_MARK(x7);
+            // Substitute 0x80000000 for overflow
+            LI(x4, 0);
+            ORI(x4, x4, 0x8000);
+            SLDI(x4, x4, 16);
+            MR(x6, x4);
+            MARK;
+            // Pack: low 32 = x4, next 32 = x6, upper 64 = 0
+            CLRLDI(x4, x4, 32);
+            SLDI(x6, x6, 32);
+            OR(x4, x4, x6);
             MTVSRDD(VSXREG(v0), 0, x4);
             break;
         case 0xF0:

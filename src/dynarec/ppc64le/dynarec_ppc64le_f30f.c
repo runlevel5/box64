@@ -34,10 +34,12 @@ uintptr_t dynarec64_F30F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
     uint8_t gd, ed;
     uint8_t wback, wb1;
     int64_t fixedaddress;
+    int64_t j64;
     int unscaled;
     int v0, v1, q0, q1, d0, d1;
     MAYUSE(u8);
     MAYUSE(wb1);
+    MAYUSE(j64);
     MAYUSE(v0);
     MAYUSE(v1);
     MAYUSE(q0);
@@ -118,27 +120,37 @@ uintptr_t dynarec64_F30F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
             nextop = F8;
             GETGD;
             GETEXSS(d0, 0, 0);
-            // Convert single-precision float to integer with truncation
             d1 = fpu_get_scratch(dyn);
-            // d0 may be a VR (SSE register). Extract low float to scratch FPR for scalar conversion
-            // For MODREG case, d0 is the full SSE register - need to get scalar from it
+            // Convert float to double in VSX space
             if (MODREG) {
-                // d0 is actually the SSE register; extract float from x86 word 0
-                // x86 word 0 = ISA word 3; XSCVSPDPN reads from ISA word 0
-                // Use XXSPLTW to broadcast ISA word 3 to all positions including word 0
                 XXSPLTW(VSXREG(d1), VSXREG(d0), 3);
                 XSCVSPDPN(VSXREG(d1), VSXREG(d1));
             } else {
-                // d0 is a scratch loaded via LFS (already double-precision)
                 XXLOR(VSXREG(d1), VSXREG(d0), VSXREG(d0));
             }
+            // Move double from VSX to FPR space for FCTIDZ/FCTIWZ
+            MFVSRD(x4, VSXREG(d1));    // extract from VSX dw0
+            MTVSRD(d1, x4);             // put in FPR space (raw index)
+            MTFSB0(23);  // clear VXCVI (always needed on PPC for overflow detection)
             if (rex.w) {
-                XSCVDPSXDS(VSXREG(d1), VSXREG(d1));  // truncate to signed 64-bit
-                MFVSRD(gd, VSXREG(d1));
+                FCTIDZ(d1, d1);          // truncate to signed 64-bit
+                MFVSRD(gd, d1);
             } else {
-                XSCVDPSXWS(VSXREG(d1), VSXREG(d1));  // truncate to signed 32-bit
-                MFVSRWZ(gd, VSXREG(d1));
+                FCTIWZ(d1, d1);          // truncate to signed 32-bit
+                MFVSRWZ(gd, d1);
                 ZEROUP(gd);
+            }
+            // Check VXCVI: PPC gives 0x7FFF... for positive overflow, x86 wants 0x8000...
+            MFFS(SCRATCH0);
+            STFD(SCRATCH0, -8, xSP);
+            LD(x4, -8, xSP);
+            RLWINM(x4, x4, 24, 31, 31);  // extract VXCVI
+            CMPLDI(x4, 0);
+            CBZ_NEXT(x4);
+            if (rex.w) {
+                MOV64x(gd, 0x8000000000000000LL);
+            } else {
+                MOV32w(gd, 0x80000000);
             }
             break;
         case 0x2D:
@@ -147,19 +159,39 @@ uintptr_t dynarec64_F30F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
             GETGD;
             GETEXSS(d0, 0, 0);
             d1 = fpu_get_scratch(dyn);
+            MTFSB0(23);  // clear VXCVI (always needed on PPC for overflow detection)
+            // Set rounding BEFORE loading value into d1 (sse_setround uses SCRATCH0 which may == d1)
+            u8 = sse_setround(dyn, ninst, x4, x5);
+            // Convert float to double, then move to FPR space
             if (MODREG) {
                 XXSPLTW(VSXREG(d1), VSXREG(d0), 3);
                 XSCVSPDPN(VSXREG(d1), VSXREG(d1));
             } else {
                 XXLOR(VSXREG(d1), VSXREG(d0), VSXREG(d0));
             }
+            // Move to FPR space for FCTID/FCTIW
+            MFVSRD(x4, VSXREG(d1));
+            MTVSRD(d1, x4);
             if (rex.w) {
-                XSCVDPSXDS(VSXREG(d1), VSXREG(d1));  // round to signed 64-bit (current rounding mode)
-                MFVSRD(gd, VSXREG(d1));
+                FCTID(d1, d1);            // round using FPSCR rounding mode
+                MFVSRD(gd, d1);
             } else {
-                XSCVDPSXWS(VSXREG(d1), VSXREG(d1));  // round to signed 32-bit
-                MFVSRWZ(gd, VSXREG(d1));
+                FCTIW(d1, d1);
+                MFVSRWZ(gd, d1);
                 ZEROUP(gd);
+            }
+            // Check VXCVI BEFORE restoreround (restoreround clears VXCVI via MTFSF)
+            MFFS(SCRATCH0);
+            STFD(SCRATCH0, -8, xSP);
+            LD(x4, -8, xSP);
+            RLWINM(x4, x4, 24, 31, 31);
+            x87_restoreround(dyn, ninst, u8);
+            CMPLDI(x4, 0);
+            CBZ_NEXT(x4);
+            if (rex.w) {
+                MOV64x(gd, 0x8000000000000000LL);
+            } else {
+                MOV32w(gd, 0x80000000);
             }
             break;
 
@@ -238,6 +270,22 @@ uintptr_t dynarec64_F30F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
             // Result is now a double in d1; insert into low 64 bits of v0
             // d1 FPR scalar result is in ISA dw0; insert into v0's ISA dw1 (x86 low)
             XXPERMDI(VSXREG(v0), VSXREG(v0), VSXREG(d1), 0);
+            break;
+        case 0x5B:
+            INST_NAME("CVTTPS2DQ Gx, Ex");
+            nextop = F8;
+            GETEX(v1, 0, 0);
+            GETGX_empty(v0);
+            // Truncate 4 packed floats to 4 int32
+            XVCVSPSXWS(VSXREG(v0), VSXREG(v1));    // always truncates
+            // Fix positive overflow: PPC gives 0x7FFFFFFF, x86 wants 0x80000000
+            q0 = fpu_get_scratch(dyn);
+            q1 = fpu_get_scratch(dyn);
+            VSPLTISW(VRREG(q0), -1);                   // q0 = 0xFFFFFFFF per lane
+            VSPLTISW(VRREG(q1), 1);
+            VSRW(VRREG(q0), VRREG(q0), VRREG(q1));     // q0 = 0x7FFFFFFF
+            VCMPEQUW(VRREG(q0), VRREG(v0), VRREG(q0)); // mask where result == 0x7FFFFFFF
+            VSUBUWM(VRREG(v0), VRREG(v0), VRREG(q0));  // 0x7FFFFFFF - (-1) = 0x80000000
             break;
         case 0x5C:
             INST_NAME("SUBSS Gx, Ex");
