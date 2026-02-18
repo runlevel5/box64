@@ -3431,15 +3431,16 @@ uintptr_t dynarec64_660F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
                         u8 = (F8) & 15;
                         d0 = fpu_get_scratch(dyn);
                         // x86 byte index u8 = BE byte (15-u8)
+                        // VEXTRACTUB places result in ISA dw0, use MFVSRD to read
                         VEXTRACTUB(VRREG(d0), VRREG(v0), 15 - u8);
-                        MFVSRLD(ed, VSXREG(d0));
+                        MFVSRD(ed, VSXREG(d0));
                     } else {
                         SMREAD();
                         addr = geted(dyn, addr, ninst, nextop, &wback, x2, x4, &fixedaddress, rex, NULL, 1, 1);
                         u8 = (F8) & 15;
                         d0 = fpu_get_scratch(dyn);
                         VEXTRACTUB(VRREG(d0), VRREG(v0), 15 - u8);
-                        MFVSRLD(x1, VSXREG(d0));
+                        MFVSRD(x1, VSXREG(d0));
                         STB(x1, wback, fixedaddress);
                         SMWRITE2();
                     }
@@ -3454,14 +3455,14 @@ uintptr_t dynarec64_660F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
                         d0 = fpu_get_scratch(dyn);
                         // x86 halfword index u8 = BE hw (7-u8), byte offset (7-u8)*2
                         VEXTRACTUH(VRREG(d0), VRREG(v0), (7 - u8) * 2);
-                        MFVSRLD(ed, VSXREG(d0));
+                        MFVSRD(ed, VSXREG(d0));
                     } else {
                         SMREAD();
                         addr = geted(dyn, addr, ninst, nextop, &wback, x2, x4, &fixedaddress, rex, NULL, 1, 1);
                         u8 = (F8) & 7;
                         d0 = fpu_get_scratch(dyn);
                         VEXTRACTUH(VRREG(d0), VRREG(v0), (7 - u8) * 2);
-                        MFVSRLD(x1, VSXREG(d0));
+                        MFVSRD(x1, VSXREG(d0));
                         STH(x1, wback, fixedaddress);
                         SMWRITE2();
                     }
@@ -3477,27 +3478,33 @@ uintptr_t dynarec64_660F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
                     if (MODREG) {
                         ed = TO_NAT((nextop & 7) + (rex.b << 3));
                         u8 = F8;
-                        d0 = fpu_get_scratch(dyn);
                         if (rex.w) {
-                            // x86 qword index (u8 & 1): LE dword i = BE dword (1-i)
-                            VEXTRACTD(VRREG(d0), VRREG(v0), 1 - (u8 & 1));
-                            MFVSRLD(ed, VSXREG(d0));
+                            // x86 qword index: q[0]=ISA dw1 (MFVSRLD), q[1]=ISA dw0 (MFVSRD)
+                            if (u8 & 1)
+                                MFVSRD(ed, VSXREG(v0));
+                            else
+                                MFVSRLD(ed, VSXREG(v0));
                         } else {
+                            // VEXTRACTUW places result in ISA dw0 (upper 64 bits on LE).
+                            // Use MFVSRD to read it (not MFVSRLD which reads ISA dw1).
                             // x86 dword index (u8 & 3): LE word i = BE word (3-i), byte offset (3-i)*4
+                            d0 = fpu_get_scratch(dyn);
                             VEXTRACTUW(VRREG(d0), VRREG(v0), (3 - (u8 & 3)) * 4);
-                            MFVSRLD(ed, VSXREG(d0));
+                            MFVSRD(ed, VSXREG(d0));
                         }
                     } else {
                         addr = geted(dyn, addr, ninst, nextop, &ed, x3, x5, &fixedaddress, rex, NULL, 1, 1);
                         u8 = F8;
-                        d0 = fpu_get_scratch(dyn);
                         if (rex.w) {
-                            VEXTRACTD(VRREG(d0), VRREG(v0), 1 - (u8 & 1));
-                            MFVSRLD(x1, VSXREG(d0));
+                            if (u8 & 1)
+                                MFVSRD(x1, VSXREG(v0));
+                            else
+                                MFVSRLD(x1, VSXREG(v0));
                             STD(x1, ed, fixedaddress);
                         } else {
+                            d0 = fpu_get_scratch(dyn);
                             VEXTRACTUW(VRREG(d0), VRREG(v0), (3 - (u8 & 3)) * 4);
-                            MFVSRLD(x1, VSXREG(d0));
+                            MFVSRD(x1, VSXREG(d0));
                             STW(x1, ed, fixedaddress);
                         }
                         SMWRITE2();
@@ -3656,13 +3663,13 @@ uintptr_t dynarec64_660F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
                         d0 = fpu_get_scratch(dyn);
                         // Same as PEXTRD: x86 word index u8, byte offset (3-u8)*4
                         VEXTRACTUW(VRREG(d0), VRREG(v0), (3 - u8) * 4);
-                        MFVSRLD(ed, VSXREG(d0));
+                        MFVSRD(ed, VSXREG(d0));
                     } else {
                         addr = geted(dyn, addr, ninst, nextop, &ed, x3, x5, &fixedaddress, rex, NULL, 1, 1);
                         u8 = F8 & 0x3;
                         d0 = fpu_get_scratch(dyn);
                         VEXTRACTUW(VRREG(d0), VRREG(v0), (3 - u8) * 4);
-                        MFVSRLD(x1, VSXREG(d0));
+                        MFVSRD(x1, VSXREG(d0));
                         STW(x1, ed, fixedaddress);
                         SMWRITE2();
                     }
