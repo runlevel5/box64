@@ -109,6 +109,7 @@ EXPORT double my___powl_finite(double a, double b) __attribute__((alias("my___po
 // #define FE_UPWARD     0x400000
 // #define FE_TOWARDZERO 0xc00000
 #define TO_NATIVE(round) ((round == 0x400 ? 0x800 : (round == 0x800 ? 0x400 : round)) << 12)
+#define FROM_NATIVE(round) (((round) >> 12) == 0x400 ? 0x800 : (((round) >> 12) == 0x800 ? 0x400 : ((round) >> 12)))
 #elif defined(__riscv)
 // RISC-V
 // #define FE_TONEAREST     0x0
@@ -116,6 +117,7 @@ EXPORT double my___powl_finite(double a, double b) __attribute__((alias("my___po
 // #define FE_UPWARD        0x3
 // #define FE_TOWARDZERO    0x1
 #define TO_NATIVE(round) ((round == 0xc00 ? 0x400 : (round == 0x0 ? round : round + 0x400)) >> 10)
+#define FROM_NATIVE(round) ((round) == 0 ? 0 : ((round) == 2 ? 0x400 : ((round) == 3 ? 0x800 : 0xc00)))
 #elif defined(__loongarch64)
 // LOONGARCH
 // FE_TONEAREST     0x000
@@ -123,6 +125,7 @@ EXPORT double my___powl_finite(double a, double b) __attribute__((alias("my___po
 // FE_UPWARD        0x200
 // FE_TOWARDZERO    0x100
 #define TO_NATIVE(round) ((round == 0x400 ? 0xc00 : (round == 0xc00 ? 0x400 : round)) >> 2)
+#define FROM_NATIVE(round) (((round) << 2) == 0x400 ? 0xc00 : (((round) << 2) == 0xc00 ? 0x400 : ((round) << 2)))
 #elif defined(__powerpc64__)
 // PPC
 // FE_TONEAREST     0x0
@@ -130,8 +133,10 @@ EXPORT double my___powl_finite(double a, double b) __attribute__((alias("my___po
 // FE_UPWARD        0x2
 // FE_TOWARDZERO    0x1
 #define TO_NATIVE(round) ((round == 0x400 ? 0xc00 : (round == 0xc00 ? 0x400 : round)) >> 10)
+#define FROM_NATIVE(round) (((round) << 10) == 0x400 ? 0xc00 : (((round) << 10) == 0xc00 ? 0x400 : ((round) << 10)))
 #elif defined(__x86_64__)
 #define TO_NATIVE(round) round
+#define FROM_NATIVE(round) round
 #else
 #error Unknown architecture!
 #endif
@@ -221,7 +226,7 @@ EXPORT int my_fegetround(x64emu_t* emu)
     if (BOX64ENV(sync_rounding)) {
         return emu->cw.x16 & 0xc00;
     } else {
-        return fegetround();
+        return FROM_NATIVE(fegetround());
     }
 }
 
