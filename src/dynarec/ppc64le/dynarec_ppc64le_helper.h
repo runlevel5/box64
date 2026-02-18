@@ -1053,7 +1053,6 @@
 #define IFX2X(A, B) if ((dyn->insts[ninst].x64.gen_flags == (A) || dyn->insts[ninst].x64.gen_flags == (B) || dyn->insts[ninst].x64.gen_flags == ((A) | (B))))
 #define IFXN(A, B)  if ((dyn->insts[ninst].x64.gen_flags & (A) && !(dyn->insts[ninst].x64.gen_flags & (B))))
 
-// PPC64LE has no x87 precision control in hardware — stub these for now
 #ifndef NATIVE_RESTORE_X87PC
 #define NATIVE_RESTORE_X87PC()                     \
     if (dyn->need_x87check) {                      \
@@ -1066,10 +1065,8 @@
 #define X87_CHECK_PRECISION(A)               \
     if (!ST_IS_F(0) && dyn->need_x87check) { \
         CMPDI(x87pc, 0);                     \
-        BNE(4 + 8);                          \
-        /* TODO: FCVT_S_D / FCVT_D_S */      \
-        NOP();                               \
-        NOP();                               \
+        BNE(4 + 4);                          \
+        FRSP(A, A);                          \
     }
 #endif
 
