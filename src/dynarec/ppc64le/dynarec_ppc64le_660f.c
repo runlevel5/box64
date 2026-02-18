@@ -73,7 +73,7 @@ uintptr_t dynarec64_660F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
                 XXLOR(VSXREG(v0), VSXREG(v1), VSXREG(v1));
             } else {
                 SMREAD();
-                addr = geted(dyn, addr, ninst, nextop, &ed, x2, x3, &fixedaddress, rex, NULL, 1, 0);
+                addr = geted(dyn, addr, ninst, nextop, &ed, x2, x3, &fixedaddress, rex, NULL, DQ_ALIGN|1, 0);
                 LXV(VSXREG(v0), fixedaddress, ed);
             }
             break;
@@ -86,7 +86,7 @@ uintptr_t dynarec64_660F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
                 v1 = sse_get_reg_empty(dyn, ninst, x1, (nextop & 7) + (rex.b << 3));
                 XXLOR(VSXREG(v1), VSXREG(v0), VSXREG(v0));
             } else {
-                addr = geted(dyn, addr, ninst, nextop, &ed, x2, x3, &fixedaddress, rex, NULL, 1, 0);
+                addr = geted(dyn, addr, ninst, nextop, &ed, x2, x3, &fixedaddress, rex, NULL, DQ_ALIGN|1, 0);
                 STXV(VSXREG(v0), fixedaddress, ed);
                 SMWRITE2();
             }
@@ -203,7 +203,7 @@ uintptr_t dynarec64_660F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
             } else {
                 SMREAD();
                 v0 = sse_get_reg_empty(dyn, ninst, x1, gd);
-                addr = geted(dyn, addr, ninst, nextop, &ed, x2, x3, &fixedaddress, rex, NULL, 1, 0);
+                addr = geted(dyn, addr, ninst, nextop, &ed, x2, x3, &fixedaddress, rex, NULL, DQ_ALIGN|1, 0);
                 LXV(VSXREG(v0), fixedaddress, ed);
             }
             break;
@@ -217,7 +217,7 @@ uintptr_t dynarec64_660F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
                 v1 = sse_get_reg_empty(dyn, ninst, x1, ed);
                 XXLOR(VSXREG(v1), VSXREG(v0), VSXREG(v0));
             } else {
-                addr = geted(dyn, addr, ninst, nextop, &ed, x2, x3, &fixedaddress, rex, NULL, 1, 0);
+                addr = geted(dyn, addr, ninst, nextop, &ed, x2, x3, &fixedaddress, rex, NULL, DQ_ALIGN|1, 0);
                 STXV(VSXREG(v0), fixedaddress, ed);
                 SMWRITE2();
             }
@@ -232,7 +232,7 @@ uintptr_t dynarec64_660F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
                 v1 = sse_get_reg_empty(dyn, ninst, x1, ed);
                 XXLOR(VSXREG(v1), VSXREG(v0), VSXREG(v0));
             } else {
-                addr = geted(dyn, addr, ninst, nextop, &ed, x2, x3, &fixedaddress, rex, NULL, 1, 0);
+                addr = geted(dyn, addr, ninst, nextop, &ed, x2, x3, &fixedaddress, rex, NULL, DQ_ALIGN|1, 0);
                 STXV(VSXREG(v0), fixedaddress, ed);
                 SMWRITE2();
             }
@@ -741,7 +741,7 @@ uintptr_t dynarec64_660F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
             } else {
                 GETGX_empty(v0);
                 SMREAD();
-                addr = geted(dyn, addr, ninst, nextop, &ed, x2, x1, &fixedaddress, rex, NULL, 1, 0);
+                addr = geted(dyn, addr, ninst, nextop, &ed, x2, x1, &fixedaddress, rex, NULL, DQ_ALIGN|1, 0);
                 LXV(VSXREG(v0), fixedaddress, ed);
             }
             break;
@@ -1093,7 +1093,7 @@ uintptr_t dynarec64_660F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
                 v1 = sse_get_reg_empty(dyn, ninst, x1, (nextop & 7) + (rex.b << 3));
                 XXLOR(VSXREG(v1), VSXREG(v0), VSXREG(v0));
             } else {
-                addr = geted(dyn, addr, ninst, nextop, &ed, x2, x3, &fixedaddress, rex, NULL, 1, 0);
+                addr = geted(dyn, addr, ninst, nextop, &ed, x2, x3, &fixedaddress, rex, NULL, DQ_ALIGN|1, 0);
                 STXV(VSXREG(v0), fixedaddress, ed);
                 SMWRITE2();
             }
@@ -2122,7 +2122,7 @@ uintptr_t dynarec64_660F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
                 v1 = sse_get_reg_empty(dyn, ninst, x1, (nextop & 7) + (rex.b << 3));
                 XXLOR(VSXREG(v1), VSXREG(v0), VSXREG(v0));
             } else {
-                addr = geted(dyn, addr, ninst, nextop, &ed, x2, x3, &fixedaddress, rex, NULL, 1, 0);
+                addr = geted(dyn, addr, ninst, nextop, &ed, x2, x3, &fixedaddress, rex, NULL, DQ_ALIGN|1, 0);
                 STXV(VSXREG(v0), fixedaddress, ed);
                 SMWRITE2();
             }
@@ -2200,7 +2200,7 @@ uintptr_t dynarec64_660F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
                 XXLOR(VSXREG(v0), VSXREG(v1), VSXREG(v1));
             } else {
                 SMREAD();
-                addr = geted(dyn, addr, ninst, nextop, &ed, x2, x3, &fixedaddress, rex, NULL, 1, 0);
+                addr = geted(dyn, addr, ninst, nextop, &ed, x2, x3, &fixedaddress, rex, NULL, DQ_ALIGN|1, 0);
                 LXV(VSXREG(v0), fixedaddress, ed);
             }
             break;
@@ -2849,7 +2849,7 @@ uintptr_t dynarec64_660F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
                     } else {
                         GETGX_empty(v0);
                         SMREAD();
-                        addr = geted(dyn, addr, ninst, nextop, &ed, x2, x1, &fixedaddress, rex, NULL, 1, 0);
+                        addr = geted(dyn, addr, ninst, nextop, &ed, x2, x1, &fixedaddress, rex, NULL, DQ_ALIGN|1, 0);
                         LXV(VSXREG(v0), fixedaddress, ed);
                     }
                     break;

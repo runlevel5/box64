@@ -19,6 +19,11 @@
 #include "../emu/x64primop.h"
 #include "dynarec_ppc64le_consts.h"
 
+// DQ_ALIGN: OR this into the i12 parameter of geted() to require 16-byte
+// alignment for fixedaddress (needed for DQ-form instructions like LXV/STXV).
+// Without this flag, geted() only requires 4-byte alignment (for D-form LD/STD).
+#define DQ_ALIGN    0x100
+
 #define F8      *(uint8_t*)(addr++)
 #define F8S     *(int8_t*)(addr++)
 #define F16     *(uint16_t*)(addr += 2, addr - 2)
@@ -546,7 +551,7 @@
         a = sse_get_reg(dyn, ninst, x1, (nextop & 7) + (rex.b << 3), w);                     \
     } else {                                                                                 \
         SMREAD();                                                                            \
-        addr = geted(dyn, addr, ninst, nextop, &ed, x3, x2, &fixedaddress, rex, NULL, 1, D); \
+        addr = geted(dyn, addr, ninst, nextop, &ed, x3, x2, &fixedaddress, rex, NULL, DQ_ALIGN|1, D); \
         a = fpu_get_scratch(dyn);                                                            \
         LXV(VSXREG(a), fixedaddress, ed);                                                    \
     }
@@ -683,7 +688,7 @@
         a = avx_get_reg(dyn, ninst, x1, (nextop & 7) + (rex.b << 3), w, VMX_AVX_WIDTH_128);  \
     } else {                                                                                 \
         SMREAD();                                                                            \
-        addr = geted(dyn, addr, ninst, nextop, &ed, x2, x1, &fixedaddress, rex, NULL, 1, D); \
+        addr = geted(dyn, addr, ninst, nextop, &ed, x2, x1, &fixedaddress, rex, NULL, DQ_ALIGN|1, D); \
         a = fpu_get_scratch(dyn);                                                            \
         LXV(VSXREG(a), fixedaddress, ed);                                                    \
     }
@@ -693,7 +698,7 @@
         a = avx_get_reg(dyn, ninst, x1, (nextop & 7) + (rex.b << 3), w, VMX_AVX_WIDTH_256);  \
     } else {                                                                                 \
         SMREAD();                                                                            \
-        addr = geted(dyn, addr, ninst, nextop, &ed, x2, x1, &fixedaddress, rex, NULL, 1, D); \
+        addr = geted(dyn, addr, ninst, nextop, &ed, x2, x1, &fixedaddress, rex, NULL, DQ_ALIGN|1, D); \
         a = fpu_get_scratch(dyn);                                                            \
         /* TODO: load 256-bit (2x LXV) */                                                    \
         LXV(VSXREG(a), fixedaddress, ed);                                                    \
@@ -704,7 +709,7 @@
         a = avx_get_reg_empty(dyn, ninst, x1, (nextop & 7) + (rex.b << 3), VMX_AVX_WIDTH_128); \
     } else {                                                                                   \
         SMREAD();                                                                              \
-        addr = geted(dyn, addr, ninst, nextop, &ed, x2, x1, &fixedaddress, rex, NULL, 1, D);   \
+        addr = geted(dyn, addr, ninst, nextop, &ed, x2, x1, &fixedaddress, rex, NULL, DQ_ALIGN|1, D);   \
         a = fpu_get_scratch(dyn);                                                              \
     }
 
@@ -713,7 +718,7 @@
         a = avx_get_reg_empty(dyn, ninst, x1, (nextop & 7) + (rex.b << 3), VMX_AVX_WIDTH_256); \
     } else {                                                                                   \
         SMREAD();                                                                              \
-        addr = geted(dyn, addr, ninst, nextop, &ed, x2, x1, &fixedaddress, rex, NULL, 1, D);   \
+        addr = geted(dyn, addr, ninst, nextop, &ed, x2, x1, &fixedaddress, rex, NULL, DQ_ALIGN|1, D);   \
         a = fpu_get_scratch(dyn);                                                              \
     }
 

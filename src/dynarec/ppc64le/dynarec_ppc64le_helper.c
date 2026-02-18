@@ -47,6 +47,10 @@ uintptr_t geted(dynarec_ppc64le_t* dyn, uintptr_t addr, int ninst, uint8_t nexto
     uint8_t ret = x2;
     *fixaddress = 0;
     if (hint > 0) ret = hint;
+    // DQ_ALIGN flag: require 16-byte alignment for fixedaddress (DQ-form LXV/STXV)
+    // Without it, require 4-byte alignment (D-form LD/STD)
+    int align_mask = (i12 & DQ_ALIGN) ? 15 : 3;
+    i12 &= ~DQ_ALIGN;  // strip the flag, keep the i12 value (0, 1, or >1)
     int maxval = 32767;  // PPC64LE ADDI has 16-bit signed immediate
     if (i12 > 1)
         maxval -= i12;
@@ -60,7 +64,7 @@ uintptr_t geted(dynarec_ppc64le_t* dyn, uintptr_t addr, int ninst, uint8_t nexto
             if ((sib & 0x7) == 5) {
                 int64_t tmp = F32S;
                 if (sib_reg != 4) {
-                    if (tmp && ((tmp < -32768) || (tmp > maxval) || !i12 || (i12 && (tmp & 3)))) {
+                    if (tmp && ((tmp < -32768) || (tmp > maxval) || !i12 || (i12 && (tmp & align_mask)))) {
                         MOV64y(scratch, tmp);
                         ALSLy(ret, TO_NAT(sib_reg), scratch, sib >> 6);
                         SCRATCH_USAGE(1);
@@ -74,7 +78,7 @@ uintptr_t geted(dynarec_ppc64le_t* dyn, uintptr_t addr, int ninst, uint8_t nexto
                         *fixaddress = tmp;
                     }
                 } else {
-                    if (rex.seg && !(tmp && ((tmp < -32768) || (tmp > maxval) || !i12 || (i12 && (tmp & 3))))) {
+                    if (rex.seg && !(tmp && ((tmp < -32768) || (tmp > maxval) || !i12 || (i12 && (tmp & align_mask))))) {
                         grab_segdata(dyn, addr, ninst, ret, rex.seg);
                         seg_done = 1;
                         *fixaddress = tmp;
@@ -124,10 +128,10 @@ uintptr_t geted(dynarec_ppc64le_t* dyn, uintptr_t addr, int ninst, uint8_t nexto
             } else {
                 int64_t tmp = F32S64;
                 int64_t adj = dyn->last_ip ? ((addr + delta) - dyn->last_ip) : 0;
-                if (i12 && adj && (tmp + adj >= -32768) && (tmp + adj <= maxval) && !((tmp + adj) & 3)) {
+                if (i12 && adj && (tmp + adj >= -32768) && (tmp + adj <= maxval) && !((tmp + adj) & align_mask)) {
                     ret = xRIP;
                     *fixaddress = tmp + adj;
-                } else if (i12 && (tmp >= -32768) && (tmp <= maxval) && !(tmp & 3)) {
+                } else if (i12 && (tmp >= -32768) && (tmp <= maxval) && !(tmp & align_mask)) {
                     GETIP(addr + delta, scratch);
                     ret = xRIP;
                     *fixaddress = tmp;
@@ -178,7 +182,7 @@ uintptr_t geted(dynarec_ppc64le_t* dyn, uintptr_t addr, int ninst, uint8_t nexto
             i64 = F32S;
         else
             i64 = F8S;
-        if (i64 == 0 || ((i64 >= -32768) && (i64 <= maxval) && i12 && !(i64 & 3))) {
+        if (i64 == 0 || ((i64 >= -32768) && (i64 <= maxval) && i12 && !(i64 & align_mask))) {
             *fixaddress = i64;
             if ((nextop & 7) == 4) {
                 if (sib_reg != 4) {
@@ -247,6 +251,8 @@ uintptr_t geted16(dynarec_ppc64le_t* dyn, uintptr_t addr, int ninst, uint8_t nex
     uint8_t ret = x2;
     *fixaddress = 0;
     if (hint > 0) ret = hint;
+    int align_mask16 = (i12 & DQ_ALIGN) ? 15 : 3;
+    i12 &= ~DQ_ALIGN;
     MAYUSE(scratch);
     uint32_t m = nextop & 0xC7;
     uint32_t n = (m >> 6) & 3;
@@ -260,7 +266,7 @@ uintptr_t geted16(dynarec_ppc64le_t* dyn, uintptr_t addr, int ninst, uint8_t nex
             case 1: offset = F8S; break;
             case 2: offset = F16S; break;
         }
-        if (i12 && offset && offset >= -32768 && offset <= 32767) {
+        if (i12 && offset && offset >= -32768 && offset <= 32767 && !(offset & align_mask16)) {
             *fixaddress = offset;
             offset = 0;
         }
