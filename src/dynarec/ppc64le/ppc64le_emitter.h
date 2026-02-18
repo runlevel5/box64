@@ -1405,9 +1405,9 @@
 // XXMRGLD — VSX merge low doubleword
 #define XXMRGLD(Xt, Xa, Xb)   EMIT(XX3_form_gen(60, Xt, Xa, Xb, 42))
 // XXPERMDI — VSX permute doubleword immediate
-// XX3-form with DM(2) in bits 8-9 of xo field
+// XX3-form with DM(2) in bits 6-7 of the 8-bit xo field
 #define XXPERMDI(Xt, Xa, Xb, dm) \
-    EMIT(XX3_form_gen(60, Xt, Xa, Xb, (10 | (((dm) & 0x3) << 3))))
+    EMIT(XX3_form_gen(60, Xt, Xa, Xb, (10 | (((dm) & 0x3) << 5))))
 
 // XX2-form: OPCD(6) | T(5) | 00000 | B(5) | XO(9) | BX(1) | TX(1)
 #define XX2_form_gen(opcd, t, b, xo) \
