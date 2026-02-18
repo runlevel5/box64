@@ -1206,14 +1206,18 @@ uintptr_t dynarec64_00(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 BSTRINS_D(wback, gd, wb2 + 7, wb2);
                 BSTRINS_D(gb1, ed, gb2 + 7, gb2);
             } else {
-                GETGBEB(x1, x2, 0);
-                // simple non-atomic swap: ed has byte from memory, gd has byte from register
-                // Use x4 as temp (not x3, which may be wback from geted)
-                MR(x4, gd);
-                MR(gd, ed);
-                MR(ed, x4);
-                GBBACK();
-                EBBACK();
+                GETGB(x1);
+                addr = geted(dyn, addr, ninst, nextop, &wback, x3, x2, &fixedaddress, rex, LOCK_LOCK, 0, 0);
+                // XCHG with memory is always atomic on x86, even without LOCK prefix
+                // Use LBARX/STBCXd for byte-level LL/SC
+                LWSYNC();
+                MARKLOCK;
+                LBARX(x4, 0, wback);
+                STBCXd(gd, 0, wback);
+                BNE_MARKLOCK_CR0;
+                LWSYNC();
+                // x4 = old byte from memory, store into Gb
+                BSTRINS_D(gb1, x4, gb2 + 7, gb2);
             }
             break;
         case 0x87:
@@ -1228,9 +1232,18 @@ uintptr_t dynarec64_00(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             } else {
                 GETGD;
                 addr = geted(dyn, addr, ninst, nextop, &wback, x2, x1, &fixedaddress, rex, LOCK_LOCK, 0, 0);
-                // simple non-atomic swap: load old value, store gd, put old value in gd
-                LDxw(x1, wback, fixedaddress);
-                SDxw(gd, wback, fixedaddress);
+                // XCHG with memory is always atomic on x86, even without LOCK prefix
+                LWSYNC();
+                MARKLOCK;
+                if (rex.w) {
+                    LDARX(x1, 0, wback);
+                    STDCXd(gd, 0, wback);
+                } else {
+                    LWARX(x1, 0, wback);
+                    STWCXd(gd, 0, wback);
+                }
+                BNE_MARKLOCK_CR0;
+                LWSYNC();
                 MVxw(gd, x1);
             }
             break;

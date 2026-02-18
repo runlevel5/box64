@@ -2549,11 +2549,13 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
 // Typical: LOCK_8_OP(ADD(s4, s1, gd), s1, wback, s3, s4, s5, s6)
 #define LOCK_8_OP(op, s1, wback, s3, s4, s5, s6)    \
     do {                                              \
+        LWSYNC();                                     \
         MARKLOCK;                                     \
         LBARX(s1, 0, wback);                          \
         op;                                           \
         STBCXd(s4, 0, wback);                         \
         BNE_MARKLOCK_CR0;                             \
+        LWSYNC();                                     \
     } while (0)
 
 // LOCK_32_IN_8BYTE: atomic 32-bit op on unaligned address within an 8-byte block
@@ -2564,6 +2566,7 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
         ANDI(s3, wback, 0b100);   /* byte offset within 8B: 0 or 4 */ \
         SLDI(s3, s3, 3);          /* bit offset: 0 or 32 */           \
         RLDICR(s6, wback, 0, 60); /* align to 8 bytes: wback & ~7 */ \
+        LWSYNC();                                                      \
         MARKLOCK;                                                      \
         LDARX(s5, 0, s6);        /* load-linked 8 bytes */            \
         SRD(s1, s5, s3);         /* shift old 32-bit value down */    \
@@ -2579,6 +2582,7 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
         OR(s5, s5, s4);          /* insert new value */               \
         STDCXd(s5, 0, s6);       /* store-conditional */              \
         BNE_MARKLOCK_CR0;                                              \
+        LWSYNC();                                                      \
         /* restore s1 = old 32-bit value */                            \
         SRD(s1, s5, s3);                                               \
         RLDICL(s1, s1, 0, 32);                                        \
@@ -2589,6 +2593,7 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
 #define LOCK_3264_CROSS_8BYTE(op, s1, wback, s4, s5, s6) \
     do {                                                    \
         RLDICR(s6, wback, 0, 60); /* align to 8 bytes */  \
+        LWSYNC();                                            \
         MARKLOCK;                                            \
         LDARX(s5, 0, s6);        /* reservation lock */    \
         if (rex.w) { LD(s1, 0, wback); } else { LWZ(s1, 0, wback); } \
@@ -2596,6 +2601,7 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
         if (rex.w) { STD(s4, 0, wback); } else { STW(s4, 0, wback); } \
         STDCXd(s5, 0, s6);       /* release reservation */ \
         BNE_MARKLOCK_CR0;                                    \
+        LWSYNC();                                            \
     } while (0)
 
 #ifndef SCRATCH_USAGE
