@@ -1424,7 +1424,7 @@
 // XSCVSXDDP — VSX scalar convert signed int64 to double
 #define XSCVSXDDP(Xt, Xb)     EMIT(XX2_form_gen(60, Xt, Xb, 376))
 // XSCVSXDSP — VSX scalar convert signed int64 to single
-#define XSCVSXDSP(Xt, Xb)     EMIT(XX2_form_gen(60, Xt, Xb, 408))
+#define XSCVSXDSP(Xt, Xb)     EMIT(XX2_form_gen(60, Xt, Xb, 312))
 // XSCVDPSXDS — VSX scalar convert double to signed int64 (truncation)
 #define XSCVDPSXDS(Xt, Xb)    EMIT(XX2_form_gen(60, Xt, Xb, 344))
 // XSCVDPSXWS — VSX scalar convert double to signed int32 (truncation)

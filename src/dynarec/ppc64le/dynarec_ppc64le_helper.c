@@ -1639,6 +1639,10 @@ static void sse_purgecache(dynarec_ppc64le_t* dyn, int ninst, int next, int s1)
                     MESSAGE(LOG_DUMP, "\tPurge %sSSE Cache ------\n", next ? "locally " : "");
                     ++old;
                 }
+                MESSAGE(LOG_DUMP, "\t  xmm[%d]: reg=%d, vsxreg=%d, write=%d, offset=0x%lx\n",
+                    i, dyn->v.ssecache[i].reg, VSXREG(dyn->v.ssecache[i].reg),
+                    dyn->v.ssecache[i].write,
+                    (unsigned long)offsetof(x64emu_t, xmm[i]));
                 STXV(VSXREG(dyn->v.ssecache[i].reg), offsetof(x64emu_t, xmm[i]), xEmu);
             }
             if (!next) {
