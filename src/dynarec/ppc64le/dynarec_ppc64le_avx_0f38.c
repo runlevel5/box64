@@ -17,6 +17,7 @@
 #include "ppc64le_printer.h"
 #include "dynarec_ppc64le_private.h"
 #include "dynarec_ppc64le_functions.h"
+#include "../dynarec_helper.h"
 #include "dynarec_ppc64le_helper.h"
 
 uintptr_t dynarec64_AVX_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int ninst, vex_t vex, int* ok, int* need_epilog)

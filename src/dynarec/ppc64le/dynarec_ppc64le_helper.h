@@ -702,7 +702,7 @@
         SMREAD();                                                                            \
         addr = geted(dyn, addr, ninst, nextop, &ed, x2, x1, &fixedaddress, rex, NULL, DQ_ALIGN|1, D); \
         a = fpu_get_scratch(dyn);                                                            \
-        /* TODO: load 256-bit (2x LXV) */                                                    \
+        /* lower 128 bits; upper 128 must be loaded inline by each 256-bit opcode */            \
         LXV(VSXREG(a), fixedaddress, ed);                                                    \
     }
 
@@ -732,13 +732,17 @@
         SMREAD();                                                                            \
         addr = geted(dyn, addr, ninst, nextop, &ed, x2, x1, &fixedaddress, rex, NULL, 1, D); \
         a = fpu_get_scratch(dyn);                                                            \
-        LFS(a, fixedaddress, ed);                                                            \
+        LWZ(x4, fixedaddress, ed);                                                           \
+        SLDI(x4, x4, 32);                                                                   \
+        MTVSRD(VSXREG(a), x4);                                                              \
+        XSCVSPDPN(VSXREG(a), VSXREG(a));                                                    \
     }
 
-#define PUTEYSS(a)                   \
-    if (!MODREG) {                   \
-        STFS(a, fixedaddress, ed);   \
-        SMWRITE2();                  \
+#define PUTEYSS(a)                                     \
+    if (!MODREG) {                                     \
+        MFVSRLD(x4, VSXREG(a));                        \
+        STW(x4, fixedaddress, ed);                     \
+        SMWRITE2();                                    \
     }
 
 // Get EY as 64bits, (x1 is used)
@@ -749,13 +753,15 @@
         SMREAD();                                                                            \
         addr = geted(dyn, addr, ninst, nextop, &ed, x2, x1, &fixedaddress, rex, NULL, 1, D); \
         a = fpu_get_scratch(dyn);                                                            \
-        LFD(a, fixedaddress, ed);                                                            \
+        LD(x4, fixedaddress, ed);                                                            \
+        MTVSRD(VSXREG(a), x4);                                                              \
     }
 
-#define PUTEYSD(a)                   \
-    if (!MODREG) {                   \
-        STFD(a, fixedaddress, ed);   \
-        SMWRITE2();                  \
+#define PUTEYSD(a)                                     \
+    if (!MODREG) {                                     \
+        MFVSRLD(x4, VSXREG(a));                        \
+        STD(x4, fixedaddress, ed);                     \
+        SMWRITE2();                                    \
     }
 
 #define GETGYxy(a, w) \
@@ -803,7 +809,7 @@
 // Put Back EY if it was a memory and not an emm register
 #define PUTEYy(a)                   \
     if (!MODREG) {                  \
-        /* TODO: store 256-bit */   \
+        /* lower 128 bits; upper 128 must be stored inline by each 256-bit opcode */   \
         STXV(VSXREG(a), fixedaddress, ed);  \
         SMWRITE2();                 \
     }

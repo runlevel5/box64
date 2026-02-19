@@ -3756,7 +3756,7 @@ uintptr_t dynarec64_660F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
                         // Move GPR into vector via MTVSRDD
                         MTVSRDD(VSXREG(d0), ed, ed);
                         // x86 qword index (u8 & 1) → BE dword (1 - index)
-                        VINSERTD(VRREG(v0), VRREG(d0), 1 - (u8 & 1));
+                        VINSERTD(VRREG(v0), VRREG(d0), (1 - (u8 & 1)) * 8);
                     } else {
                         // PINSRD: insert 32-bit value
                         // Move GPR into vector via MTVSRDD (value in both halves)

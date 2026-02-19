@@ -17,6 +17,7 @@
 #include "ppc64le_printer.h"
 #include "dynarec_ppc64le_private.h"
 #include "dynarec_ppc64le_functions.h"
+#include "../dynarec_helper.h"
 #include "dynarec_ppc64le_helper.h"
 
 static const char* avx_prefix_string(uint16_t p)

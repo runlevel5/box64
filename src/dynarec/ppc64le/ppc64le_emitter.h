@@ -1208,7 +1208,7 @@
 // VEXTRACTUW — vector extract unsigned word to VSR
 #define VEXTRACTUW(Vrt, Vrb, uimm) EMIT(VX_form_gen(Vrt, (uimm) & 0xF, Vrb, 653))
 // VEXTRACTD — vector extract doubleword to VSR
-#define VEXTRACTD(Vrt, Vrb, uimm)  EMIT(VX_form_gen(Vrt, (uimm) & 0x1, Vrb, 717))
+#define VEXTRACTD(Vrt, Vrb, uimm)  EMIT(VX_form_gen(Vrt, (uimm) & 0xF, Vrb, 717))
 // VINSERTB — vector insert byte from VSR
 #define VINSERTB(Vrt, Vrb, uimm)   EMIT(VX_form_gen(Vrt, (uimm) & 0xF, Vrb, 781))
 // VINSERTH — vector insert halfword from VSR
@@ -1216,7 +1216,7 @@
 // VINSERTW — vector insert word from VSR
 #define VINSERTW(Vrt, Vrb, uimm)   EMIT(VX_form_gen(Vrt, (uimm) & 0xF, Vrb, 909))
 // VINSERTD — vector insert doubleword from VSR
-#define VINSERTD(Vrt, Vrb, uimm)   EMIT(VX_form_gen(Vrt, (uimm) & 0x1, Vrb, 973))
+#define VINSERTD(Vrt, Vrb, uimm)   EMIT(VX_form_gen(Vrt, (uimm) & 0xF, Vrb, 973))
 
 // --- Vector Convert (VX-form) ---
 // VCFSX — vector convert from signed fixed-point word (to SP float)
