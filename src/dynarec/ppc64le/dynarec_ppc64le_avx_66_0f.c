@@ -397,10 +397,14 @@ uintptr_t dynarec64_AVX_66_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t 
             INST_NAME("VMINPD Gx, Vx, Ex");
             nextop = F8;
             GETGY_empty_VYEY_xy(v0, v1, v2, 0);
-            // MINPD: if Vx > Ex, result = Ex, else result = Vx (NaN → src2)
+            // x86 MINPD: return min, but if either is NaN or both equal, return src2 (Ex)
+            // XVCMPGTDP(q0, Ex, Vx): mask = (Ex > Vx) ? -1 : 0
+            //   Ex > Vx:  mask=-1, XXSEL picks B=Vx — correct (Vx is smaller)
+            //   Ex <= Vx: mask=0,  XXSEL picks A=Ex — correct (Ex is smaller or equal)
+            //   NaN:      mask=0,  XXSEL picks A=Ex — correct (x86 returns src2)
             q0 = fpu_get_scratch(dyn);
-            XVCMPGTDP(VSXREG(q0), VSXREG(v1), VSXREG(v2));
-            XXSEL(VSXREG(v0), VSXREG(v1), VSXREG(v2), VSXREG(q0));
+            XVCMPGTDP(VSXREG(q0), VSXREG(v2), VSXREG(v1));
+            XXSEL(VSXREG(v0), VSXREG(v2), VSXREG(v1), VSXREG(q0));
             break;
 
         case 0x5E:
@@ -428,10 +432,13 @@ uintptr_t dynarec64_AVX_66_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t 
             INST_NAME("VMAXPD Gx, Vx, Ex");
             nextop = F8;
             GETGY_empty_VYEY_xy(v0, v1, v2, 0);
-            // MAXPD: if Vx < Ex, result = Ex, else result = Vx (NaN → src2)
+            // x86 MAXPD: if either is NaN, return src2 (Ex)
+            // XVCMPGTDP(q0, Vx, Ex): mask = (Vx > Ex) ? -1 : 0
+            //   Vx > Ex: mask=-1, XXSEL picks B=Vx — correct (Vx is larger)
+            //   Vx <= Ex or NaN: mask=0, XXSEL picks A=Ex — correct
             q0 = fpu_get_scratch(dyn);
-            XVCMPGTDP(VSXREG(q0), VSXREG(v2), VSXREG(v1));
-            XXSEL(VSXREG(v0), VSXREG(v1), VSXREG(v2), VSXREG(q0));
+            XVCMPGTDP(VSXREG(q0), VSXREG(v1), VSXREG(v2));
+            XXSEL(VSXREG(v0), VSXREG(v2), VSXREG(v1), VSXREG(q0));
             break;
 
         case 0x60:
