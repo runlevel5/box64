@@ -27,7 +27,24 @@
 
 #define SCRATCH 31
 
-/* setup r2 to address pointed by ED, also fixaddress is an optionnal delta in the range [-absmax, +absmax], with delta&mask==0 to be added to ed for LDR/STR */
+/* setup r2 to address pointed by ED, also fixaddress is an optionnal delta in the range [-absmax, +absmax], with delta&mask==0 to be added to ed for LDR/STR
+ *
+ * ALIGNMENT CONTRACT (PPC64LE-specific):
+ *
+ * The i12 parameter controls displacement alignment validation:
+ *   - i12 = 0:             No inline displacement; always materialize address in register.
+ *   - i12 = 1:             Allow inline displacement if within range and 4-byte aligned (D-form: LD/STD).
+ *   - i12 = DQ_ALIGN|1:   Allow inline displacement if within range and 16-byte aligned (DQ-form: LXV/STXV).
+ *
+ * When DQ_ALIGN is set, align_mask becomes 15 (vs 3 for D-form). Any displacement
+ * that fails the alignment check is materialized in a register, and fixedaddress
+ * is set to 0. This prevents silent displacement truncation in DQ-form instructions
+ * — see ppc64le_emitter.h for the full explanation of the truncation hazard.
+ *
+ * IMPORTANT: If the caller will use *fixaddress with LXV/STXV, DQ_ALIGN MUST be
+ * set in i12. Forgetting this causes silent wrong-address loads (not crashes),
+ * which are extremely difficult to diagnose.
+ */
 uintptr_t geted(dynarec_ppc64le_t* dyn, uintptr_t addr, int ninst, uint8_t nextop, uint8_t* ed, uint8_t hint, uint8_t scratch, int64_t* fixaddress, rex_t rex, int* l, int i12, int delta)
 {
     MAYUSE(dyn);

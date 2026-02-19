@@ -681,18 +681,61 @@
 // ===========================================================================
 // VMX (Altivec/VSX) load/store — DQ-form (POWER9 lxv/stxv)
 // ===========================================================================
+//
+// *** PPC64LE-SPECIFIC SILENT TRUNCATION HAZARD ***
+//
+// DQ-form instructions (LXV, STXV) encode the displacement as a 12-bit field
+// that stores offset>>4 — only multiples of 16 are representable. The hardware
+// SILENTLY TRUNCATES the low 4 bits of any non-aligned displacement:
+//
+//   LXV vs0, 0x24(r1)  →  encodes as 0x20  →  loads from r1+32, NOT r1+36
+//
+// There is NO trap, NO exception, NO architectural indication of the truncation.
+// This is a PPC64LE-specific quirk not present in other box64 backend ISAs:
+//   - ARM64: LDR Qn uses scaled 12-bit unsigned offsets (assembler rejects misalignment)
+//   - LA64:  VLD/VST use byte-addressable 12-bit signed immediates (any offset valid)
+//   - RV64:  No similar constraint
+//
+// MITIGATION:
+// All callers that pass a guest-derived displacement to LXV/STXV must ensure
+// 16-byte alignment. In the dynarec, this is enforced by passing DQ_ALIGN|1
+// (defined in dynarec_ppc64le_helper.h) to geted(), which sets align_mask=15
+// and forces non-16-byte-aligned displacements to be materialized in a register
+// instead of used as an inline immediate.
+//
+// Safe callers that do NOT need DQ_ALIGN:
+//   - offsetof(x64emu_t, xmm[n]) — struct offsets, always 16-byte aligned
+//   - Literal 0 displacement — trivially aligned
+//
+// If you add a new LXV/STXV callsite with a displacement derived from geted(),
+// you MUST pass DQ_ALIGN|1 to geted(). Failure to do so will cause silent data
+// corruption that is extremely difficult to diagnose (wrong values, not crashes).
+//
 // DQ-form: OPCD(6) | TX||T(5) | RA(5) | DQ(12) | XO(4)
 // TX is the high bit of the 6-bit target register, T is the low 5 bits
 #define DQ_form_gen(opcd, rt6, ra, dq, xo) \
     ((uint32_t)(opcd) << 26 | (((rt6) & 0x1F)) << 21 | ((ra) & 0x1F) << 16 | (((dq) >> 4) & 0xFFF) << 4 | ((xo) & 0xF) | ((((rt6) >> 5) & 1) << 3 & 0x8))
 
 // LXV — load VSX vector (16 bytes, DQ-form, POWER9)
-// Note: target is vs0-vs63, DQ must be multiple of 16
+// Note: target is vs0-vs63, DQ must be multiple of 16 (see truncation hazard above)
 // Using opcode 61, xo = 1 for lxv
-#define LXV(Vrt, offset, Ra)   EMIT(DQ_form_gen(61, Vrt, Ra, offset, 1))
+#define LXV(Vrt, offset, Ra)                                                                       \
+    do {                                                                                            \
+        if (((offset) & 0xF) != 0)                                                                  \
+            dynarec_log(LOG_NONE, "BUG: LXV displacement 0x%lx not 16-byte aligned at %s:%d\n",    \
+                        (unsigned long)(offset), __FILE__, __LINE__);                               \
+        EMIT(DQ_form_gen(61, Vrt, Ra, offset, 1));                                                  \
+    } while(0)
 // STXV — store VSX vector (16 bytes, DQ-form, POWER9)
+// Note: source is vs0-vs63, DQ must be multiple of 16 (see truncation hazard above)
 // Using opcode 61, xo = 5 for stxv
-#define STXV(Vrs, offset, Ra)  EMIT(DQ_form_gen(61, Vrs, Ra, offset, 5))
+#define STXV(Vrs, offset, Ra)                                                                       \
+    do {                                                                                            \
+        if (((offset) & 0xF) != 0)                                                                  \
+            dynarec_log(LOG_NONE, "BUG: STXV displacement 0x%lx not 16-byte aligned at %s:%d\n",   \
+                        (unsigned long)(offset), __FILE__, __LINE__);                               \
+        EMIT(DQ_form_gen(61, Vrs, Ra, offset, 5));                                                  \
+    } while(0)
 
 // Indexed VMX load/store (XX1-form, opcode 31 — TX bit in bit 0)
 // LXVX — load VSX vector indexed (POWER9, supports vs0-vs63)

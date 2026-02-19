@@ -22,6 +22,27 @@
 // DQ_ALIGN: OR this into the i12 parameter of geted() to require 16-byte
 // alignment for fixedaddress (needed for DQ-form instructions like LXV/STXV).
 // Without this flag, geted() only requires 4-byte alignment (for D-form LD/STD).
+//
+// Usage: pass DQ_ALIGN|1 as the i12 argument to geted() whenever the resulting
+// fixedaddress will be used as the displacement for LXV or STXV. The flag is
+// stripped inside geted() and only affects the align_mask (15 vs 3).
+//
+// WHY THIS EXISTS:
+// PPC64LE DQ-form instructions (LXV/STXV) silently truncate the low 4 bits of
+// the displacement — see the detailed explanation in ppc64le_emitter.h at the
+// DQ-form section. Without DQ_ALIGN, geted() would accept displacements like
+// 0x24 (4-byte aligned) as valid inline immediates, but LXV would encode them
+// as 0x20, loading from the wrong address with no error.
+//
+// WHERE TO USE:
+// - GETEX, GETEYx, GETEYy, GETEYx_empty, GETEYy_empty macros (already correct)
+// - Direct MOVAPS/MOVAPD/MOVUPS/MOVUPD/MOVDQA/MOVDQU load/store callsites
+// - Any new opcode that calls geted() and then uses fixedaddress with LXV/STXV
+//
+// WHERE NOT NEEDED:
+// - GETEXSD, GETEYSD (use LD, which is D-form — 4-byte alignment is fine)
+// - GETEXSS, GETEYSS (use LWZ, which is D-form)
+// - Any geted() call where fixedaddress is used with LD/STD/LWZ/STW
 #define DQ_ALIGN    0x100
 
 #define F8      *(uint8_t*)(addr++)
