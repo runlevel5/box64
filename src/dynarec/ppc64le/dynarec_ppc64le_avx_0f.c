@@ -67,6 +67,32 @@ uintptr_t dynarec64_AVX_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip,
     rex_t rex = vex.rex;
 
     switch (opcode) {
+        case 0x10:
+            INST_NAME("VMOVUPS Gx, Ex");
+            nextop = F8;
+            if (MODREG) {
+                GETGY_empty_EY_xy(v0, v1, 0);
+                XXLOR(VSXREG(v0), VSXREG(v1), VSXREG(v1));
+            } else {
+                GETGYxy_empty(v0);
+                SMREAD();
+                addr = geted(dyn, addr, ninst, nextop, &ed, x2, x3, &fixedaddress, rex, NULL, DQ_ALIGN|1, 0);
+                LXV(VSXREG(v0), fixedaddress, ed);
+            }
+            break;
+        case 0x11:
+            INST_NAME("VMOVUPS Ex, Gx");
+            nextop = F8;
+            GETGYxy(v0, 0);
+            if (MODREG) {
+                GETEYxy_empty(v1, 0);
+                XXLOR(VSXREG(v1), VSXREG(v0), VSXREG(v0));
+            } else {
+                addr = geted(dyn, addr, ninst, nextop, &ed, x2, x3, &fixedaddress, rex, NULL, DQ_ALIGN|1, 0);
+                STXV(VSXREG(v0), fixedaddress, ed);
+                SMWRITE2();
+            }
+            break;
         case 0x12:
             nextop = F8;
             if (MODREG) {
@@ -87,6 +113,22 @@ uintptr_t dynarec64_AVX_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip,
                 LD(x4, fixedaddress, ed);
                 MFVSRD(x5, VSXREG(v1));  // x5 = ISA dw0 (Vx x86 high)
                 MTVSRDD(VSXREG(v0), x5, x4);
+            }
+            break;
+
+        case 0x13:
+            nextop = F8;
+            INST_NAME("VMOVLPS Ex, Gx");
+            GETGYx(v0, 0);
+            if (MODREG) {
+                DEFAULT;
+                return addr;
+            } else {
+                addr = geted(dyn, addr, ninst, nextop, &ed, x2, x3, &fixedaddress, rex, NULL, 1, 0);
+                // Store low qword (ISA dw1 = x86 low) to memory
+                MFVSRLD(x4, VSXREG(v0));
+                STD(x4, fixedaddress, ed);
+                SMWRITE2();
             }
             break;
 
@@ -129,6 +171,22 @@ uintptr_t dynarec64_AVX_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip,
             }
             break;
 
+        case 0x17:
+            nextop = F8;
+            INST_NAME("VMOVHPS Ex, Gx");
+            GETGYx(v0, 0);
+            if (MODREG) {
+                DEFAULT;
+                return addr;
+            } else {
+                addr = geted(dyn, addr, ninst, nextop, &ed, x2, x3, &fixedaddress, rex, NULL, 1, 0);
+                // Store high qword (ISA dw0 = x86 high) to memory
+                MFVSRD(x4, VSXREG(v0));
+                STD(x4, fixedaddress, ed);
+                SMWRITE2();
+            }
+            break;
+
         case 0x28:
             INST_NAME("VMOVAPS Gx, Ex");
             nextop = F8;
@@ -151,6 +209,19 @@ uintptr_t dynarec64_AVX_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip,
             if (MODREG) {
                 GETEYxy_empty(v1, 0);
                 XXLOR(VSXREG(v1), VSXREG(v0), VSXREG(v0));
+            } else {
+                addr = geted(dyn, addr, ninst, nextop, &ed, x2, x3, &fixedaddress, rex, NULL, DQ_ALIGN|1, 0);
+                STXV(VSXREG(v0), fixedaddress, ed);
+                SMWRITE2();
+            }
+            break;
+
+        case 0x2B:
+            INST_NAME("VMOVNTPS Ex, Gx");
+            nextop = F8;
+            GETGYxy(v0, 0);
+            if (MODREG) {
+                DEFAULT;
             } else {
                 addr = geted(dyn, addr, ninst, nextop, &ed, x2, x3, &fixedaddress, rex, NULL, DQ_ALIGN|1, 0);
                 STXV(VSXREG(v0), fixedaddress, ed);
@@ -214,6 +285,32 @@ uintptr_t dynarec64_AVX_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip,
             OR(xFlags, xFlags, x2);
             break;
 
+        case 0x50:
+            INST_NAME("VMOVMSKPS Gd, Ex");
+            nextop = F8;
+            GETEYxy(v0, 0, 0);
+            GETGD;
+            // Extract sign bits of 4 floats
+            // x86: bit0 = sign of float[0] (ISA word 3), bit1 = sign of float[1] (ISA word 2),
+            //       bit2 = sign of float[2] (ISA word 1), bit3 = sign of float[3] (ISA word 0)
+            MFVSRLD(x4, VSXREG(v0));    // x4 = ISA dw1 (x86 low: float[0] in low 32, float[1] in high 32)
+            MFVSRD(x5, VSXREG(v0));     // x5 = ISA dw0 (x86 high: float[2] in low 32, float[3] in high 32)
+            // float[0] sign = bit 31 of x4
+            RLWINM(x1, x4, 1, 31, 31);  // x1 = bit0
+            // float[1] sign = bit 63 of x4
+            SRDI(x2, x4, 62);
+            ANDI(x2, x2, 0x2);          // x2 = bit1
+            OR(x1, x1, x2);
+            // float[2] sign = bit 31 of x5
+            RLWINM(x2, x5, 1, 31, 31);
+            SLWI(x2, x2, 2);            // x2 = bit2
+            OR(x1, x1, x2);
+            // float[3] sign = bit 63 of x5
+            SRDI(x2, x5, 60);
+            ANDI(x2, x2, 0x8);          // x2 = bit3
+            OR(gd, x1, x2);
+            break;
+
         case 0x51:
             INST_NAME("VSQRTPS Gx, Ex");
             nextop = F8;
@@ -231,6 +328,13 @@ uintptr_t dynarec64_AVX_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip,
                 VSLW(VRREG(d0), VRREG(d0), VRREG(q0));
                 XXLOR(VSXREG(v0), VSXREG(v0), VSXREG(d0));
             }
+            break;
+
+        case 0x52:
+            INST_NAME("VRSQRTPS Gx, Ex");
+            nextop = F8;
+            GETGY_empty_EY_xy(v0, v1, 0);
+            XVRSQRTESP(VSXREG(v0), VSXREG(v1));
             break;
 
         case 0x53:
@@ -310,6 +414,44 @@ uintptr_t dynarec64_AVX_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip,
                 VSLW(VRREG(q1), VRREG(q1), VRREG(q0));
                 XXLOR(VSXREG(v0), VSXREG(v0), VSXREG(q1));
             }
+            break;
+
+        case 0x5A:
+            INST_NAME("VCVTPS2PD Gx, Ex");
+            nextop = F8;
+            if (vex.l) {
+                GETEYx(v1, 0, 0);
+            } else {
+                GETEYSD(v1, 0, 0);
+            }
+            GETGYxy_empty(v0);
+            // Convert packed singles to packed doubles
+            // Use scalar approach: extract each float, convert SP→DP, combine
+            {
+                d0 = fpu_get_scratch(dyn);
+                d1 = fpu_get_scratch(dyn);
+                // Extract x86 float[0] (low 32 bits of ISA dw1)
+                MFVSRLD(x4, VSXREG(v1));       // x4 = ISA dw1 (x86 float[1]:float[0])
+                SLDI(x5, x4, 32);              // x5 = float[0] in upper 32
+                MTVSRD(VSXREG(d0), x5);
+                XSCVSPDPN(VSXREG(d0), VSXREG(d0));  // d0 = (double)float[0]
+                // Extract x86 float[1] (high 32 bits of ISA dw1)
+                RLDICR(x5, x4, 0, 31);         // clear low 32, keep high 32 (float[1])
+                MTVSRD(VSXREG(d1), x5);
+                XSCVSPDPN(VSXREG(d1), VSXREG(d1));  // d1 = (double)float[1]
+                // Combine: ISA dw0 = x86 double[1] = d1, ISA dw1 = x86 double[0] = d0
+                MFVSRD(x4, VSXREG(d1));         // x4 = double[1] for ISA dw0
+                MFVSRD(x5, VSXREG(d0));         // x5 = double[0] for ISA dw1
+                MTVSRDD(VSXREG(v0), x4, x5);
+            }
+            break;
+
+        case 0x5B:
+            INST_NAME("VCVTDQ2PS Gx, Ex");
+            nextop = F8;
+            GETGY_empty_EY_xy(v0, v1, 0);
+            // Convert 4 packed signed int32 to 4 packed single-precision floats
+            XVCVSXWSP(VSXREG(v0), VSXREG(v1));
             break;
 
         case 0x5C:
@@ -500,6 +642,68 @@ uintptr_t dynarec64_AVX_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip,
                 // Assemble: x3 = ISA dw0 (x86 high), x6 = ISA dw1 (x86 low)
                 MTVSRDD(VSXREG(v0), x3, x6);
             }
+            break;
+
+        case 0x77:
+            if (!vex.l) {
+                INST_NAME("VZEROUPPER");
+                if (vex.v != 0) {
+                    UDF(0);
+                } else {
+                    q0 = fpu_get_scratch(dyn);
+                    XXLXOR(VSXREG(q0), VSXREG(q0), VSXREG(q0));
+                    for (int i = 0; i < (rex.is32bits ? 8 : 16); ++i) {
+                        if (dyn->v.avxcache[i].v != -1) {
+                            // AVX used register
+                            if (dyn->v.avxcache[i].width == VMX_AVX_WIDTH_256) {
+                                // 256 width, store zero to upper 128 bits in memory
+                                q1 = avx_get_reg(dyn, ninst, x1, i, 1, VMX_AVX_WIDTH_256);
+                                STXV(VSXREG(q0), offsetof(x64emu_t, ymm[i]), xEmu);
+                            } else {
+                                // 128 width, lazy save
+                                q1 = avx_get_reg(dyn, ninst, x1, i, 1, VMX_AVX_WIDTH_128);
+                                dyn->v.avxcache[i].zero_upper = 1;
+                            }
+                        } else {
+                            // SSE register or unused register, store 128bit zero to x64emu_t.ymm[]
+                            STXV(VSXREG(q0), offsetof(x64emu_t, ymm[i]), xEmu);
+                        }
+                    }
+                    SMWRITE2();
+                }
+            } else {
+                INST_NAME("VZEROALL");
+                if (vex.v != 0) {
+                    UDF(0);
+                } else {
+                    for (int i = 0; i < (rex.is32bits ? 8 : 16); ++i) {
+                        q0 = avx_get_reg_empty(dyn, ninst, x1, i, VMX_AVX_WIDTH_256);
+                        XXLXOR(VSXREG(q0), VSXREG(q0), VSXREG(q0));
+                    }
+                }
+            }
+            break;
+
+        case 0xAE:
+            nextop = F8;
+            if (MODREG) {
+                DEFAULT;
+            } else
+                switch ((nextop >> 3) & 7) {
+                    case 2:
+                        INST_NAME("VLDMXCSR Md");
+                        GETED(0);
+                        STW(ed, offsetof(x64emu_t, mxcsr), xEmu);
+                        break;
+                    case 3:
+                        INST_NAME("VSTMXCSR Md");
+                        addr = geted(dyn, addr, ninst, nextop, &wback, x1, x2, &fixedaddress, rex, NULL, 0, 0);
+                        LWZ(x4, offsetof(x64emu_t, mxcsr), xEmu);
+                        STW(x4, fixedaddress, wback);
+                        break;
+                    default:
+                        DEFAULT;
+                }
             break;
 
         default:

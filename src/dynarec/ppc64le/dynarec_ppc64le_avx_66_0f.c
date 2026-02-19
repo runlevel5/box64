@@ -211,6 +211,19 @@ uintptr_t dynarec64_AVX_66_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t 
             }
             break;
 
+        case 0x2B:
+            INST_NAME("VMOVNTPD Ex, Gx");
+            nextop = F8;
+            GETGYxy(v0, 0);
+            if (MODREG) {
+                DEFAULT;
+            } else {
+                addr = geted(dyn, addr, ninst, nextop, &ed, x2, x3, &fixedaddress, rex, NULL, DQ_ALIGN|1, 0);
+                STXV(VSXREG(v0), fixedaddress, ed);
+                SMWRITE2();
+            }
+            break;
+
         case 0x2E:
             // no special check...
         case 0x2F:
@@ -364,6 +377,30 @@ uintptr_t dynarec64_AVX_66_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t 
                 VSLD(VRREG(q1), VRREG(q1), VRREG(q0));
                 XXLOR(VSXREG(v0), VSXREG(v0), VSXREG(q1));
             }
+            break;
+
+        case 0x5A:
+            INST_NAME("VCVTPD2PS Gx, Ex");
+            nextop = F8;
+            GETGY_empty_EY_xy(v0, v1, 0);
+            // Convert 2 packed doubles to 2 packed singles, zero upper 64 bits
+            q0 = fpu_get_scratch(dyn);
+            u8 = sse_setround(dyn, ninst, x4, x5);
+            // Convert each double to single via FPR-space scalar ops
+            MFVSRLD(x4, VSXREG(v1));   // double0 (x86 low = ISA dw1)
+            MTVSRD(VSXREG(q0), x4);
+            XSCVDPSP(VSXREG(q0), VSXREG(q0));
+            MFVSRWZ(x4, VSXREG(q0));   // single0 in low 32 bits of GPR
+            MFVSRD(x5, VSXREG(v1));    // double1 (x86 high = ISA dw0)
+            MTVSRD(VSXREG(q0), x5);
+            XSCVDPSP(VSXREG(q0), VSXREG(q0));
+            MFVSRWZ(x5, VSXREG(q0));   // single1 in low 32 bits of GPR
+            x87_restoreround(dyn, ninst, u8);
+            // Pack: low32 = single0, next32 = single1, upper 64 = 0
+            CLRLDI(x4, x4, 32);
+            SLDI(x5, x5, 32);
+            OR(x4, x4, x5);
+            MTVSRDD(VSXREG(v0), 0, x4);
             break;
 
         case 0x5B:
@@ -660,6 +697,199 @@ uintptr_t dynarec64_AVX_66_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t 
             }
             break;
 
+        case 0x71:
+            nextop = F8;
+            switch ((nextop >> 3) & 7) {
+                case 2:
+                    INST_NAME("VPSRLW Vx, Ex, Ib");
+                    GETEYxy(v1, 0, 1);
+                    GETVYxy_empty(v0);
+                    u8 = F8;
+                    if (u8) {
+                        if (u8 > 15) {
+                            XXLXOR(VSXREG(v0), VSXREG(v0), VSXREG(v0));
+                        } else {
+                            q0 = fpu_get_scratch(dyn);
+                            XXSPLTIB(VSXREG(q0), u8);
+                            VSRH(VRREG(v0), VRREG(v1), VRREG(q0));
+                        }
+                    } else if (v0 != v1) {
+                        XXLOR(VSXREG(v0), VSXREG(v1), VSXREG(v1));
+                    }
+                    break;
+                case 4:
+                    INST_NAME("VPSRAW Vx, Ex, Ib");
+                    GETEYxy(v1, 0, 1);
+                    GETVYxy_empty(v0);
+                    u8 = F8;
+                    if (u8 > 15) u8 = 15;
+                    if (u8) {
+                        q0 = fpu_get_scratch(dyn);
+                        XXSPLTIB(VSXREG(q0), u8);
+                        VSRAH(VRREG(v0), VRREG(v1), VRREG(q0));
+                    } else if (v0 != v1) {
+                        XXLOR(VSXREG(v0), VSXREG(v1), VSXREG(v1));
+                    }
+                    break;
+                case 6:
+                    INST_NAME("VPSLLW Vx, Ex, Ib");
+                    GETEYxy(v1, 0, 1);
+                    GETVYxy_empty(v0);
+                    u8 = F8;
+                    if (u8) {
+                        if (u8 > 15) {
+                            XXLXOR(VSXREG(v0), VSXREG(v0), VSXREG(v0));
+                        } else {
+                            q0 = fpu_get_scratch(dyn);
+                            XXSPLTIB(VSXREG(q0), u8);
+                            VSLH(VRREG(v0), VRREG(v1), VRREG(q0));
+                        }
+                    } else if (v0 != v1) {
+                        XXLOR(VSXREG(v0), VSXREG(v1), VSXREG(v1));
+                    }
+                    break;
+                default:
+                    *ok = 0;
+                    DEFAULT;
+            }
+            break;
+
+        case 0x72:
+            nextop = F8;
+            switch ((nextop >> 3) & 7) {
+                case 2:
+                    INST_NAME("VPSRLD Vx, Ex, Ib");
+                    GETEYxy(v1, 0, 1);
+                    GETVYxy_empty(v0);
+                    u8 = F8;
+                    if (u8) {
+                        if (u8 > 31) {
+                            XXLXOR(VSXREG(v0), VSXREG(v0), VSXREG(v0));
+                        } else {
+                            q0 = fpu_get_scratch(dyn);
+                            XXSPLTIB(VSXREG(q0), u8);
+                            VSRW(VRREG(v0), VRREG(v1), VRREG(q0));
+                        }
+                    } else if (v0 != v1) {
+                        XXLOR(VSXREG(v0), VSXREG(v1), VSXREG(v1));
+                    }
+                    break;
+                case 4:
+                    INST_NAME("VPSRAD Vx, Ex, Ib");
+                    GETEYxy(v1, 0, 1);
+                    GETVYxy_empty(v0);
+                    u8 = F8;
+                    if (u8 > 31) u8 = 31;
+                    if (u8) {
+                        q0 = fpu_get_scratch(dyn);
+                        XXSPLTIB(VSXREG(q0), u8);
+                        VSRAW(VRREG(v0), VRREG(v1), VRREG(q0));
+                    } else if (v0 != v1) {
+                        XXLOR(VSXREG(v0), VSXREG(v1), VSXREG(v1));
+                    }
+                    break;
+                case 6:
+                    INST_NAME("VPSLLD Vx, Ex, Ib");
+                    GETEYxy(v1, 0, 1);
+                    GETVYxy_empty(v0);
+                    u8 = F8;
+                    if (u8) {
+                        if (u8 > 31) {
+                            XXLXOR(VSXREG(v0), VSXREG(v0), VSXREG(v0));
+                        } else {
+                            q0 = fpu_get_scratch(dyn);
+                            XXSPLTIB(VSXREG(q0), u8);
+                            VSLW(VRREG(v0), VRREG(v1), VRREG(q0));
+                        }
+                    } else if (v0 != v1) {
+                        XXLOR(VSXREG(v0), VSXREG(v1), VSXREG(v1));
+                    }
+                    break;
+                default:
+                    *ok = 0;
+                    DEFAULT;
+            }
+            break;
+
+        case 0x73:
+            nextop = F8;
+            switch ((nextop >> 3) & 7) {
+                case 2:
+                    INST_NAME("VPSRLQ Vx, Ex, Ib");
+                    GETEYxy(v1, 0, 1);
+                    GETVYxy_empty(v0);
+                    u8 = F8;
+                    if (u8) {
+                        if (u8 > 63) {
+                            XXLXOR(VSXREG(v0), VSXREG(v0), VSXREG(v0));
+                        } else {
+                            q0 = fpu_get_scratch(dyn);
+                            XXSPLTIB(VSXREG(q0), u8);
+                            VSRD(VRREG(v0), VRREG(v1), VRREG(q0));
+                        }
+                    } else if (v0 != v1) {
+                        XXLOR(VSXREG(v0), VSXREG(v1), VSXREG(v1));
+                    }
+                    break;
+                case 3:
+                    INST_NAME("VPSRLDQ Vx, Ex, Ib");
+                    GETEYxy(v1, 0, 1);
+                    GETVYxy_empty(v0);
+                    u8 = F8;
+                    if (u8) {
+                        if (u8 > 15) {
+                            XXLXOR(VSXREG(v0), VSXREG(v0), VSXREG(v0));
+                        } else {
+                            // Byte shift right: VSLDOI(dst, zero, src, 16-N) on PPC64LE
+                            q0 = fpu_get_scratch(dyn);
+                            XXLXOR(VSXREG(q0), VSXREG(q0), VSXREG(q0));
+                            VSLDOI(VRREG(v0), VRREG(q0), VRREG(v1), 16 - u8);
+                        }
+                    } else if (v0 != v1) {
+                        XXLOR(VSXREG(v0), VSXREG(v1), VSXREG(v1));
+                    }
+                    break;
+                case 6:
+                    INST_NAME("VPSLLQ Vx, Ex, Ib");
+                    GETEYxy(v1, 0, 1);
+                    GETVYxy_empty(v0);
+                    u8 = F8;
+                    if (u8) {
+                        if (u8 > 63) {
+                            XXLXOR(VSXREG(v0), VSXREG(v0), VSXREG(v0));
+                        } else {
+                            q0 = fpu_get_scratch(dyn);
+                            XXSPLTIB(VSXREG(q0), u8);
+                            VSLD(VRREG(v0), VRREG(v1), VRREG(q0));
+                        }
+                    } else if (v0 != v1) {
+                        XXLOR(VSXREG(v0), VSXREG(v1), VSXREG(v1));
+                    }
+                    break;
+                case 7:
+                    INST_NAME("VPSLLDQ Vx, Ex, Ib");
+                    GETEYxy(v1, 0, 1);
+                    GETVYxy_empty(v0);
+                    u8 = F8;
+                    if (u8) {
+                        if (u8 > 15) {
+                            XXLXOR(VSXREG(v0), VSXREG(v0), VSXREG(v0));
+                        } else {
+                            // Byte shift left: VSLDOI(dst, src, zero, N) on PPC64LE
+                            q0 = fpu_get_scratch(dyn);
+                            XXLXOR(VSXREG(q0), VSXREG(q0), VSXREG(q0));
+                            VSLDOI(VRREG(v0), VRREG(v1), VRREG(q0), u8);
+                        }
+                    } else if (v0 != v1) {
+                        XXLOR(VSXREG(v0), VSXREG(v1), VSXREG(v1));
+                    }
+                    break;
+                default:
+                    *ok = 0;
+                    DEFAULT;
+            }
+            break;
+
         case 0x74:
             INST_NAME("VPCMPEQB Gx, Vx, Ex");
             nextop = F8;
@@ -860,6 +1090,73 @@ uintptr_t dynarec64_AVX_66_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t 
             }
             break;
 
+        case 0xC4:
+            INST_NAME("VPINSRW Gx, Vx, Ed, Ib");
+            nextop = F8;
+            GETVYx(v1, 0);
+            GETGYx_empty(v0);
+            if (MODREG) {
+                u8 = (F8) & 7;
+                ed = TO_NAT((nextop & 7) + (rex.b << 3));
+            } else {
+                SMREAD();
+                addr = geted(dyn, addr, ninst, nextop, &wback, x2, x4, &fixedaddress, rex, NULL, 1, 1);
+                u8 = (F8) & 7;
+                ed = x3;
+                LHZ(ed, fixedaddress, wback);
+            }
+            // Copy Vx to Gx first
+            if (v0 != v1)
+                XXLOR(VSXREG(v0), VSXREG(v1), VSXREG(v1));
+            // Insert 16-bit value into XMM at position u8
+            MFVSRLD(x4, VSXREG(v0));    // x86 low 64 bits (ISA dw1)
+            MFVSRD(x5, VSXREG(v0));     // x86 high 64 bits (ISA dw0)
+            {
+                int shift = (u8 & 3) * 16;
+                RLWINM(x6, ed, 0, 16, 31);  // zero-extend to 16 bits
+                if (u8 < 4) {
+                    RLDIMI(x4, x6, shift, 64 - shift - 16);
+                    MTVSRDD(VSXREG(v0), x5, x4);
+                } else {
+                    RLDIMI(x5, x6, shift, 64 - shift - 16);
+                    MTVSRDD(VSXREG(v0), x5, x4);
+                }
+            }
+            break;
+
+        case 0xC5:
+            INST_NAME("VPEXTRW Gd, Ex, Ib");
+            nextop = F8;
+            GETGD;
+            if (MODREG) {
+                GETEYx(v0, 0, 1);
+                u8 = (F8) & 7;
+                MFVSRLD(x4, VSXREG(v0));    // x86 low 64 bits (ISA dw1, elements 0-3)
+                MFVSRD(x5, VSXREG(v0));     // x86 high 64 bits (ISA dw0, elements 4-7)
+                {
+                    int shift = (u8 & 3) * 16;
+                    if (u8 < 4) {
+                        if (shift)
+                            SRDI(gd, x4, shift);
+                        else
+                            MR(gd, x4);
+                    } else {
+                        if (shift)
+                            SRDI(gd, x5, shift);
+                        else
+                            MR(gd, x5);
+                    }
+                    RLWINM(gd, gd, 0, 16, 31); // zero-extend to 16 bits
+                }
+            } else {
+                SMREAD();
+                addr = geted(dyn, addr, ninst, nextop, &wback, x2, x4, &fixedaddress, rex, NULL, 1, 1);
+                u8 = (F8) & 7;
+                ADDI(x3, wback, fixedaddress + (u8 << 1));
+                LHZ(gd, 0, x3);
+            }
+            break;
+
         case 0xC6:
             INST_NAME("VSHUFPD Gx, Vx, Ex, Ib");
             nextop = F8;
@@ -965,6 +1262,44 @@ uintptr_t dynarec64_AVX_66_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t 
                 MFVSRLD(x4, VSXREG(v0));
                 STD(x4, fixedaddress, ed);
                 SMWRITE2();
+            }
+            break;
+
+        case 0xD7:
+            nextop = F8;
+            INST_NAME("VPMOVMSKB Gd, Ex");
+            GETEYxy(v0, 0, 0);
+            GETGD;
+            // Extract sign bit of each byte (16 bytes -> 16 bits)
+            MFVSRLD(x4, VSXREG(v0));    // x86 low 64 bits (bytes 0-7, ISA dw1)
+            MFVSRD(x5, VSXREG(v0));     // x86 high 64 bits (bytes 8-15, ISA dw0)
+            {
+                // Isolate sign bits of each byte: AND with 0x8080808080808080
+                LI(x6, 0);
+                ORIS(x6, x6, 0x8080);
+                ORI(x6, x6, 0x8080);
+                RLDIMI(x6, x6, 32, 0);      // x6 = 0x8080808080808080
+                AND(x7, x4, x6);
+                // Magic multiplier: 0x0002040810204081 gathers sign bits to top byte
+                LIS(x3, 0x0002);
+                ORI(x3, x3, 0x0408);
+                SLDI(x3, x3, 32);
+                ORIS(x3, x3, 0x1020);
+                ORI(x3, x3, 0x4081);
+                MULHDU(x7, x7, x3);
+                SRDI(x7, x7, 48);
+                ANDI(x7, x7, 0xFF);
+
+                // Do the same for high 64 bits (bytes 8-15)
+                AND(x4, x5, x6);
+                // Rebuild the magic multiplier (x6 still = 0x8080..., reuse x3 = magic)
+                MULHDU(x4, x4, x3);
+                SRDI(x4, x4, 48);
+                ANDI(x4, x4, 0xFF);
+
+                // Combine: result = (high_byte_mask << 8) | low_byte_mask
+                SLDI(x4, x4, 8);
+                OR(gd, x7, x4);
             }
             break;
 
@@ -1108,6 +1443,55 @@ uintptr_t dynarec64_AVX_66_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t 
                 VMRGLW(VRREG(d2), VRREG(q0), VRREG(q1));
                 VMRGHW(VRREG(d3), VRREG(q0), VRREG(q1));
                 VPKUWUM(VRREG(v0), VRREG(d3), VRREG(d2));
+            }
+            break;
+
+        case 0xE6:
+            INST_NAME("VCVTTPD2DQ Gx, Ex");
+            nextop = F8;
+            GETGY_empty_EY_xy(v0, v1, 0);
+            d0 = fpu_get_scratch(dyn);
+            d1 = fpu_get_scratch(dyn);
+            MTFSB0(23);  // clear VXCVI
+            // Extract and convert each double using FPR-space FCTIWZ (truncation)
+            MFVSRLD(x4, VSXREG(v1));    // double0 (x86 low = ISA dw1)
+            MTVSRD(d0, x4);
+            FCTIWZ(d0, d0);
+            MFVSRWZ(x4, d0);
+            MFVSRD(x5, VSXREG(v1));     // double1 (x86 high = ISA dw0)
+            MTVSRD(d1, x5);
+            FCTIWZ(d1, d1);
+            MFVSRWZ(x5, d1);
+            if (!BOX64ENV(dynarec_fastround)) {
+                // Check VXCVI: PPC gives 0x7FFFFFFF for positive overflow, x86 wants 0x80000000
+                MFFS(d0);
+                STFD(d0, -8, xSP);
+                LD(x6, -8, xSP);
+                RLWINM(x6, x6, 24, 31, 31);  // extract VXCVI bit
+                BEQZ_MARK(x6);
+                // Substitute 0x80000000 for overflow
+                LIS(x4, (int16_t)0x8000);
+                CLRLDI(x4, x4, 32);
+                MR(x5, x4);
+                MARK;
+            }
+            // Pack: low 32 = x4, next 32 = x5, upper 64 = 0
+            CLRLDI(x4, x4, 32);
+            SLDI(x5, x5, 32);
+            OR(x4, x4, x5);
+            MTVSRDD(VSXREG(v0), 0, x4);
+            break;
+
+        case 0xE7:
+            INST_NAME("VMOVNTDQ Ex, Gx");
+            nextop = F8;
+            GETGYxy(v0, 0);
+            if (MODREG) {
+                DEFAULT;
+            } else {
+                addr = geted(dyn, addr, ninst, nextop, &ed, x2, x3, &fixedaddress, rex, NULL, DQ_ALIGN|1, 0);
+                STXV(VSXREG(v0), fixedaddress, ed);
+                SMWRITE2();
             }
             break;
 
@@ -1286,6 +1670,23 @@ uintptr_t dynarec64_AVX_66_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t 
                 }
                 MTVSRDD(VSXREG(v0), x3, x1);
             }
+            break;
+
+        case 0xF7:
+            INST_NAME("VMASKMOVDQU Gx, Ex");
+            nextop = F8;
+            GETGYx(v0, 0);
+            GETEYx(v1, 0, 0);
+            q0 = fpu_get_scratch(dyn);
+            q1 = fpu_get_scratch(dyn);
+            // Load current data at [RDI]
+            LXV(VSXREG(q0), 0, xRDI);
+            // Create byte selection mask from sign bits: VSRAB by 7 gives 0x00 or 0xFF
+            XXSPLTIB(VSXREG(q1), 7);
+            VSRAB(VRREG(q1), VRREG(v1), VRREG(q1));  // q1 = 0xFF where mask bit set, 0x00 otherwise
+            // Select: where mask is 0xFF pick v0, else keep q0
+            VSEL(VRREG(q0), VRREG(q0), VRREG(v0), VRREG(q1));
+            STXV(VSXREG(q0), 0, xRDI);
             break;
 
         case 0xF8:
