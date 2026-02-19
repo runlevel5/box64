@@ -32,6 +32,18 @@ uintptr_t dynarec64_66F20F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip,
     MAYUSE(u8);
 
     switch (opcode) {
+        case 0x38:
+            opcode = F8;
+            switch (opcode) {
+                case 0xF1:
+                    if (rex.w) return dynarec64_F20F(dyn, addr - 2, ip, ninst, rex, ok, need_epilog);
+                    // CRC32 Gd, Ew — PPC64LE has no hardware CRC32, fall through to interpreter
+                    DEFAULT;
+                    break;
+                default:
+                    DEFAULT;
+            }
+            break;
         default:
             DEFAULT;
     }
