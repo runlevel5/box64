@@ -44,9 +44,11 @@ typedef union cpu_ext_s {
         uint64_t frecipe : 1;
         uint64_t lasx : 1;
 #elif defined(PPC64LE)
-        // POWER9 (ISA 3.0) is our minimum target — no optional features to detect yet
-        // Future: POWER10 (ISA 3.1) features like prefixed instructions, pcrel addressing
-        uint64_t reserved : 1;
+        // POWER9 (ISA 3.0) is our minimum target
+        uint64_t crypto : 1;    // PPC_FEATURE2_VEC_CRYPTO — vcipher/vncipher/vsbox/vpmsumb
+        uint64_t darn : 1;      // PPC_FEATURE2_DARN — hardware random number
+        uint64_t isa31 : 1;     // PPC_FEATURE2_ARCH_3_1 — POWER10 / ISA 3.1
+        uint64_t mma : 1;       // PPC_FEATURE2_MMA — Matrix-Multiply Assist (POWER10)
 #endif
     };
     uint64_t x;
