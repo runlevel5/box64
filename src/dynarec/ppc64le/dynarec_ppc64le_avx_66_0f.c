@@ -279,7 +279,19 @@ uintptr_t dynarec64_AVX_66_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t 
             INST_NAME("VSQRTPD Gx, Ex");
             nextop = F8;
             GETGY_empty_EY_xy(v0, v1, 0);
+            if (!BOX64ENV(dynarec_fastnan)) {
+                q0 = fpu_get_scratch(dyn);
+                d0 = fpu_get_scratch(dyn);
+                XVCMPEQDP(VSXREG(q0), VSXREG(v1), VSXREG(v1));  // -1 where input NOT NaN
+            }
             XVSQRTDP(VSXREG(v0), VSXREG(v1));
+            if (!BOX64ENV(dynarec_fastnan)) {
+                XVCMPEQDP(VSXREG(d0), VSXREG(v0), VSXREG(v0));  // -1 where result NOT NaN
+                XXLANDC(VSXREG(d0), VSXREG(q0), VSXREG(d0));    // input ordered AND result NaN (new NaNs)
+                XXSPLTIB(VSXREG(q0), 63);
+                VSLD(VRREG(d0), VRREG(d0), VRREG(q0));           // 0x8000... in new NaN lanes
+                XXLOR(VSXREG(v0), VSXREG(v0), VSXREG(d0));      // OR sign bit into result
+            }
             break;
 
         case 0x54:
