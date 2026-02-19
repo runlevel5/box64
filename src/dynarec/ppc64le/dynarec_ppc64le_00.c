@@ -3274,14 +3274,50 @@ uintptr_t dynarec64_00(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                     }
                     BARRIER(BARRIER_FLOAT);
                     PUSH1z(x2);
-                    // Skip callret optimization for initial PPC64LE implementation
-                    *ok = 0;
-                    *need_epilog = 0;
+                    if (BOX64DRENV(dynarec_callret)) {
+                        SET_HASCALLRET();
+                        // Push shadow return address {native_addr, x86_addr}
+                        if (addr < (dyn->start + dyn->isize)) {
+                            // return address is within this block
+                            j64 = (dyn->insts) ? (dyn->insts[ninst].epilog - (dyn->native_size)) : 0;
+                            BCL(20, 31, 4);             // LR = addr of next instruction
+                            MFLR(x4);                   // x4 = LR
+                            ADDI(x4, x4, j64 - 4);     // x4 = native epilog addr
+                            MESSAGE(LOG_NONE, "\tCALLRET set return to +%di\n", j64 >> 2);
+                        } else {
+                            // return address is outside this block — point to MARK landing pad
+                            j64 = (dyn->insts) ? (GETMARK - (dyn->native_size)) : 0;
+                            BCL(20, 31, 4);             // LR = addr of next instruction
+                            MFLR(x4);                   // x4 = LR
+                            ADDI(x4, x4, j64 - 4);     // x4 = native MARK addr
+                            MESSAGE(LOG_NONE, "\tCALLRET set return to +%di\n", j64 >> 2);
+                        }
+                        ADDI(xSP, xSP, -16);
+                        STD(x4, 0, xSP);               // native return addr
+                        STD(x2, 8, xSP);               // x86 return addr
+                    } else {
+                        *ok = 0;
+                        *need_epilog = 0;
+                    }
                     if (rex.is32bits)
                         j64 = (uint32_t)(addr + i32);
                     else
                         j64 = addr + i32;
                     jump_to_next(dyn, j64, 0, ninst, rex.is32bits);
+                    if (BOX64DRENV(dynarec_callret) && addr >= (dyn->start + dyn->isize)) {
+                        // return address is outside this block — emit landing pad
+                        MARK;
+                        j64 = getJumpTableAddress64(addr);
+                        if (dyn->need_reloc) {
+                            AddRelocTable64JmpTbl(dyn, ninst, addr, STEP);
+                            TABLE64_(x4, j64);
+                        } else {
+                            MOV64x(x4, j64);
+                        }
+                        LD(x4, 0, x4);
+                        MTCTR(x4);
+                        BCTR();
+                    }
                     break;
             }
             break;
@@ -3883,13 +3919,48 @@ uintptr_t dynarec64_00(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                         SETFLAGS(X_ALL, SF_SET_NODF, NAT_FLAGS_NOFUSION); // Hack to put flag in "don't care" state
                     }
                     GETEDz(0);
-                    // Skip callret optimization — use fallback
-                    BARRIER(BARRIER_FLOAT);
-                    *need_epilog = 0;
-                    *ok = 0;
+                    if (BOX64DRENV(dynarec_callret) && BOX64DRENV(dynarec_bigblock) > 1) {
+                        BARRIER(BARRIER_FULL);
+                    } else {
+                        BARRIER(BARRIER_FLOAT);
+                        *need_epilog = 0;
+                        *ok = 0;
+                    }
                     GETIP_(addr, x7);
+                    if (BOX64DRENV(dynarec_callret)) {
+                        SET_HASCALLRET();
+                        // Push shadow return address {native_addr, x86_addr}
+                        if (addr < (dyn->start + dyn->isize)) {
+                            // return address is within this block
+                            j64 = (dyn->insts) ? (dyn->insts[ninst].epilog - (dyn->native_size)) : 0;
+                            BCL(20, 31, 4);
+                            MFLR(x4);
+                            ADDI(x4, x4, j64 - 4);
+                            MESSAGE(LOG_NONE, "\tCALLRET set return to +%di\n", j64 >> 2);
+                        } else {
+                            // return address is outside this block — point to MARK
+                            j64 = (dyn->insts) ? (GETMARK - (dyn->native_size)) : 0;
+                            BCL(20, 31, 4);
+                            MFLR(x4);
+                            ADDI(x4, x4, j64 - 4);
+                            MESSAGE(LOG_NONE, "\tCALLRET set return to +%di\n", j64 >> 2);
+                        }
+                        ADDI(xSP, xSP, -16);
+                        STD(x4, 0, xSP);               // native return addr
+                        STD(xRIP, 8, xSP);             // x86 return addr
+                    }
                     PUSH1z(xRIP);
                     jump_to_next(dyn, 0, ed, ninst, rex.is32bits);
+                    if (BOX64DRENV(dynarec_callret) && addr >= (dyn->start + dyn->isize)) {
+                        // return address is outside this block — emit landing pad
+                        MARK;
+                        j64 = getJumpTableAddress64(addr);
+                        if (dyn->need_reloc) AddRelocTable64RetEndBlock(dyn, ninst, addr, STEP);
+                        TABLE64_(x4, j64);
+                        LD(x4, 0, x4);
+                        MTCTR(x4);
+                        BCTR();
+                    }
                     break;
                 case 3: // CALL FAR Ed
                     if (MODREG) {
@@ -3904,11 +3975,35 @@ uintptr_t dynarec64_00(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                         ed = x1;
                         LHZ(x3, rex.w ? 8 : 4, wback);
                         LHZ(x5, offsetof(x64emu_t, segs[_CS]), xEmu);
-                        // Skip callret optimization — use fallback
-                        BARRIER(BARRIER_FLOAT);
-                        *need_epilog = 0;
-                        *ok = 0;
+                        if (BOX64DRENV(dynarec_callret) && BOX64DRENV(dynarec_bigblock) > 1) {
+                            BARRIER(BARRIER_FULL);
+                        } else {
+                            BARRIER(BARRIER_FLOAT);
+                            *need_epilog = 0;
+                            *ok = 0;
+                        }
                         GETIP_(addr, x7);
+                        if (BOX64DRENV(dynarec_callret)) {
+                            SET_HASCALLRET();
+                            // Push shadow return address {native_addr, x86_addr}
+                            // Note: CS is not tested on return, but should be ok
+                            if (addr < (dyn->start + dyn->isize)) {
+                                j64 = (dyn->insts) ? (dyn->insts[ninst].epilog - (dyn->native_size)) : 0;
+                                BCL(20, 31, 4);
+                                MFLR(x4);
+                                ADDI(x4, x4, j64 - 4);
+                                MESSAGE(LOG_NONE, "\tCALLRET set return to +%di\n", j64 >> 2);
+                            } else {
+                                j64 = (dyn->insts) ? (GETMARK - (dyn->native_size)) : 0;
+                                BCL(20, 31, 4);
+                                MFLR(x4);
+                                ADDI(x4, x4, j64 - 4);
+                                MESSAGE(LOG_NONE, "\tCALLRET set return to +%di\n", j64 >> 2);
+                            }
+                            ADDI(xSP, xSP, -16);
+                            STD(x4, 0, xSP);               // native return addr
+                            STD(xRIP, 8, xSP);             // x86 return addr
+                        }
                         if (rex.w) {
                             PUSH1(x5);
                             PUSH1(xRIP);
@@ -3918,6 +4013,16 @@ uintptr_t dynarec64_00(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                         }
                         STH(x3, offsetof(x64emu_t, segs[_CS]), xEmu);
                         jump_to_next(dyn, 0, ed, ninst, rex.is32bits);
+                        if (BOX64DRENV(dynarec_callret) && addr >= (dyn->start + dyn->isize)) {
+                            // return address is outside this block — emit landing pad
+                            MARK;
+                            j64 = getJumpTableAddress64(addr);
+                            if (dyn->need_reloc) AddRelocTable64RetEndBlock(dyn, ninst, addr, STEP);
+                            TABLE64_(x4, j64);
+                            LD(x4, 0, x4);
+                            MTCTR(x4);
+                            BCTR();
+                        }
                         CLEARIP();
                     }
                     break;
