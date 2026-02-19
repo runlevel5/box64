@@ -620,14 +620,16 @@
         SMREAD();                                                                            \
         addr = geted(dyn, addr, ninst, nextop, &ed, x1, x2, &fixedaddress, rex, NULL, 1, D); \
         a = fpu_get_scratch(dyn);                                                            \
-        LFD(a, fixedaddress, ed);                                                            \
+        LD(x3, fixedaddress, ed);                                                            \
+        MTVSRDD(VSXREG(a), xZR, x3);                                                        \
     }
 
 // Put Back Em if it was a memory and not an emm register
-#define PUTEM(a)                     \
-    if (!MODREG) {                   \
-        STFD(a, fixedaddress, ed);   \
-        SMWRITE2();                  \
+#define PUTEM(a)                                 \
+    if (!MODREG) {                               \
+        MFVSRLD(x3, VSXREG(a));                  \
+        STD(x3, fixedaddress, ed);               \
+        SMWRITE2();                              \
     }
 
 // Write gb (gd) back to original register / memory, using s1 as scratch

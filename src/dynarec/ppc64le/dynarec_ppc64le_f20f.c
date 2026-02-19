@@ -639,7 +639,7 @@ uintptr_t dynarec64_F20F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
             v1 = sse_get_reg(dyn, ninst, x1, (nextop & 7) + (rex.b << 3), 0);
             // Copy low 64 bits of SSE to MMX (x86 low = ISA dw1)
             MFVSRLD(x4, VSXREG(v1));
-            MTVSRD(VSXREG(v0), x4);
+            MTVSRDD(VSXREG(v0), xZR, x4);  // store in MMX (low dword)
             break;
         case 0xE6:
             INST_NAME("CVTPD2DQ Gx, Ex");

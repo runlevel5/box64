@@ -454,8 +454,8 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                     // PSHUFB MMX: for each byte i, if bit 7 of Em[i] set, result[i]=0
                     //             else result[i] = Gm[Em[i] & 0x7]
                     // Use GPR approach: extract 64-bit values, process each byte
-                    MFVSRD(x4, VSXREG(v0));   // Gm data (64-bit)
-                    MFVSRD(x5, VSXREG(v1));   // Em indices (64-bit)
+                    MFVSRLD(x4, VSXREG(v0));   // Gm data (64-bit) from ISA dw1
+                    MFVSRLD(x5, VSXREG(v1));   // Em indices (64-bit) from ISA dw1
                     {
                         LI(x6, 0);  // result accumulator
                         for (int i = 0; i < 8; i++) {
@@ -482,7 +482,7 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                             }
                             OR(x6, x6, x3);
                         }
-                        MTVSRD(VSXREG(v0), x6);
+                        MTVSRDD(VSXREG(v0), xZR, x6);
                     }
                     break;
                 case 0xF0:
@@ -1031,7 +1031,7 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             GETGM(v0);
             GETEM(v1, 0);
             // MMX: interleave low bytes of Gm and Em (only low 32 bits used from each 64-bit MMX)
-            // On PPC64LE, MMX regs live in FPR space (64-bit). The low 32 bits of the 64-bit
+            // On PPC64LE, MMX regs live in VR space (ISA dw1). The low 32 bits of the 64-bit
             // MMX register contain bytes 0-3. We use VMRGLB on VR space.
             // But MMX is 64-bit, not 128-bit. For MMX, we only care about the low 64 bits.
             // VMRGLB interleaves the low 8 bytes of each VR, which is what we want.
@@ -1060,18 +1060,15 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             GETGM(v0);
             GETEM(v1, 0);
             // Pack signed halfwords to signed bytes with saturation
-            // Need to combine both 64-bit MMX regs into one 128-bit and pack
-            // VPKSHSS(VRT, VRA, VRB): on LE, VRB elements go to low positions
-            // Gm provides low bytes, Em provides high bytes
-            // Actually for MMX (64-bit), the result is only 64 bits:
-            // Pack 4 halfwords from Gm → 4 bytes (low), 4 halfwords from Em → 4 bytes (high)
-            // We put them together in a 128-bit reg and pack
-            // First, combine: put Em in high 64 bits, Gm in low 64 bits
-            // Actually VPKSHSS operates on full 128-bit vectors, so we need proper setup
-            // For MMX: Gm has 4 halfwords in its low 64 bits, Em has 4 halfwords in its low 64 bits
-            // VPKSHSS will pack all 8 halfwords from VRA and all 8 from VRB
-            // On PPC64LE, the result order is: VRB low halfwords → result low bytes
-            VPKSHSS(VRREG(v0), VRREG(v1), VRREG(v0));
+            // VPKSHSS gives 128-bit result; for 64-bit MMX, we need to extract
+            // the low 4 packed bytes from each operand and combine them
+            q0 = fpu_get_scratch(dyn);
+            VPKSHSS(VRREG(q0), VRREG(v1), VRREG(v0));
+            // q0 low 8 bytes = [pack(v0 h0-h3), zeros]; high 8 bytes = [pack(v1 h0-h3), zeros]
+            MFVSRLD(x4, VSXREG(q0));  // low 32 bits = pack of v0 halfwords 0-3
+            MFVSRD(x5, VSXREG(q0));   // low 32 bits = pack of v1 halfwords 0-3
+            RLDIMI(x4, x5, 32, 0);    // insert v1 result into high 32 bits
+            MTVSRDD(VSXREG(v0), xZR, x4);
             PUTEM(v0);
             break;
         case 0x64:
@@ -1104,7 +1101,13 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             GETGM(v0);
             GETEM(v1, 0);
             // Pack signed halfwords to unsigned bytes with unsigned saturation
-            VPKSHUS(VRREG(v0), VRREG(v1), VRREG(v0));
+            q0 = fpu_get_scratch(dyn);
+            VPKSHUS(VRREG(q0), VRREG(v1), VRREG(v0));
+            // q0 low 8 bytes = [pack(v0 h0-h3), zeros]; high 8 bytes = [pack(v1 h0-h3), zeros]
+            MFVSRLD(x4, VSXREG(q0));  // low 32 bits = pack of v0 halfwords 0-3
+            MFVSRD(x5, VSXREG(q0));   // low 32 bits = pack of v1 halfwords 0-3
+            RLDIMI(x4, x5, 32, 0);    // insert v1 result into high 32 bits
+            MTVSRDD(VSXREG(v0), xZR, x4);
             PUTEM(v0);
             break;
         case 0x68:
@@ -1113,8 +1116,11 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             GETGM(v0);
             GETEM(v1, 0);
             // Interleave high bytes (bytes 4-7 of each 64-bit MMX reg)
-            // On PPC64LE, "high" in LE 64-bit context corresponds to VMRGHB territory
-            VMRGHB(VRREG(v0), VRREG(v1), VRREG(v0));
+            // VMRGLB interleaves bytes 0-7; the result bytes 8-15 hold the interleave of bytes 4-7
+            q0 = fpu_get_scratch(dyn);
+            VMRGLB(VRREG(q0), VRREG(v1), VRREG(v0));
+            MFVSRD(x4, VSXREG(q0));   // dword[0] = bytes 8-15 = interleave of bytes 4-7
+            MTVSRDD(VSXREG(v0), xZR, x4);
             PUTEM(v0);
             break;
         case 0x69:
@@ -1122,7 +1128,11 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             nextop = F8;
             GETGM(v0);
             GETEM(v1, 0);
-            VMRGHH(VRREG(v0), VRREG(v1), VRREG(v0));
+            // Interleave high halfwords (halfwords 2-3 of each 64-bit MMX reg)
+            q0 = fpu_get_scratch(dyn);
+            VMRGLH(VRREG(q0), VRREG(v1), VRREG(v0));
+            MFVSRD(x4, VSXREG(q0));   // dword[0] = bytes 8-15 = interleave of halfwords 2-3
+            MTVSRDD(VSXREG(v0), xZR, x4);
             PUTEM(v0);
             break;
         case 0x6A:
@@ -1130,7 +1140,11 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             nextop = F8;
             GETGM(v0);
             GETEM(v1, 0);
-            VMRGHW(VRREG(v0), VRREG(v1), VRREG(v0));
+            // Interleave high dwords (dword 1 of each 64-bit MMX reg)
+            q0 = fpu_get_scratch(dyn);
+            VMRGLW(VRREG(q0), VRREG(v1), VRREG(v0));
+            MFVSRD(x4, VSXREG(q0));   // dword[0] = bytes 8-15 = interleave of dword 1
+            MTVSRDD(VSXREG(v0), xZR, x4);
             PUTEM(v0);
             break;
         case 0x6B:
@@ -1138,7 +1152,16 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             nextop = F8;
             GETGM(v0);
             GETEM(v1, 0);
-            VPKSWSS(VRREG(v0), VRREG(v1), VRREG(v0));
+            // Pack signed dwords to signed halfwords with saturation
+            // VPKSWSS gives 128-bit result; for 64-bit MMX, we need to extract
+            // the low 2 packed halfwords from each operand and combine them
+            q0 = fpu_get_scratch(dyn);
+            VPKSWSS(VRREG(q0), VRREG(v1), VRREG(v0));
+            // q0 low 8 bytes = [pack(v0 dw0-dw1), zeros]; high 8 bytes = [pack(v1 dw0-dw1), zeros]
+            MFVSRLD(x4, VSXREG(q0));  // low 32 bits = pack of v0 dwords 0-1
+            MFVSRD(x5, VSXREG(q0));   // low 32 bits = pack of v1 dwords 0-1
+            RLDIMI(x4, x5, 32, 0);    // insert v1 result into high 32 bits
+            MTVSRDD(VSXREG(v0), xZR, x4);
             PUTEM(v0);
             break;
         case 0x70:
@@ -1149,7 +1172,7 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             u8 = F8;
             // PSHUFW shuffles 4 halfwords within a 64-bit MMX register by immediate
             // u8 encodes 4 2-bit indices: word i of result = word (u8>>(2*i))&3 of source
-            MFVSRD(x4, VSXREG(v1));  // v1 is in FPR space, MFVSRD gets ISA dw0
+            MFVSRLD(x4, VSXREG(v1));  // v1 is in VR space, MFVSRLD gets ISA dw1 (MMX data)
             // x4 has the 64-bit MMX value in LE order:
             // bits [15:0] = word0, [31:16] = word1, [47:32] = word2, [63:48] = word3
             if (u8 == 0xE4) {
@@ -1191,7 +1214,7 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                     RLDIMI(x5, x6, 48, 0);
                 }
             }
-            MTVSRD(VSXREG(v0), x5);
+            MTVSRDD(VSXREG(v0), xZR, x5);
             break;
         case 0x71:
             nextop = F8;
@@ -1204,7 +1227,7 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                         if (u8 > 15) {
                             // Zero the register
                             LI(x4, 0);
-                            MTVSRD(VSXREG(v0), x4);
+                            MTVSRDD(VSXREG(v0), xZR, x4);
                         } else {
                             q0 = fpu_get_scratch(dyn);
                             XXSPLTIB(VSXREG(q0), u8);
@@ -1232,7 +1255,7 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                     if (u8) {
                         if (u8 > 15) {
                             LI(x4, 0);
-                            MTVSRD(VSXREG(v0), x4);
+                            MTVSRDD(VSXREG(v0), xZR, x4);
                         } else {
                             q0 = fpu_get_scratch(dyn);
                             XXSPLTIB(VSXREG(q0), u8);
@@ -1256,7 +1279,7 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                     if (u8) {
                         if (u8 > 31) {
                             LI(x4, 0);
-                            MTVSRD(VSXREG(v0), x4);
+                            MTVSRDD(VSXREG(v0), xZR, x4);
                         } else {
                             q0 = fpu_get_scratch(dyn);
                             XXSPLTIB(VSXREG(q0), u8);
@@ -1284,7 +1307,7 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                     if (u8) {
                         if (u8 > 31) {
                             LI(x4, 0);
-                            MTVSRD(VSXREG(v0), x4);
+                            MTVSRDD(VSXREG(v0), xZR, x4);
                         } else {
                             q0 = fpu_get_scratch(dyn);
                             XXSPLTIB(VSXREG(q0), u8);
@@ -1308,7 +1331,7 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                     if (u8) {
                         if (u8 > 63) {
                             LI(x4, 0);
-                            MTVSRD(VSXREG(v0), x4);
+                            MTVSRDD(VSXREG(v0), xZR, x4);
                         } else {
                             q0 = fpu_get_scratch(dyn);
                             XXSPLTIB(VSXREG(q0), u8);
@@ -1324,7 +1347,7 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                     if (u8) {
                         if (u8 > 63) {
                             LI(x4, 0);
-                            MTVSRD(VSXREG(v0), x4);
+                            MTVSRDD(VSXREG(v0), xZR, x4);
                         } else {
                             q0 = fpu_get_scratch(dyn);
                             XXSPLTIB(VSXREG(q0), u8);
@@ -1368,19 +1391,20 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             if (MODREG) {
                 ed = TO_NAT((nextop & 7) + (rex.b << 3));
                 if (rex.w) {
-                    MTVSRD(VSXREG(v0), ed);
+                    MTVSRDD(VSXREG(v0), xZR, ed);
                 } else {
                     RLWINM(x4, ed, 0, 0, 31);  // zero-extend 32-bit
-                    MTVSRD(VSXREG(v0), x4);
+                    MTVSRDD(VSXREG(v0), xZR, x4);
                 }
             } else {
                 SMREAD();
                 addr = geted(dyn, addr, ninst, nextop, &wback, x3, x1, &fixedaddress, rex, NULL, 1, 0);
                 if (rex.w) {
-                    LFD(v0, fixedaddress, wback);
+                    LD(x4, fixedaddress, wback);
+                    MTVSRDD(VSXREG(v0), xZR, x4);
                 } else {
                     LWZ(x4, fixedaddress, wback);
-                    MTVSRD(VSXREG(v0), x4);
+                    MTVSRDD(VSXREG(v0), xZR, x4);
                 }
             }
             break;
@@ -1391,12 +1415,13 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             if (MODREG) {
                 v1 = mmx_get_reg(dyn, ninst, x1, x2, x3, nextop & 7);
                 v0 = mmx_get_reg_empty(dyn, ninst, x1, x2, x3, gd);
-                FMR(v0, v1);
+                XXLOR(VSXREG(v0), VSXREG(v1), VSXREG(v1));
             } else {
                 v0 = mmx_get_reg_empty(dyn, ninst, x1, x2, x3, gd);
                 SMREAD();
                 addr = geted(dyn, addr, ninst, nextop, &wback, x3, x1, &fixedaddress, rex, NULL, 1, 0);
-                LFD(v0, fixedaddress, wback);
+                LD(x4, fixedaddress, wback);
+                MTVSRDD(VSXREG(v0), xZR, x4);
             }
             break;
 
@@ -1413,17 +1438,20 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             if (MODREG) {
                 ed = TO_NAT((nextop & 7) + (rex.b << 3));
                 if (rex.w) {
-                    MFVSRD(ed, VSXREG(v0));
+                    MFVSRLD(ed, VSXREG(v0));
                 } else {
-                    MFVSRWZ(ed, VSXREG(v0));
+                    MFVSRLD(ed, VSXREG(v0));
+                    RLWINM(ed, ed, 0, 0, 31);  // zero-extend 32-bit
                     ZEROUP(ed);
                 }
             } else {
                 addr = geted(dyn, addr, ninst, nextop, &ed, x3, x2, &fixedaddress, rex, NULL, 1, 0);
                 if (rex.w) {
-                    STFD(v0, fixedaddress, ed);
+                    MFVSRLD(x4, VSXREG(v0));
+                    STD(x4, fixedaddress, ed);
                 } else {
-                    MFVSRWZ(x4, VSXREG(v0));
+                    MFVSRLD(x4, VSXREG(v0));
+                    RLWINM(x4, x4, 0, 0, 31);  // zero-extend 32-bit
                     STW(x4, fixedaddress, ed);
                 }
                 SMWRITE2();
@@ -1435,10 +1463,11 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             GETGM(v0);
             if (MODREG) {
                 v1 = mmx_get_reg_empty(dyn, ninst, x1, x2, x3, nextop & 7);
-                FMR(v1, v0);
+                XXLOR(VSXREG(v1), VSXREG(v0), VSXREG(v0));
             } else {
                 addr = geted(dyn, addr, ninst, nextop, &ed, x3, x2, &fixedaddress, rex, NULL, 1, 0);
-                STFD(v0, fixedaddress, ed);
+                MFVSRLD(x4, VSXREG(v0));
+                STD(x4, fixedaddress, ed);
                 SMWRITE2();
             }
             break;
@@ -2107,15 +2136,15 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 LHZ(ed, fixedaddress, wback);
             }
             // Insert 16-bit value into MMX register at position u8 (0-3)
-            // MMX data is in FPR space (ISA dw0 of the FPR, 64-bit)
-            MFVSRD(x4, VSXREG(v0));  // get current 64-bit value
+            // MMX data is in VR space (ISA dw1)
+            MFVSRLD(x4, VSXREG(v0));  // get current 64-bit value from ISA dw1
             // Clear target halfword and insert new value
             RLWINM(x5, ed, 0, 16, 31);   // zero-extend to 16 bits
             {
                 int shift = u8 * 16;
                 RLDIMI(x4, x5, shift, 64 - shift - 16);
             }
-            MTVSRD(VSXREG(v0), x4);
+            MTVSRDD(VSXREG(v0), xZR, x4);
             break;
         case 0xC5:
             INST_NAME("PEXTRW Gd, Em, Ib");
@@ -2124,7 +2153,7 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             if (MODREG) {
                 GETEM(v0, 0);
                 u8 = (F8) & 3;
-                MFVSRD(x4, VSXREG(v0));  // 64-bit MMX value
+                MFVSRLD(x4, VSXREG(v0));  // 64-bit MMX value from ISA dw1
                 {
                     int shift = u8 * 16;
                     if (shift)
@@ -2208,10 +2237,10 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             // Variable shift: count from Em low 64 bits. If >= 16, result is 0
             q0 = fpu_get_scratch(dyn);
             q1 = fpu_get_scratch(dyn);
-            // Splat Em to all qword lanes (MMX: Em is 64-bit in FPR space)
+            // Splat Em to all qword lanes (MMX: Em is 64-bit in ISA dw1)
             // For MMX, Em is already just 64 bits. Splat the shift count to all halfword lanes
             // using the qword value and let VMX shift use low bits of each element
-            XXPERMDI(VSXREG(q0), VSXREG(v1), VSXREG(v1), 0);  // splat ISA dw0 to both dwords
+            XXPERMDI(VSXREG(q0), VSXREG(v1), VSXREG(v1), 3);  // splat ISA dw1 (MMX data)
             // Check if count > 15
             LI(x4, 15);
             MTVSRDD(VSXREG(q1), x4, x4);
@@ -2227,7 +2256,7 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             GETEM(v1, 0);
             q0 = fpu_get_scratch(dyn);
             q1 = fpu_get_scratch(dyn);
-            XXPERMDI(VSXREG(q0), VSXREG(v1), VSXREG(v1), 0);
+            XXPERMDI(VSXREG(q0), VSXREG(v1), VSXREG(v1), 3);  // splat ISA dw1 (MMX data)
             LI(x4, 31);
             MTVSRDD(VSXREG(q1), x4, x4);
             VCMPGTUD(VRREG(q1), VRREG(q0), VRREG(q1));
@@ -2242,7 +2271,7 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             GETEM(v1, 0);
             q0 = fpu_get_scratch(dyn);
             q1 = fpu_get_scratch(dyn);
-            XXPERMDI(VSXREG(q0), VSXREG(v1), VSXREG(v1), 0);
+            XXPERMDI(VSXREG(q0), VSXREG(v1), VSXREG(v1), 3);  // splat ISA dw1 (MMX data)
             LI(x4, 63);
             MTVSRDD(VSXREG(q1), x4, x4);
             VCMPGTUD(VRREG(q1), VRREG(q0), VRREG(q1));
@@ -2272,8 +2301,8 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             GETGD;
             GETEM(v0, 0);
             // Extract sign bits of 8 bytes from 64-bit MMX register
-            // MMX data is in FPR space
-            MFVSRD(x4, VSXREG(v0));   // ISA dw0 = the 64-bit MMX value
+            // MMX data is in VR space (ISA dw1)
+            MFVSRLD(x4, VSXREG(v0));   // ISA dw1 = the 64-bit MMX value
             // Isolate sign bits: x4 & 0x8080808080808080
             LI(x6, 0);
             ORIS(x6, x6, 0x8080);
@@ -2362,7 +2391,7 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             GETEM(v1, 0);
             q0 = fpu_get_scratch(dyn);
             // Clamp shift count to 15
-            MFVSRD(x4, VSXREG(v1));
+            MFVSRLD(x4, VSXREG(v1));  // read ISA dw1 (MMX data)
             CMPLDI(x4, 15);
             LI(x5, 15);
             ISEL(x4, x4, x5, 0);     // if x4 < 15 pick x4, else 15
@@ -2375,7 +2404,7 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             GETGM(v0);
             GETEM(v1, 0);
             q0 = fpu_get_scratch(dyn);
-            MFVSRD(x4, VSXREG(v1));
+            MFVSRLD(x4, VSXREG(v1));  // read ISA dw1 (MMX data)
             CMPLDI(x4, 31);
             LI(x5, 31);
             ISEL(x4, x4, x5, 0);
@@ -2401,7 +2430,10 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             XXSPLTIB(VSXREG(v0), 16);
             VSRW(VRREG(q0), VRREG(q0), VRREG(v0));
             VSRW(VRREG(q1), VRREG(q1), VRREG(v0));
-            VPKUWUM(VRREG(v0), VRREG(q1), VRREG(q0));
+            // Merge even/odd results and pack: VMRGLW interleaves low dwords
+            // so the 4 valid results end up in all 4 dword positions
+            VMRGLW(VRREG(v0), VRREG(q1), VRREG(q0));
+            VPKUWUM(VRREG(v0), VRREG(v0), VRREG(v0));
             break;
         case 0xE5:
             INST_NAME("PMULHW Gm, Em");
@@ -2415,7 +2447,10 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             XXSPLTIB(VSXREG(v0), 16);
             VSRAW(VRREG(q0), VRREG(q0), VRREG(v0));
             VSRAW(VRREG(q1), VRREG(q1), VRREG(v0));
-            VPKUWUM(VRREG(v0), VRREG(q1), VRREG(q0));
+            // Merge even/odd results and pack: VMRGLW interleaves low dwords
+            // so the 4 valid results end up in all 4 dword positions
+            VMRGLW(VRREG(v0), VRREG(q1), VRREG(q0));
+            VPKUWUM(VRREG(v0), VRREG(v0), VRREG(v0));
             break;
         case 0xE7:
             INST_NAME("MOVNTQ Em, Gm");
@@ -2423,10 +2458,11 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             GETGM(v0);
             if (MODREG) {
                 v1 = mmx_get_reg_empty(dyn, ninst, x1, x2, x3, nextop & 7);
-                FMR(v1, v0);
+                XXLOR(VSXREG(v1), VSXREG(v0), VSXREG(v0));
             } else {
                 addr = geted(dyn, addr, ninst, nextop, &ed, x3, x2, &fixedaddress, rex, NULL, 1, 0);
-                STFD(v0, fixedaddress, ed);
+                MFVSRLD(x4, VSXREG(v0));
+                STD(x4, fixedaddress, ed);
                 SMWRITE2();
             }
             break;
@@ -2493,7 +2529,7 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             GETEM(v1, 0);
             q0 = fpu_get_scratch(dyn);
             q1 = fpu_get_scratch(dyn);
-            XXPERMDI(VSXREG(q0), VSXREG(v1), VSXREG(v1), 0);
+            XXPERMDI(VSXREG(q0), VSXREG(v1), VSXREG(v1), 3);  // splat ISA dw1 (MMX data)
             LI(x4, 15);
             MTVSRDD(VSXREG(q1), x4, x4);
             VCMPGTUD(VRREG(q1), VRREG(q0), VRREG(q1));
@@ -2508,7 +2544,7 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             GETEM(v1, 0);
             q0 = fpu_get_scratch(dyn);
             q1 = fpu_get_scratch(dyn);
-            XXPERMDI(VSXREG(q0), VSXREG(v1), VSXREG(v1), 0);
+            XXPERMDI(VSXREG(q0), VSXREG(v1), VSXREG(v1), 3);  // splat ISA dw1 (MMX data)
             LI(x4, 31);
             MTVSRDD(VSXREG(q1), x4, x4);
             VCMPGTUD(VRREG(q1), VRREG(q0), VRREG(q1));
@@ -2523,7 +2559,7 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             GETEM(v1, 0);
             q0 = fpu_get_scratch(dyn);
             q1 = fpu_get_scratch(dyn);
-            XXPERMDI(VSXREG(q0), VSXREG(v1), VSXREG(v1), 0);
+            XXPERMDI(VSXREG(q0), VSXREG(v1), VSXREG(v1), 3);  // splat ISA dw1 (MMX data)
             LI(x4, 63);
             MTVSRDD(VSXREG(q1), x4, x4);
             VCMPGTUD(VRREG(q1), VRREG(q0), VRREG(q1));
@@ -2587,10 +2623,12 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             XXSPLTIB(VSXREG(q1), 7);
             VSRAB(VRREG(q1), VRREG(v1), VRREG(q1));
             // Load current 64-bit data at [RDI]
-            LFD(q0, 0, xRDI);
+            LD(x4, 0, xRDI);
+            MTVSRDD(VSXREG(q0), xZR, x4);
             // Select: where mask is 0xFF pick v0, else keep q0
             VSEL(VRREG(q0), VRREG(q0), VRREG(v0), VRREG(q1));
-            STFD(q0, 0, xRDI);
+            MFVSRLD(x4, VSXREG(q0));
+            STD(x4, 0, xRDI);
             break;
         case 0xF8:
             INST_NAME("PSUBB Gm, Em");

@@ -301,9 +301,10 @@ void adjust_arch(dynablock_t* db, x64emu_t* emu, ucontext_t* p, uintptr_t x64pc)
     // mcontext_t.v_regs->vrregs[0..31][4] = vr0-vr31 (= vs32-vs63, 128-bit)
     //
     // VMX cache mapping:
-    //   XMM cache idx 0-15  → vr0-vr15  → v_regs->vrregs[0..15]
-    //   x87/MMX idx 16-23   → vs16-vs23 → fp_regs[16..23] (scalar 64-bit)
-    //   Scratch idx 24-31   → vr16-vr23 → v_regs->vrregs[16..23]
+    //   XMM cache idx 0-15  → vr0-vr15   → v_regs->vrregs[0..15]
+    //   MMX cache idx 16-23 → vr24-vr31  → v_regs->vrregs[24..31] (64-bit in low dword)
+    //   x87 cache idx 16-23 → f16-f23    → fp_regs[16..23] (scalar 64-bit)
+    //   Scratch idx 24-31   → vr16-vr23  → v_regs->vrregs[16..23]
     mcontext_t* mc = &p->uc_mcontext;
     vrregset_t* vmx = mc->v_regs;
 
@@ -342,10 +343,11 @@ void adjust_arch(dynablock_t* db, x64emu_t* emu, ucontext_t* p, uintptr_t x64pc)
     if(mmx) {
         dynarec_log_prefix(0, LOG_INFO, " mmx[%x (vmx=%p)] ", mmx->mmx, vmx);
         for(int i=0; i<8; ++i)
-            if((mmx->mmx>>i)&1) {
-                // MMX i is cached in vs(16+i) = fp_regs[16+i] (lower 64 bits)
-                int fpr_idx = 16 + i;
-                emu->mmx[i].q = *(uint64_t*)&mc->fp_regs[fpr_idx];
+            if(vmx && (mmx->mmx>>i)&1) {
+                // MMX i is cached in vr(24+i) = vs(56+i) → v_regs->vrregs[24+i]
+                // Data is in low 64 bits (bytes 0-7 on LE)
+                int vr_idx = 24 + i;
+                emu->mmx[i].q = *(uint64_t*)&vmx->vrregs[vr_idx];
             }
     }
     if(x87) {

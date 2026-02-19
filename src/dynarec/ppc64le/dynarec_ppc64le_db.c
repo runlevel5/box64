@@ -137,7 +137,7 @@ uintptr_t dynarec64_DB(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 // Use LWZ + EXTSW instead of LWA because LWA requires 4-byte aligned offset
                 LWZ(x1, fixedaddress, ed);
                 EXTSW(x1, x1);
-                MTVSRD(VSXREG(v1), x1);  // move int64 to FPR
+                MTVSRD(VSXREG_X87(v1), x1);  // move int64 to FPR
                 FCFID(v1, v1);            // int64 -> double
                 break;
             case 1:

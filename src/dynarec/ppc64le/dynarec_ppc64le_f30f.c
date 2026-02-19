@@ -1014,8 +1014,8 @@ uintptr_t dynarec64_F30F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
             GETEM(d0, 0);
             // Zero dest, copy 64 bits from MMX reg to low 64 bits of XMM
             XXLXOR(VSXREG(v0), VSXREG(v0), VSXREG(v0));
-            // d0 is in FPR space; extract and insert
-            MFVSRD(x4, d0);
+            // d0 is in VR space; extract from ISA dw1
+            MFVSRLD(x4, VSXREG(d0));
             MTVSRDD(VSXREG(v0), 0, x4);
             break;
 

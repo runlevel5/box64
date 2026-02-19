@@ -55,8 +55,18 @@ ppc64le_epilog:
     lwz     0, 8(1)
     mtcrf   0xFF, 0
 
-    // Restore callee-saved VMX register vr20 (= vs52)
+    // Restore callee-saved VMX registers
+    // vr20 (= vs52): scratch register index 28
     lxv     52, 208(1)
+    // vr24-vr31 (= vs56-vs63): MMX registers 0-7
+    lxv     56, 224(1)
+    lxv     57, 240(1)
+    lxv     58, 256(1)
+    lxv     59, 272(1)
+    lxv     60, 288(1)
+    lxv     61, 304(1)
+    lxv     62, 320(1)
+    lxv     63, 336(1)
 
     // Restore callee-saved GPRs
     ld      14, 32(1)
@@ -79,7 +89,7 @@ ppc64le_epilog:
     ld      31, 168(1)
 
     // Deallocate frame
-    addi    1, 1, 272
+    addi    1, 1, 352
 
     // Restore LR and return
     ld      0, 16(1)

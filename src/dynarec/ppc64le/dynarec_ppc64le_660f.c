@@ -248,7 +248,7 @@ uintptr_t dynarec64_660F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
             // 1. Extract the two int32 values
             // 2. Convert each to double
             // 3. Pack into v0
-            MFVSRD(x4, VSXREG(v1));        // low 64 bits: [int1:int0]
+            MFVSRLD(x4, VSXREG(v1));       // MMX low 64 bits: [int1:int0]
             EXTSW(x5, x4);                  // sign-extend int0 (low 32 bits)
             SRADI(x6, x4, 32);              // int1 = high 32 bits, sign-extended
             // Convert int0 to double
@@ -299,7 +299,7 @@ uintptr_t dynarec64_660F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
             CLRLDI(x6, x6, 32);
             SLDI(x7, x7, 32);
             OR(x6, x6, x7);
-            MTVSRD(VSXREG(v0), x6);
+            MTVSRDD(VSXREG(v0), xZR, x6);  // store combined result in MMX (low dword)
             break;
         case 0x2D:
             INST_NAME("CVTPD2PI Gm, Ex");
@@ -336,7 +336,7 @@ uintptr_t dynarec64_660F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
             CLRLDI(x4, x4, 32);
             SLDI(x6, x6, 32);
             OR(x4, x4, x6);
-            MTVSRD(VSXREG(v0), x4);
+            MTVSRDD(VSXREG(v0), xZR, x4);  // store combined result in MMX (low dword)
             break;
         case 0x2E:
             // no special check...

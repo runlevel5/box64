@@ -159,7 +159,7 @@ uintptr_t dynarec64_DE(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 addr = geted(dyn, addr, ninst, nextop, &wback, x3, x1, &fixedaddress, rex, NULL, 1, 0);
                 LHZ(x2, fixedaddress, wback);
                 EXTSH(x2, x2);
-                MTVSRD(VSXREG(v2), x2);
+                MTVSRD(v2, x2);
                 FCFID(v2, v2);
                 FADD(v1, v1, v2);
                 X87_CHECK_PRECISION(v1);
@@ -171,7 +171,7 @@ uintptr_t dynarec64_DE(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 addr = geted(dyn, addr, ninst, nextop, &wback, x3, x1, &fixedaddress, rex, NULL, 1, 0);
                 LHZ(x2, fixedaddress, wback);
                 EXTSH(x2, x2);
-                MTVSRD(VSXREG(v2), x2);
+                MTVSRD(v2, x2);
                 FCFID(v2, v2);
                 FMUL(v1, v1, v2);
                 X87_CHECK_PRECISION(v1);
@@ -183,7 +183,7 @@ uintptr_t dynarec64_DE(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 addr = geted(dyn, addr, ninst, nextop, &wback, x3, x1, &fixedaddress, rex, NULL, 1, 0);
                 LHZ(x2, fixedaddress, wback);
                 EXTSH(x2, x2);
-                MTVSRD(VSXREG(v2), x2);
+                MTVSRD(v2, x2);
                 FCFID(v2, v2);
                 FCOMD(v1, v2, x1, x2, x3);
                 break;
@@ -194,7 +194,7 @@ uintptr_t dynarec64_DE(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 addr = geted(dyn, addr, ninst, nextop, &wback, x3, x1, &fixedaddress, rex, NULL, 1, 0);
                 LHZ(x2, fixedaddress, wback);
                 EXTSH(x2, x2);
-                MTVSRD(VSXREG(v2), x2);
+                MTVSRD(v2, x2);
                 FCFID(v2, v2);
                 FCOMD(v1, v2, x1, x2, x3);
                 X87_POP_OR_FAIL(dyn, ninst, x3);
@@ -206,7 +206,7 @@ uintptr_t dynarec64_DE(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 addr = geted(dyn, addr, ninst, nextop, &wback, x3, x1, &fixedaddress, rex, NULL, 1, 0);
                 LHZ(x2, fixedaddress, wback);
                 EXTSH(x2, x2);
-                MTVSRD(VSXREG(v2), x2);
+                MTVSRD(v2, x2);
                 FCFID(v2, v2);
                 FSUB(v1, v1, v2);
                 X87_CHECK_PRECISION(v1);
@@ -218,7 +218,7 @@ uintptr_t dynarec64_DE(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 addr = geted(dyn, addr, ninst, nextop, &wback, x3, x1, &fixedaddress, rex, NULL, 1, 0);
                 LHZ(x2, fixedaddress, wback);
                 EXTSH(x2, x2);
-                MTVSRD(VSXREG(v2), x2);
+                MTVSRD(v2, x2);
                 FCFID(v2, v2);
                 FSUB(v1, v2, v1);
                 X87_CHECK_PRECISION(v1);
@@ -230,7 +230,7 @@ uintptr_t dynarec64_DE(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 addr = geted(dyn, addr, ninst, nextop, &wback, x3, x1, &fixedaddress, rex, NULL, 1, 0);
                 LHZ(x2, fixedaddress, wback);
                 EXTSH(x2, x2);
-                MTVSRD(VSXREG(v2), x2);
+                MTVSRD(v2, x2);
                 FCFID(v2, v2);
                 FDIV(v1, v1, v2);
                 X87_CHECK_PRECISION(v1);
@@ -242,7 +242,7 @@ uintptr_t dynarec64_DE(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 addr = geted(dyn, addr, ninst, nextop, &wback, x3, x1, &fixedaddress, rex, NULL, 1, 0);
                 LHZ(x2, fixedaddress, wback);
                 EXTSH(x2, x2);
-                MTVSRD(VSXREG(v2), x2);
+                MTVSRD(v2, x2);
                 FCFID(v2, v2);
                 FDIV(v1, v2, v1);
                 X87_CHECK_PRECISION(v1);

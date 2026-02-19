@@ -7,8 +7,8 @@
 #define SCRATCH0    24
 
 // Map cache index to VSX hardware register number (vs0-vs63).
-// XMM indices 0-15   → vs32-vs47 (VMX vr0-vr15), enabling VMX integer SIMD ops.
-// x87/MMX indices 16-23 → vs16-vs23 (FPR space, scalar FP only).
+// XMM indices 0-15     → vs32-vs47  (VMX vr0-vr15), enabling VMX integer SIMD ops.
+// MMX indices 16-23    → vs56-vs63  (VMX vr24-vr31), enabling VMX integer SIMD ops.
 // Scratch indices 24-31 → vs48-vs55 (VMX vr16-vr23), enabling VMX ops on scratch.
 //
 // The scratch mapping is critical: VMX (VX/VA-form) instructions encode a 5-bit
@@ -16,13 +16,21 @@
 // allows VRREG() to produce the correct VR number for both XMM and scratch regs.
 // Note: vr20-vr23 (vs52-vs55) are callee-saved per ELFv2 ABI.  We save vr20 in
 // the prolog since the maximum simultaneous scratch count is 5 (indices 24-28).
-#define VSXREG(idx)  ((idx) < 16 ? (idx) + 32 : (idx) < 24 ? (idx) : (idx) + 24)
+//
+// x87 and MMX are mutually exclusive (EMMS separates them), but on PPC64LE their
+// hardware register requirements differ: x87 needs FPR (scalar FP) while MMX needs
+// VR (VMX integer SIMD).  Since FPR and VR are NOT aliased on POWER (unlike LA64),
+// VSXREG routes MMX indices 16-23 to VR space (vs56-vs63), while VSXREG_X87 routes
+// them to FPR space (vs16-vs23).  x87 code must use VSXREG_X87 instead of VSXREG.
+// vr24-vr31 (vs56-vs63) are callee-saved; the prolog/epilog saves/restores them.
+#define VSXREG(idx)      ((idx) < 16 ? (idx) + 32 : (idx) < 24 ? (idx) + 40 : (idx) + 24)
+#define VSXREG_X87(idx)  (idx)  /* x87 idx 16-23 → vs16-vs23 (FPR f16-f23) */
 
 // Extract VR register number for VMX integer instructions (5-bit, vr0-vr31).
-// XMM cache indices 0-15 → vr0-vr15 (vs32-vs47).
+// XMM cache indices 0-15    → vr0-vr15  (vs32-vs47).
+// MMX cache indices 16-23   → vr24-vr31 (vs56-vs63).
 // Scratch cache indices 24-31 → vr16-vr23 (vs48-vs55).
-// NOT valid for x87/MMX indices 16-23 (those live in FPR space, not VR space).
-#define VRREG(idx)   ((idx) < 16 ? (idx) : (idx) - 8)
+#define VRREG(idx)   ((idx) < 16 ? (idx) : (idx) < 24 ? (idx) + 8 : (idx) - 8)
 
 typedef struct x64emu_s x64emu_t;
 typedef struct dynarec_ppc64le_s dynarec_ppc64le_t;

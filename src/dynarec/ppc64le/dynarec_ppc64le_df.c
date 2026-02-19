@@ -109,7 +109,7 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 addr = geted(dyn, addr, ninst, nextop, &wback, x3, x4, &fixedaddress, rex, NULL, 1, 0);
                 LHZ(x1, fixedaddress, wback);
                 EXTSH(x1, x1);
-                MTVSRD(VSXREG(v1), x1);
+                MTVSRD(VSXREG_X87(v1), x1);
                 if (ST_IS_F(0)) {
                     FCFIDS(v1, v1);
                 } else {
@@ -231,7 +231,7 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                         ADD(x5, x5, x4);
                         STD(x1, 8, x5); // ll
                     }
-                    MTVSRD(VSXREG(v1), x1);
+                    MTVSRD(VSXREG_X87(v1), x1);
                     FCFID(v1, v1);
                     if (rex.is32bits) {
                         STFD(v1, 0, x5); // ref
@@ -270,7 +270,7 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                         }
                         SLDI(x5, x5, 4); // fpu_ll is 2 i64
                         ADD(x5, x5, x4);
-                        MFVSRD(x3, VSXREG(v1));
+                        MFVSRD(x3, VSXREG_X87(v1));
                         LD(x6, 0, x5); // ref
                         BNE_MARK(x6, x3);
                         LD(x6, 8, x5); // ll

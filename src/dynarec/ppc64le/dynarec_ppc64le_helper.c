@@ -1479,7 +1479,9 @@ int mmx_get_reg(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3, int a
         return dyn->v.mmxcache[a];
     ++dyn->v.mmxcount;
     int ret = dyn->v.mmxcache[a] = fpu_get_reg_emm(dyn, a);
-    LFD(ret, offsetof(x64emu_t, mmx[a]), xEmu);
+    // MMX lives in VR space (vr24-vr31); load 64-bit value via GPR then move to VR
+    LD(s1, offsetof(x64emu_t, mmx[a]), xEmu);
+    MTVSRDD(VSXREG(ret), xZR, s1);  // high=0, low=data
     return ret;
 }
 
@@ -1508,7 +1510,9 @@ void mmx_purgecache(dynarec_ppc64le_t* dyn, int ninst, int next, int s1)
                 MESSAGE(LOG_DUMP, "\tPurge %sMMX Cache ------\n", next ? "locally " : "");
                 ++old;
             }
-            STFD(dyn->v.mmxcache[i], offsetof(x64emu_t, mmx[i]), xEmu);
+            // MMX lives in VR space; store via GPR
+            MFVSRLD(s1, VSXREG(dyn->v.mmxcache[i]));
+            STD(s1, offsetof(x64emu_t, mmx[i]), xEmu);
             if (!next) {
                 fpu_free_reg(dyn, dyn->v.mmxcache[i]);
                 dyn->v.mmxcache[i] = -1;
@@ -1523,7 +1527,9 @@ static void mmx_reflectcache(dynarec_ppc64le_t* dyn, int ninst, int s1)
 {
     for (int i = 0; i < 8; ++i)
         if (dyn->v.mmxcache[i] != -1) {
-            STFD(dyn->v.mmxcache[i], offsetof(x64emu_t, mmx[i]), xEmu);
+            // MMX lives in VR space; store via GPR
+            MFVSRLD(s1, VSXREG(dyn->v.mmxcache[i]));
+            STD(s1, offsetof(x64emu_t, mmx[i]), xEmu);
         }
 }
 
@@ -2080,6 +2086,7 @@ static void swapCache(dynarec_ppc64le_t* dyn, int ninst, int i, int j, vmxcache_
     if (i == j)
         return;
     int quad = 0;
+    int mmx = 0;
     if (cache->vmxcache[i].t == VMX_CACHE_XMMR || cache->vmxcache[i].t == VMX_CACHE_XMMW)
         quad = 1;
     if (cache->vmxcache[j].t == VMX_CACHE_XMMR || cache->vmxcache[j].t == VMX_CACHE_XMMW)
@@ -2088,17 +2095,18 @@ static void swapCache(dynarec_ppc64le_t* dyn, int ninst, int i, int j, vmxcache_
         quad = 1;  // PPC64LE: YMM in register is still only 128-bit (lower half)
     if (cache->vmxcache[j].t == VMX_CACHE_YMMR || cache->vmxcache[j].t == VMX_CACHE_YMMW)
         quad = 1;  // PPC64LE: YMM in register is still only 128-bit (lower half)
+    if (cache->vmxcache[i].t == VMX_CACHE_MM || cache->vmxcache[j].t == VMX_CACHE_MM)
+        mmx = 1;   // MMX lives in VR space, needs XXLOR with VSXREG
 
     if (!cache->vmxcache[i].v) {
         // a mov is enough, no need to swap
         MESSAGE(LOG_DUMP, "\t  - Moving %d <- %d\n", i, j);
-        switch (quad) {
-            case 1:
-                XXLOR(VSXREG(i), VSXREG(j), VSXREG(j));     // 128-bit copy
-                break;
-            default:
-                FMR(i, j);          // 64-bit copy (ST/MM, indices 16-23)
-                break;
+        if (quad) {
+            XXLOR(VSXREG(i), VSXREG(j), VSXREG(j));     // 128-bit copy
+        } else if (mmx) {
+            XXLOR(VSXREG(i), VSXREG(j), VSXREG(j));     // MMX in VR space
+        } else {
+            FMR(i, j);          // 64-bit copy (x87 ST, indices 16-23 in FPR space)
         }
         cache->vmxcache[i].v = cache->vmxcache[j].v;
         cache->vmxcache[j].v = 0;
@@ -2108,17 +2116,18 @@ static void swapCache(dynarec_ppc64le_t* dyn, int ninst, int i, int j, vmxcache_
     vmx_cache_t tmp;
     MESSAGE(LOG_DUMP, "\t  - Swapping %d <-> %d\n", i, j);
     // Use SCRATCH as temporary
-    switch (quad) {
-        case 1:
-            XXLOR(SCRATCH, VSXREG(i), VSXREG(i));    // 128-bit swap via scratch
-            XXLOR(VSXREG(i), VSXREG(j), VSXREG(j));
-            XXLOR(VSXREG(j), SCRATCH, SCRATCH);
-            break;
-        default:
-            FMR(SCRATCH, i);         // 64-bit swap via scratch (ST/MM, indices 16-23)
-            FMR(i, j);
-            FMR(j, SCRATCH);
-            break;
+    if (quad) {
+        XXLOR(SCRATCH, VSXREG(i), VSXREG(i));    // 128-bit swap via scratch
+        XXLOR(VSXREG(i), VSXREG(j), VSXREG(j));
+        XXLOR(VSXREG(j), SCRATCH, SCRATCH);
+    } else if (mmx) {
+        XXLOR(SCRATCH, VSXREG(i), VSXREG(i));    // MMX swap via scratch (VR space)
+        XXLOR(VSXREG(i), VSXREG(j), VSXREG(j));
+        XXLOR(VSXREG(j), SCRATCH, SCRATCH);
+    } else {
+        FMR(SCRATCH, i);         // 64-bit swap via scratch (x87 ST, FPR space)
+        FMR(i, j);
+        FMR(j, SCRATCH);
     }
     tmp.v = cache->vmxcache[i].v;
     cache->vmxcache[i].v = cache->vmxcache[j].v;
@@ -2129,6 +2138,7 @@ static void loadCache(dynarec_ppc64le_t* dyn, int ninst, int stack_cnt, int s1, 
 {
     if (cache->vmxcache[i].v) {
         int quad = 0;
+        int mmx = 0;
         if (t == VMX_CACHE_XMMR || t == VMX_CACHE_XMMW)
             quad = 1;
         if (t == VMX_CACHE_YMMR || t == VMX_CACHE_YMMW)
@@ -2137,17 +2147,18 @@ static void loadCache(dynarec_ppc64le_t* dyn, int ninst, int stack_cnt, int s1, 
             quad = 1;
         if (cache->vmxcache[i].t == VMX_CACHE_YMMR || cache->vmxcache[i].t == VMX_CACHE_YMMW)
             quad = 1;
+        if (t == VMX_CACHE_MM || cache->vmxcache[i].t == VMX_CACHE_MM)
+            mmx = 1;
         int j = i + 1;
         while (cache->vmxcache[j].v)
             ++j;
         MESSAGE(LOG_DUMP, "\t  - Moving away %d\n", i);
-        switch (quad) {
-            case 1:
-                XXLOR(VSXREG(j), VSXREG(i), VSXREG(i));     // 128-bit move
-                break;
-            default:
-                FMR(j, i);          // 64-bit move (ST/MM, indices 16-23)
-                break;
+        if (quad) {
+            XXLOR(VSXREG(j), VSXREG(i), VSXREG(i));     // 128-bit move
+        } else if (mmx) {
+            XXLOR(VSXREG(j), VSXREG(i), VSXREG(i));     // MMX in VR space
+        } else {
+            FMR(j, i);          // 64-bit move (x87 ST in FPR space)
         }
         cache->vmxcache[j].v = cache->vmxcache[i].v;
     }
@@ -2165,7 +2176,8 @@ static void loadCache(dynarec_ppc64le_t* dyn, int ninst, int stack_cnt, int s1, 
             break;
         case VMX_CACHE_MM:
             MESSAGE(LOG_DUMP, "\t  - Loading %s\n", getCacheName(t, n));
-            LFD(i, offsetof(x64emu_t, mmx[n]), xEmu);
+            LD(s1, offsetof(x64emu_t, mmx[n]), xEmu);
+            MTVSRDD(VSXREG(i), xZR, s1);
             break;
         case VMX_CACHE_ST_D:
         case VMX_CACHE_ST_F:
@@ -2220,7 +2232,8 @@ static void unloadCache(dynarec_ppc64le_t* dyn, int ninst, int stack_cnt, int s1
             break;
         case VMX_CACHE_MM:
             MESSAGE(LOG_DUMP, "\t  - Unloading %s\n", getCacheName(t, n));
-            STFD(i, offsetof(x64emu_t, mmx[n]), xEmu);
+            MFVSRLD(s1, VSXREG(i));
+            STD(s1, offsetof(x64emu_t, mmx[n]), xEmu);
             break;
         case VMX_CACHE_ST_D:
         case VMX_CACHE_ST_F:

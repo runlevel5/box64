@@ -111,7 +111,7 @@ uintptr_t dynarec64_DA(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 addr = geted(dyn, addr, ninst, nextop, &ed, x2, x1, &fixedaddress, rex, NULL, 1, 0);
                 LWZ(x1, fixedaddress, ed);      // load int32
                 EXTSW(x1, x1);                  // sign-extend to 64-bit
-                MTVSRD(VSXREG(v2), x1);          // move to FPR
+                MTVSRD(v2, x1);                   // move to FPR (raw idx = FPR space)
                 FCFID(v2, v2);                   // int64 -> double
                 if (!BOX64ENV(dynarec_fastround)) u8 = x87_setround(dyn, ninst, x1, x5);
                 FADD(v1, v1, v2);
@@ -125,7 +125,7 @@ uintptr_t dynarec64_DA(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 addr = geted(dyn, addr, ninst, nextop, &ed, x2, x1, &fixedaddress, rex, NULL, 1, 0);
                 LWZ(x1, fixedaddress, ed);
                 EXTSW(x1, x1);
-                MTVSRD(VSXREG(v2), x1);
+                MTVSRD(v2, x1);
                 FCFID(v2, v2);
                 if (!BOX64ENV(dynarec_fastround)) u8 = x87_setround(dyn, ninst, x1, x5);
                 FMUL(v1, v1, v2);
@@ -139,7 +139,7 @@ uintptr_t dynarec64_DA(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 addr = geted(dyn, addr, ninst, nextop, &ed, x2, x1, &fixedaddress, rex, NULL, 1, 0);
                 LWZ(x1, fixedaddress, ed);
                 EXTSW(x1, x1);
-                MTVSRD(VSXREG(v2), x1);
+                MTVSRD(v2, x1);
                 FCFID(v2, v2);
                 FCOMD(v1, v2, x1, x2, x3);
                 break;
@@ -150,7 +150,7 @@ uintptr_t dynarec64_DA(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 addr = geted(dyn, addr, ninst, nextop, &ed, x2, x1, &fixedaddress, rex, NULL, 1, 0);
                 LWZ(x1, fixedaddress, ed);
                 EXTSW(x1, x1);
-                MTVSRD(VSXREG(v2), x1);
+                MTVSRD(v2, x1);
                 FCFID(v2, v2);
                 FCOMD(v1, v2, x1, x2, x3);
                 X87_POP_OR_FAIL(dyn, ninst, x3);
@@ -162,7 +162,7 @@ uintptr_t dynarec64_DA(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 addr = geted(dyn, addr, ninst, nextop, &ed, x2, x1, &fixedaddress, rex, NULL, 1, 0);
                 LWZ(x1, fixedaddress, ed);
                 EXTSW(x1, x1);
-                MTVSRD(VSXREG(v2), x1);
+                MTVSRD(v2, x1);
                 FCFID(v2, v2);
                 if (!BOX64ENV(dynarec_fastround)) u8 = x87_setround(dyn, ninst, x1, x5);
                 FSUB(v1, v1, v2);
@@ -176,7 +176,7 @@ uintptr_t dynarec64_DA(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 addr = geted(dyn, addr, ninst, nextop, &ed, x2, x1, &fixedaddress, rex, NULL, 1, 0);
                 LWZ(x1, fixedaddress, ed);
                 EXTSW(x1, x1);
-                MTVSRD(VSXREG(v2), x1);
+                MTVSRD(v2, x1);
                 FCFID(v2, v2);
                 if (!BOX64ENV(dynarec_fastround)) u8 = x87_setround(dyn, ninst, x1, x5);
                 FSUB(v1, v2, v1);  // reversed: v2 - v1
@@ -190,7 +190,7 @@ uintptr_t dynarec64_DA(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 addr = geted(dyn, addr, ninst, nextop, &ed, x2, x1, &fixedaddress, rex, NULL, 1, 0);
                 LWZ(x1, fixedaddress, ed);
                 EXTSW(x1, x1);
-                MTVSRD(VSXREG(v2), x1);
+                MTVSRD(v2, x1);
                 FCFID(v2, v2);
                 if (!BOX64ENV(dynarec_fastround)) u8 = x87_setround(dyn, ninst, x1, x5);
                 FDIV(v1, v1, v2);
@@ -204,7 +204,7 @@ uintptr_t dynarec64_DA(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 addr = geted(dyn, addr, ninst, nextop, &ed, x2, x1, &fixedaddress, rex, NULL, 1, 0);
                 LWZ(x1, fixedaddress, ed);
                 EXTSW(x1, x1);
-                MTVSRD(VSXREG(v2), x1);
+                MTVSRD(v2, x1);
                 FCFID(v2, v2);
                 if (!BOX64ENV(dynarec_fastround)) u8 = x87_setround(dyn, ninst, x1, x5);
                 FDIV(v1, v2, v1);  // reversed: v2 / v1

@@ -22,7 +22,7 @@ ppc64le_prolog:
     mflr    0
     std     0, 16(1)
 
-    // Stack frame: 272 bytes (16-byte aligned)
+    // Stack frame: 352 bytes (16-byte aligned)
     // Layout (from new SP):
     //   0: back chain
     //   8: CR save
@@ -33,9 +33,16 @@ ppc64le_prolog:
     // 192: old xSPSave (8 bytes, for nested dynarec)
     // 200: padding (8 bytes, for alignment)
     // 208: vr20 save area (16 bytes, callee-saved VMX)
-    // 224-271: padding
+    // 224: vr24 save area (16 bytes, callee-saved VMX, MMX0)
+    // 240: vr25 save area (16 bytes, callee-saved VMX, MMX1)
+    // 256: vr26 save area (16 bytes, callee-saved VMX, MMX2)
+    // 272: vr27 save area (16 bytes, callee-saved VMX, MMX3)
+    // 288: vr28 save area (16 bytes, callee-saved VMX, MMX4)
+    // 304: vr29 save area (16 bytes, callee-saved VMX, MMX5)
+    // 320: vr30 save area (16 bytes, callee-saved VMX, MMX6)
+    // 336: vr31 save area (16 bytes, callee-saved VMX, MMX7)
 
-    stdu    1, -272(1)          // allocate stack frame
+    stdu    1, -352(1)          // allocate stack frame
 
     // Save callee-saved GPRs
     std     14, 32(1)
@@ -61,9 +68,18 @@ ppc64le_prolog:
     mfcr    0
     stw     0, 8(1)
 
-    // Save callee-saved VMX register vr20 (= vs52)
-    // Used as scratch register index 28 (5th scratch, needed by PMADDUBSW etc.)
+    // Save callee-saved VMX registers
+    // vr20 (= vs52): scratch register index 28
     stxv    52, 208(1)
+    // vr24-vr31 (= vs56-vs63): MMX registers 0-7
+    stxv    56, 224(1)
+    stxv    57, 240(1)
+    stxv    58, 256(1)
+    stxv    59, 272(1)
+    stxv    60, 288(1)
+    stxv    61, 304(1)
+    stxv    62, 320(1)
+    stxv    63, 336(1)
 
     // Save TOC (r2)
     std     2, 24(1)

@@ -142,7 +142,7 @@ uintptr_t dynarec64_D9(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 } else {
                     // simply move from cache reg to x2
                     v1 = dyn->v.x87reg[i1];
-                    MFVSRD(x2, VSXREG(v1));
+                    MFVSRD(x2, VSXREG_X87(v1));
                 }
                 // get exponent in x1
                 SRDI(x1, x2, 20 + 32);
@@ -188,10 +188,10 @@ uintptr_t dynarec64_D9(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 X87_PUSH_OR_FAIL(v1, dyn, ninst, x1, VMX_CACHE_ST_F);
                 if (ST_IS_F(0)) {
                     MOV32w(x1, 0x3f800000);
-                    MTVSRWZ(VSXREG(v1), x1);
+                    MTVSRWZ(VSXREG_X87(v1), x1);
                 } else {
                     MOV64x(x1, 0x3FF0000000000000);
-                    MTVSRD(VSXREG(v1), x1);
+                    MTVSRD(VSXREG_X87(v1), x1);
                 }
                 break;
             case 0xE9:
@@ -226,9 +226,9 @@ uintptr_t dynarec64_D9(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 // Use LI to load 0 into a GPR, then move to FPR
                 LI(x1, 0);
                 if (ST_IS_F(0))
-                    MTVSRWZ(VSXREG(v1), x1);
+                    MTVSRWZ(VSXREG_X87(v1), x1);
                 else
-                    MTVSRD(VSXREG(v1), x1);
+                    MTVSRD(VSXREG_X87(v1), x1);
                 break;
 
             case 0xF0:
@@ -261,10 +261,10 @@ uintptr_t dynarec64_D9(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 X87_PUSH_OR_FAIL(v1, dyn, ninst, x1, VMX_CACHE_ST_F);
                 if (ST_IS_F(0)) {
                     MOV32w(x1, 0x3f800000);
-                    MTVSRWZ(VSXREG(v1), x1);
+                    MTVSRWZ(VSXREG_X87(v1), x1);
                 } else {
                     MOV64x(x1, 0x3FF0000000000000);
-                    MTVSRD(VSXREG(v1), x1);
+                    MTVSRD(VSXREG_X87(v1), x1);
                 }
                 break;
             case 0xF3:
