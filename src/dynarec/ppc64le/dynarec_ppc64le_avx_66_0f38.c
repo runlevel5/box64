@@ -309,6 +309,64 @@ uintptr_t dynarec64_AVX_66_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
             }
             break;
 
+        case 0x0C:
+            INST_NAME("VPERMILPS Gx, Vx, Ex");
+            nextop = F8;
+            GETGY_empty_VYEY_xy(v0, v1, v2, 0);
+            d0 = fpu_get_scratch(dyn);
+            d1 = fpu_get_scratch(dyn);
+            {
+                int d2_tmp = fpu_get_scratch(dyn);
+                int d3 = fpu_get_scratch(dyn);
+                // Mask control to 2 bits per dword: idx = Ex[i] & 3
+                VSPLTISW(VRREG(d0), 3);
+                VAND(VRREG(d0), VRREG(v2), VRREG(d0));         // d0 = dword indices [0-3]
+                // Convert dword index to byte offset: multiply by 4
+                VSPLTISW(VRREG(d2_tmp), 2);
+                VSLW(VRREG(d0), VRREG(d0), VRREG(d2_tmp));     // d0 = byte offsets [0,4,8,12]
+                // Replicate each dword's byte offset to all 4 bytes: VMULUWM with 0x01010101
+                LI(x4, 0x0101);
+                ORIS(x4, x4, 0x0101);                          // x4 = 0x01010101
+                MTVSRWZ(VSXREG(d1), x4);
+                VSPLTW(VRREG(d1), VRREG(d1), 3);               // d1 = 0x01010101 splatted (LE dw0)
+                VMULUWM(VRREG(d0), VRREG(d0), VRREG(d1));      // replicate byte to all 4 positions
+                // Build base ramp for VPERM (BE byte numbering):
+                // LE dword identity is [0,1,2,3] per dword, XOR 0x0F gives [0xF,0xE,0xD,0xC]
+                // As a LE u32: 0x0C0D0E0F, splatted to all dwords
+                LI(x4, 0x0E0F);
+                ORIS(x4, x4, 0x0C0D);                          // x4 = 0x0C0D0E0F
+                MTVSRWZ(VSXREG(d3), x4);
+                VSPLTW(VRREG(d3), VRREG(d3), 3);               // d3 = base ramp splatted
+                // VPERM control = base_ramp - byte_offset (byte-wise subtract)
+                VSUBUBM(VRREG(d0), VRREG(d3), VRREG(d0));
+                // Perform the permutation
+                VPERM(VRREG(v0), VRREG(v1), VRREG(v1), VRREG(d0));
+            }
+            break;
+
+        case 0x0D:
+            INST_NAME("VPERMILPD Gx, Vx, Ex");
+            nextop = F8;
+            GETGY_empty_VYEY_xy(v0, v1, v2, 0);
+            d0 = fpu_get_scratch(dyn);
+            d1 = fpu_get_scratch(dyn);
+            {
+                int d2_tmp = fpu_get_scratch(dyn);
+                // Extract bit 1 from each qword of Ex and create all-1s/all-0s mask
+                LI(x4, 1);
+                MTVSRDD(VSXREG(d0), x4, x4);                   // d0 = [1, 1] as qwords
+                VSRD(VRREG(d1), VRREG(v2), VRREG(d0));         // shift right by 1: bit 1 → bit 0
+                VAND(VRREG(d1), VRREG(d1), VRREG(d0));         // mask to just bit 0 per qword
+                // Negate to create mask: 0→0x0, 1→0xFFFFFFFFFFFFFFFF
+                XXLXOR(VSXREG(d0), VSXREG(d0), VSXREG(d0));   // zero
+                VSUBUDM(VRREG(d1), VRREG(d0), VRREG(d1));      // 0-0=0, 0-1=all-1s
+                // Create swapped version of Vx
+                XXPERMDI(VSXREG(d2_tmp), VSXREG(v1), VSXREG(v1), 0b10);  // swap halves
+                // Select: mask=0 → original (qw0), mask=1 → swapped (qw1)
+                XXSEL(VSXREG(v0), VSXREG(v1), VSXREG(d2_tmp), VSXREG(d1));
+            }
+            break;
+
         case 0x0E:
         case 0x0F:
             if (opcode == 0x0E) {
@@ -343,6 +401,20 @@ uintptr_t dynarec64_AVX_66_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
                 BNE(8);
                 ORI(xFlags, xFlags, 1 << F_CF);
             }
+            break;
+
+        case 0x13:
+            INST_NAME("VCVTPH2PS Gx, Ex");
+            nextop = F8;
+            // TODO: implement with XSCVHPDP or xvcvhpsp when emitter support is added
+            DEFAULT;
+            break;
+
+        case 0x16:
+            INST_NAME("VPERMPS Gx, Vx, Ex");
+            nextop = F8;
+            // Cross-lane 256-bit permute — requires access to full 256-bit source
+            DEFAULT;
             break;
 
         case 0x17:
@@ -781,6 +853,13 @@ uintptr_t dynarec64_AVX_66_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
             }
             break;
 
+        case 0x36:
+            INST_NAME("VPERMD Gx, Vx, Ex");
+            nextop = F8;
+            // Cross-lane 256-bit permute — requires access to full 256-bit source
+            DEFAULT;
+            break;
+
         case 0x37:
             INST_NAME("VPCMPGTQ Gx, Vx, Ex");
             nextop = F8;
@@ -1035,6 +1114,28 @@ uintptr_t dynarec64_AVX_66_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
                 MTVSRDD(VSXREG(v0), 0, x4);
                 VSPLTH(VRREG(v0), VRREG(v0), 7);
             }
+            break;
+
+        case 0x90:
+            INST_NAME("VPGATHERDD/Q Gx, Ey, Vx");
+            nextop = F8;
+            // Complex VSIB gather — fall back to interpreter
+            DEFAULT;
+            break;
+        case 0x91:
+            INST_NAME("VPGATHERQD/Q Gx, Ey, Vx");
+            nextop = F8;
+            DEFAULT;
+            break;
+        case 0x92:
+            INST_NAME("VGATHERDPS/D Gx, Ey, Vx");
+            nextop = F8;
+            DEFAULT;
+            break;
+        case 0x93:
+            INST_NAME("VGATHERQPS/D Gx, Ey, Vx");
+            nextop = F8;
+            DEFAULT;
             break;
 
         case 0x96:
