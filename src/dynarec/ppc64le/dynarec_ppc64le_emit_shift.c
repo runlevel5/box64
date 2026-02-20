@@ -1841,18 +1841,16 @@ void emit_shrd32(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, int s1, int s2, i
     }
 
     CLEAR_FLAGS(s3);
-    SLDI(s3, s2, 16);
-    OR(s1, s1, s3);
-    IFX (X_OF) {
-        SRDI(s3, s1, 15);
-        XOR(s3, s3, s2);
-        BSTRINS_D(xFlags, s3, F_OF, F_OF);
-    }
-
     IFX (X_CF) {
         ADDI(s3, s5, -1);
         SRD(s3, s1, s3);
         BSTRINS_D(xFlags, s3, F_CF, F_CF);
+    }
+
+    IFX (X_OF) {
+        SRLIxw(s3, s1, rex.w ? 63 : 31);
+        XOR(s3, s3, s2);
+        BSTRINS_D(xFlags, s3, F_OF, F_OF);
     }
 
     LI(s4, rex.w ? 64 : 32);
