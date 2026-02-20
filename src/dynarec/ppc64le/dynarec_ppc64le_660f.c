@@ -1940,75 +1940,33 @@ uintptr_t dynarec64_660F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
             // Extract both 64-bit halves, then extract sign bits
             MFVSRLD(x4, VSXREG(q0));    // x86 low 64 bits (bytes 0-7, ISA dw1)
             MFVSRD(x5, VSXREG(q0));     // x86 high 64 bits (bytes 8-15, ISA dw0)
-            // Extract sign bit of each byte in x4 -> low 8 bits of result
-            // Mask: 0x8080808080808080
+            // Build mask: x6 = 0x8080808080808080 (isolate MSB of each byte)
             LI(x6, 0);
             ORIS(x6, x6, 0x8080);
             ORI(x6, x6, 0x8080);
             RLDIMI(x6, x6, 32, 0);      // x6 = 0x8080808080808080
-            AND(x7, x4, x6);             // isolate sign bits of bytes 0-7
-            // Now gather these bits: byte0_sign at bit7, byte1_sign at bit15, etc.
-            // We need to compress these to consecutive bits
-            // Use multiplication trick: multiply by magic constant to gather bits
-            // byte_i sign bit is at position 8*i+7
-            // Multiply by 0x0002040810204081 to gather to top byte
-            // Actually simpler: use a loop-free bit gather
-            // PPC64LE has PEXTD (parallel bit extract) on POWER10, not POWER9
-            // Manual approach for POWER9:
-            LI(x3, 7);
-            SRD(x7, x4, x3);  // shift right 7: sign bits now at positions 0, 8, 16, 24, 32, 40, 48, 56
-            AND(x7, x7, x6);  // wait no, this doesn't help
-            // Let's use a different approach: use the FP/vector to do it
-            // Actually, the simplest POWER9 approach for PMOVMSKB:
-            // 1. Compare each byte with 0 (signed): VCMPGTSB gives -1 for negative bytes
-            //    Wait, we just need sign bits. Let's use VBPERMQ.
-            //    On PPC64LE, VBPERMQ(VRT, VRA, VRB): treats VRB as 16 byte indices (big-endian bit numbering)
-            //    and extracts those bit positions from VRA into VRT.
-            //    On LE, the bit numbering and result position are confusing. Let me just do it via GPR shifts.
-            // Simplest correct approach: extract each bit position individually and OR together
-            // Actually, let me use the known working approach from other emulators:
-            // Use multiply-based bit extraction
-            //
-            // For a 64-bit value with bits at positions 7,15,23,31,39,47,55,63 (the sign bits),
-            // after shifting right by 7, bits are at 0,8,16,24,32,40,48,56.
-            // Multiply by a magic number to pack them into the top byte, then shift down.
-            // Magic = 1 + 2^8 + 2^16 + ... + 2^56 / each step = 0x0101010101010101 / accounting for offsets...
-            //
-            // The standard trick for extracting MSBs of bytes:
-            // x = original & 0x8080808080808080  (isolate sign bits)
-            // x = x * 0x0002040810204081 >> 49  (gathers bits into low 8)
-            //
-            // But this needs 0x0002040810204081 which is 56 bits. Let's try.
             {
-                // Isolate sign bits of each byte
-                // x6 = 0x8080808080808080 (already built above)
+                // Extract sign bits of bytes 0-7 using multiply trick:
+                // result = (isolated_msbs * 0x0002040810204081) >> 56
+                // MULLD gives low 64 bits; gathered sign bits are at bits [63:56]
                 AND(x7, x4, x6);
-                // Magic multiplier: 0x0002040810204081
-                // Build it in x3
                 LIS(x3, 0x0002);         // x3 = 0x00020000
                 ORI(x3, x3, 0x0408);     // x3 = 0x00020408
                 SLDI(x3, x3, 32);        // x3 = 0x0002040800000000
                 ORIS(x3, x3, 0x1020);    // x3 = 0x0002040810200000
                 ORI(x3, x3, 0x4081);     // x3 = 0x0002040810204081
-                MULHDU(x7, x7, x3);      // high 64 bits of product
-                RLWINM(x7, x7, 32 - 17 + 32, 24, 31); // extract result bits (shift right 49 from 128-bit perspective... let me think)
-                // Actually: MULHDU gives high 64 bits. After multiplying x7 * x3:
-                // The result byte is in bits [55:48] of the high product.
-                // So shift right by 48 from the high part, then mask to 8 bits
-                SRDI(x7, x7, 48);
-                ANDI(x7, x7, 0xFF);
+                MULLD(x7, x7, x3);       // low 64 bits of product
+                SRDI(x7, x7, 56);         // gathered sign bits are at bits [63:56]
 
-                // Do the same for high 64 bits (bytes 8-15)
+                // Extract sign bits of bytes 8-15 (same trick on high 64 bits)
                 AND(x3, x5, x6);
-                // Rebuild the magic multiplier
                 LIS(x4, 0x0002);
                 ORI(x4, x4, 0x0408);
                 SLDI(x4, x4, 32);
                 ORIS(x4, x4, 0x1020);
                 ORI(x4, x4, 0x4081);
-                MULHDU(x3, x3, x4);
-                SRDI(x3, x3, 48);
-                ANDI(x3, x3, 0xFF);
+                MULLD(x3, x3, x4);
+                SRDI(x3, x3, 56);
 
                 // Combine: result = (high_byte_mask << 8) | low_byte_mask
                 SLDI(x3, x3, 8);

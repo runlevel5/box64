@@ -2315,9 +2315,8 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             SLDI(x3, x3, 32);
             ORIS(x3, x3, 0x1020);
             ORI(x3, x3, 0x4081);
-            MULHDU(x7, x7, x3);
-            SRDI(x7, x7, 48);
-            ANDI(gd, x7, 0xFF);
+            MULLD(x7, x7, x3);
+            SRDI(gd, x7, 56);
             break;
         case 0xD8:
             INST_NAME("PSUBUSB Gm, Em");

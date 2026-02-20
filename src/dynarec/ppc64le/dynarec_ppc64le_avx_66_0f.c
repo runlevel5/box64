@@ -1286,16 +1286,14 @@ uintptr_t dynarec64_AVX_66_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t 
                 SLDI(x3, x3, 32);
                 ORIS(x3, x3, 0x1020);
                 ORI(x3, x3, 0x4081);
-                MULHDU(x7, x7, x3);
-                SRDI(x7, x7, 48);
-                ANDI(x7, x7, 0xFF);
+                MULLD(x7, x7, x3);
+                SRDI(x7, x7, 56);
 
                 // Do the same for high 64 bits (bytes 8-15)
                 AND(x4, x5, x6);
                 // Rebuild the magic multiplier (x6 still = 0x8080..., reuse x3 = magic)
-                MULHDU(x4, x4, x3);
-                SRDI(x4, x4, 48);
-                ANDI(x4, x4, 0xFF);
+                MULLD(x4, x4, x3);
+                SRDI(x4, x4, 56);
 
                 // Combine: result = (high_byte_mask << 8) | low_byte_mask
                 SLDI(x4, x4, 8);
