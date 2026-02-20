@@ -31,6 +31,21 @@ uintptr_t dynarec64_AVX_F2_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
     MAYUSE(u8);
 
     switch (opcode) {
+        case 0xF5:
+            INST_NAME("PDEP Gd, Vd, Ed");
+            nextop = F8;
+            DEFAULT;
+            break;
+        case 0xF6:
+            INST_NAME("MULX Gd, Vd, Ed (,RDX)");
+            nextop = F8;
+            DEFAULT;
+            break;
+        case 0xF7:
+            INST_NAME("SHRX Gd, Ed, Vd");
+            nextop = F8;
+            DEFAULT;
+            break;
         default:
             DEFAULT;
     }

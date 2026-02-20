@@ -31,6 +31,16 @@ uintptr_t dynarec64_AVX_F3_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
     MAYUSE(u8);
 
     switch (opcode) {
+        case 0xF5:
+            INST_NAME("PEXT Gd, Vd, Ed");
+            nextop = F8;
+            DEFAULT;
+            break;
+        case 0xF7:
+            INST_NAME("SARX Gd, Ed, Vd");
+            nextop = F8;
+            DEFAULT;
+            break;
         default:
             DEFAULT;
     }

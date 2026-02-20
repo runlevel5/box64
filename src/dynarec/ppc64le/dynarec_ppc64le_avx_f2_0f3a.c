@@ -31,6 +31,11 @@ uintptr_t dynarec64_AVX_F2_0F3A(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
     MAYUSE(u8);
 
     switch (opcode) {
+        case 0xF0:
+            INST_NAME("RORX Gd, Ed, Ib");
+            nextop = F8;
+            DEFAULT;
+            break;
         default:
             DEFAULT;
     }

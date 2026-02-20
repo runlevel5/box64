@@ -31,6 +31,40 @@ uintptr_t dynarec64_AVX_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t i
     MAYUSE(u8);
 
     switch (opcode) {
+        case 0xF2:
+            INST_NAME("ANDN Gd, Vd, Ed");
+            nextop = F8;
+            DEFAULT;
+            break;
+        case 0xF3:
+            nextop = F8;
+            switch ((nextop >> 3) & 7) {
+                case 1:
+                    INST_NAME("BLSR Vd, Ed");
+                    DEFAULT;
+                    break;
+                case 2:
+                    INST_NAME("BLSMSK Vd, Ed");
+                    DEFAULT;
+                    break;
+                case 3:
+                    INST_NAME("BLSI Vd, Ed");
+                    DEFAULT;
+                    break;
+                default:
+                    DEFAULT;
+            }
+            break;
+        case 0xF5:
+            INST_NAME("BZHI Gd, Ed, Vd");
+            nextop = F8;
+            DEFAULT;
+            break;
+        case 0xF7:
+            INST_NAME("BEXTR Gd, Vd, Ed");
+            nextop = F8;
+            DEFAULT;
+            break;
         default:
             DEFAULT;
     }
