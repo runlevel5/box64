@@ -27,7 +27,7 @@ uintptr_t dynarec64_AVX_66_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
 
     uint8_t opcode = F8;
     uint8_t nextop, u8;
-    uint8_t gd, ed;
+    uint8_t gd, ed, vd;
     uint8_t wback, wb1, wb2, gback;
     uint8_t eb1, eb2;
     uint8_t gb1, gb2;
@@ -893,6 +893,68 @@ uintptr_t dynarec64_AVX_66_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
             }
             break;
 
+        case 0x45:
+            INST_NAME("VPSRLVD/Q Gx, Vx, Ex");
+            nextop = F8;
+            GETGY_empty_VYEY_xy(v0, v1, v2, 0);
+            d0 = fpu_get_scratch(dyn);
+            if (rex.w) {
+                // VPSRLVQ: shift right logical, qword elements
+                // Create limit = 64 in each dword
+                LI(x4, 64);
+                MTVSRDD(VSXREG(d0), x4, x4);
+                // mask[i] = (64 > count[i]) ? all 1s : 0
+                VCMPGTUD(VRREG(d0), VRREG(d0), VRREG(v2));
+                VSRD(VRREG(v0), VRREG(v1), VRREG(v2));
+                VAND(VRREG(v0), VRREG(v0), VRREG(d0));
+            } else {
+                // VPSRLVD: shift right logical, dword elements
+                // Create limit = 32 in each word
+                LI(x4, 32);
+                MTVSRDD(VSXREG(d0), x4, x4);
+                XXSPLTW(VSXREG(d0), VSXREG(d0), 3);
+                // mask[i] = (32 > count[i]) ? all 1s : 0
+                VCMPGTUW(VRREG(d0), VRREG(d0), VRREG(v2));
+                VSRW(VRREG(v0), VRREG(v1), VRREG(v2));
+                VAND(VRREG(v0), VRREG(v0), VRREG(d0));
+            }
+            break;
+        case 0x46:
+            INST_NAME("VPSRAVD Gx, Vx, Ex");
+            nextop = F8;
+            GETGY_empty_VYEY_xy(v0, v1, v2, 0);
+            d0 = fpu_get_scratch(dyn);
+            d1 = fpu_get_scratch(dyn);
+            // Clamp shift count to 31 (x86 saturates arithmetic shifts)
+            LI(x4, 31);
+            MTVSRDD(VSXREG(d0), x4, x4);
+            XXSPLTW(VSXREG(d0), VSXREG(d0), 3);  // d0 = [31, 31, 31, 31]
+            VMINUW(VRREG(d1), VRREG(v2), VRREG(d0));
+            VSRAW(VRREG(v0), VRREG(v1), VRREG(d1));
+            break;
+        case 0x47:
+            INST_NAME("VPSLLVD/Q Gx, Vx, Ex");
+            nextop = F8;
+            GETGY_empty_VYEY_xy(v0, v1, v2, 0);
+            d0 = fpu_get_scratch(dyn);
+            if (rex.w) {
+                // VPSLLVQ: shift left logical, qword elements
+                LI(x4, 64);
+                MTVSRDD(VSXREG(d0), x4, x4);
+                VCMPGTUD(VRREG(d0), VRREG(d0), VRREG(v2));
+                VSLD(VRREG(v0), VRREG(v1), VRREG(v2));
+                VAND(VRREG(v0), VRREG(v0), VRREG(d0));
+            } else {
+                // VPSLLVD: shift left logical, dword elements
+                LI(x4, 32);
+                MTVSRDD(VSXREG(d0), x4, x4);
+                XXSPLTW(VSXREG(d0), VSXREG(d0), 3);
+                VCMPGTUW(VRREG(d0), VRREG(d0), VRREG(v2));
+                VSLW(VRREG(v0), VRREG(v1), VRREG(v2));
+                VAND(VRREG(v0), VRREG(v0), VRREG(d0));
+            }
+            break;
+
         case 0x58:
             INST_NAME("VPBROADCASTD Gx, Ex");
             nextop = F8;
@@ -1693,7 +1755,6 @@ uintptr_t dynarec64_AVX_66_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
                 XVNMADDMSP(VSXREG(v0), VSXREG(v1), VSXREG(v2));
             }
             break;
-            break;
         case 0xBF:
             INST_NAME("VFNMSUB231SS/D Gx, Vx, Ex");
             nextop = F8;
@@ -1733,6 +1794,152 @@ uintptr_t dynarec64_AVX_66_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
                 if (v0 != v1) XXLOR(VSXREG(v0), VSXREG(v1), VSXREG(v1));
                 VINSERTW(VRREG(v0), VRREG(d0), 12);
             }
+            break;
+
+        case 0x8C:
+            INST_NAME("VPMASKMOVD/Q Gx, Vx, Ex");
+            nextop = F8;
+            GETGY_empty_VYEY_xy(v0, v1, v2, 0);
+            d0 = fpu_get_scratch(dyn);
+            // Create mask from sign bits of Vx: all 1s where negative, all 0s otherwise
+            XXLXOR(VSXREG(d0), VSXREG(d0), VSXREG(d0));  // zero
+            if (rex.w) {
+                VCMPGTSD(VRREG(d0), VRREG(d0), VRREG(v1));  // d0[i] = (0 > v1[i]) ? -1 : 0
+            } else {
+                VCMPGTSW(VRREG(d0), VRREG(d0), VRREG(v1));
+            }
+            // Select: where mask is all 1s, take from Ex (v2); else 0
+            VAND(VRREG(v0), VRREG(v2), VRREG(d0));
+            break;
+        case 0x8E:
+            INST_NAME("VPMASKMOVD/Q Ex, Vx, Gx");
+            nextop = F8;
+            GETEY_VYGY_xy(v0, v1, v2, 0);
+            d0 = fpu_get_scratch(dyn);
+            // Create mask from sign bits of Vx
+            XXLXOR(VSXREG(d0), VSXREG(d0), VSXREG(d0));
+            if (rex.w) {
+                VCMPGTSD(VRREG(d0), VRREG(d0), VRREG(v1));
+            } else {
+                VCMPGTSW(VRREG(d0), VRREG(d0), VRREG(v1));
+            }
+            // Select: where mask bit set, take from Gx (v2); else keep Ex (v0)
+            VSEL(VRREG(v0), VRREG(v0), VRREG(v2), VRREG(d0));
+            PUTEYxy(v0);
+            break;
+
+        case 0xDB:
+            INST_NAME("VAESIMC Gx, Ex");
+            nextop = F8;
+            GETEYx(v1, 0, 0);
+            GETGYx_empty(v0);
+            if (v0 != v1) {
+                XXLOR(VSXREG(v0), VSXREG(v1), VSXREG(v1));
+            }
+            avx_forget_reg(dyn, ninst, gd);
+            MOV32w(x1, gd);
+            CALL(const_native_aesimc, -1, x1, 0);
+            GETGYx(v0, 1);  // re-get writable for upper zero
+            break;
+        case 0xDC:
+            INST_NAME("VAESENC Gx, Vx, Ex");
+            nextop = F8;
+            GETGY_empty_VYEY_xy(v0, v1, v2, 0);
+            // Save Ex if Gx == Ex (will be clobbered by forget+call)
+            if (MODREG && (gd == (nextop & 7) + (rex.b << 3))) {
+                d0 = fpu_get_scratch(dyn);
+                XXLOR(VSXREG(d0), VSXREG(v2), VSXREG(v2));
+            } else
+                d0 = -1;
+            // Copy Vx to Gx
+            if (gd != vex.v) {
+                XXLOR(VSXREG(v0), VSXREG(v1), VSXREG(v1));
+            }
+            avx_forget_reg(dyn, ninst, gd);
+            MOV32w(x1, gd);
+            CALL(const_native_aese, -1, x1, 0);
+            if (vex.l) {
+                MOV32w(x1, gd);
+                CALL(const_native_aese_y, -1, x1, 0);
+            }
+            GETGYxy(v0, 1);
+            XXLXOR(VSXREG(v0), VSXREG(v0), (d0 != -1) ? VSXREG(d0) : VSXREG(v2));
+            break;
+        case 0xDD:
+            INST_NAME("VAESENCLAST Gx, Vx, Ex");
+            nextop = F8;
+            GETGY_empty_VYEY_xy(v0, v1, v2, 0);
+            if (MODREG && (gd == (nextop & 7) + (rex.b << 3))) {
+                d0 = fpu_get_scratch(dyn);
+                XXLOR(VSXREG(d0), VSXREG(v2), VSXREG(v2));
+            } else
+                d0 = -1;
+            if (gd != vex.v) {
+                XXLOR(VSXREG(v0), VSXREG(v1), VSXREG(v1));
+            }
+            avx_forget_reg(dyn, ninst, gd);
+            MOV32w(x1, gd);
+            CALL(const_native_aeselast, -1, x1, 0);
+            if (vex.l) {
+                MOV32w(x1, gd);
+                CALL(const_native_aeselast_y, -1, x1, 0);
+            }
+            GETGYxy(v0, 1);
+            XXLXOR(VSXREG(v0), VSXREG(v0), (d0 != -1) ? VSXREG(d0) : VSXREG(v2));
+            break;
+        case 0xDE:
+            INST_NAME("VAESDEC Gx, Vx, Ex");
+            nextop = F8;
+            GETGY_empty_VYEY_xy(v0, v1, v2, 0);
+            if (MODREG && (gd == (nextop & 7) + (rex.b << 3))) {
+                d0 = fpu_get_scratch(dyn);
+                XXLOR(VSXREG(d0), VSXREG(v2), VSXREG(v2));
+            } else
+                d0 = -1;
+            if (gd != vex.v) {
+                XXLOR(VSXREG(v0), VSXREG(v1), VSXREG(v1));
+            }
+            avx_forget_reg(dyn, ninst, gd);
+            MOV32w(x1, gd);
+            CALL(const_native_aesd, -1, x1, 0);
+            if (vex.l) {
+                MOV32w(x1, gd);
+                CALL(const_native_aesd_y, -1, x1, 0);
+            }
+            GETGYxy(v0, 1);
+            XXLXOR(VSXREG(v0), VSXREG(v0), (d0 != -1) ? VSXREG(d0) : VSXREG(v2));
+            break;
+        case 0xDF:
+            INST_NAME("VAESDECLAST Gx, Vx, Ex");
+            nextop = F8;
+            GETGY_empty_VYEY_xy(v0, v1, v2, 0);
+            if (MODREG && (gd == (nextop & 7) + (rex.b << 3))) {
+                d0 = fpu_get_scratch(dyn);
+                XXLOR(VSXREG(d0), VSXREG(v2), VSXREG(v2));
+            } else
+                d0 = -1;
+            if (gd != vex.v) {
+                XXLOR(VSXREG(v0), VSXREG(v1), VSXREG(v1));
+            }
+            avx_forget_reg(dyn, ninst, gd);
+            MOV32w(x1, gd);
+            CALL(const_native_aesdlast, -1, x1, 0);
+            if (vex.l) {
+                MOV32w(x1, gd);
+                CALL(const_native_aesdlast_y, -1, x1, 0);
+            }
+            GETGYxy(v0, 1);
+            XXLXOR(VSXREG(v0), VSXREG(v0), (d0 != -1) ? VSXREG(d0) : VSXREG(v2));
+            break;
+
+        case 0xF7:
+            INST_NAME("SHLX Gd, Ed, Vd");
+            nextop = F8;
+            GETGD;
+            GETED(0);
+            GETVD;
+            ANDI(x5, vd, rex.w ? 0x3f : 0x1f);
+            SLLxw(gd, ed, x5);
             break;
 
         default:
