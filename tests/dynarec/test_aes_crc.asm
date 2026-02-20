@@ -362,42 +362,38 @@ _start:
     ; CRC32 r32, r/m8: initial=0, byte=0x00 -> 0
     ; Trivially correct: CRC of zero data with zero initial = 0
     ; ================================================================
+    TEST_CASE tn_crc32_b_zero
     xor eax, eax
     xor ecx, ecx
     crc32 eax, cl
-
-    TEST_CASE tn_crc32_b_zero
     CHECK_EQ_32 eax, 0x00000000
 
     ; ================================================================
     ; CRC32 r32, r/m8: initial=0, byte=0x01 -> 0xF26B8303
     ; Well-known CRC-32C (Castagnoli) result for single byte 0x01
     ; ================================================================
+    TEST_CASE tn_crc32_b_one
     xor eax, eax
     mov cl, 0x01
     crc32 eax, cl
-
-    TEST_CASE tn_crc32_b_one
     CHECK_EQ_32 eax, 0xF26B8303
 
     ; ================================================================
     ; CRC32 r32, r/m32: initial=0, dword=0 -> 0
     ; ================================================================
+    TEST_CASE tn_crc32_d_zero
     xor eax, eax
     xor ecx, ecx
     crc32 eax, ecx
-
-    TEST_CASE tn_crc32_d_zero
     CHECK_EQ_32 eax, 0x00000000
 
     ; ================================================================
     ; CRC32 r64, r/m64: initial=0, qword=0 -> 0
     ; ================================================================
+    TEST_CASE tn_crc32_q_zero
     xor eax, eax
     xor ecx, ecx
     crc32 rax, rcx
-
-    TEST_CASE tn_crc32_q_zero
     CHECK_EQ_64 rax, 0x0000000000000000
 
     END_TESTS

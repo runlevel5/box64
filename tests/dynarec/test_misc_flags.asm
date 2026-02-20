@@ -151,19 +151,19 @@ _start:
     ; Should have ZF=1 and CF=1 restored
     CHECK_FLAGS_EQ (ZF|CF), (ZF|CF)
 
-    ; ==== Test 8: pushf/popf with OF+SF+AF ====
+    ; ==== Test 8: pushf/popf with OF+SF+AF+PF ====
     ; 0x7FFFFFFF + 1 = 0x80000000
-    ; OF=1, SF=1, ZF=0, CF=0, AF=1, PF=0
+    ; OF=1, SF=1, ZF=0, CF=0, AF=1, PF=1 (low byte 0x00 has even parity)
     TEST_CASE t8_name
     mov eax, 0x7FFFFFFF
-    add eax, 1              ; OF=1, SF=1, AF=1, CF=0, ZF=0, PF=0
+    add eax, 1              ; OF=1, SF=1, AF=1, CF=0, ZF=0, PF=1
     pushfq
     xor eax, eax            ; clobber flags
     popfq
     SAVE_FLAGS
-    ; Check OF|SF|AF = 0x800|0x80|0x10 = 0x890
+    ; Check OF|SF|AF|PF = 0x800|0x80|0x10|0x04 = 0x894
     ; Mask = CF|PF|AF|ZF|SF|OF = 0x8D5
-    CHECK_FLAGS_EQ 0x8D5, 0x890
+    CHECK_FLAGS_EQ 0x8D5, 0x894
 
     ; ================================================================
     ; ENTER / LEAVE tests
