@@ -215,6 +215,9 @@
 
 // ALSLy: add-shift-left (rd = (rj << imm) + rk), conditional 32/64
 // PPC64LE has no ALSL_D, so: if imm==0 then ADD, else SLDI+ADD
+// IMPORTANT: When rd==rk, shift into r0 (scratch) first to avoid clobbering rk.
+// This includes the case rd==rj==rk (e.g. LEA rax,[rax+rax*4] => rax = rax*5).
+// r0 is safe in X-form instructions (SLDI, SLWI, ADD) — only D-form base treats r0 as literal 0.
 #define ALSLy(rd, rj, rk, imm)                \
     do {                                       \
         if ((imm) == 0) {                      \
@@ -223,6 +226,16 @@
                 ZEROUP(rd);                    \
             } else {                           \
                 ADD(rd, rj, rk);               \
+            }                                  \
+        } else if ((rd) == (rk)) {             \
+            /* rd==rk: shift rj into r0 to avoid clobbering rk */ \
+            if (rex.is32bits || rex.is67) {     \
+                SLWI(0, rj, imm);              \
+                ADD(rd, 0, rk);                \
+                ZEROUP(rd);                    \
+            } else {                           \
+                SLDI(0, rj, imm);              \
+                ADD(rd, 0, rk);                \
             }                                  \
         } else {                               \
             if (rex.is32bits || rex.is67) {     \
