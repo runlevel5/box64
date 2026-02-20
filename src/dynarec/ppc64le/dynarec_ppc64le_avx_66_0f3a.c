@@ -67,6 +67,16 @@ uintptr_t dynarec64_AVX_66_0F3A(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
     rex_t rex = vex.rex;
 
     switch (opcode) {
+        case 0x00:
+            INST_NAME("VPERMQ Gx, Ex, Imm8");
+            nextop = F8;
+            DEFAULT;
+            break;
+        case 0x01:
+            INST_NAME("VPERMPD Gx, Ex, Imm8");
+            nextop = F8;
+            DEFAULT;
+            break;
         case 0x02:
             INST_NAME("VPBLENDD Gx, Vx, Ex, Ib");
             nextop = F8;
@@ -171,6 +181,12 @@ uintptr_t dynarec64_AVX_66_0F3A(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
                     XXPERMDI(VSXREG(v0), VSXREG(v1), VSXREG(v1), imm);
                 }
             }
+            break;
+
+        case 0x06:
+            INST_NAME("VPERM2F128 Gx, Vx, Ex, Imm8");
+            nextop = F8;
+            DEFAULT;
             break;
 
         case 0x08:
@@ -559,6 +575,22 @@ uintptr_t dynarec64_AVX_66_0F3A(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
             }
             break;
 
+        case 0x18:
+            INST_NAME("VINSERTF128 Gx, Vx, Ex, Imm8");
+            nextop = F8;
+            DEFAULT;
+            break;
+        case 0x19:
+            INST_NAME("VEXTRACTF128 Ex, Gx, Imm8");
+            nextop = F8;
+            DEFAULT;
+            break;
+        case 0x1D:
+            INST_NAME("VCVTPS2PH Ex, Gx, Ib");
+            nextop = F8;
+            DEFAULT;
+            break;
+
         case 0x20:
             INST_NAME("VPINSRB Gx, Vx, ED, Ib");
             nextop = F8;
@@ -657,6 +689,17 @@ uintptr_t dynarec64_AVX_66_0F3A(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
             }
             break;
 
+        case 0x38:
+            INST_NAME("VINSERTI128 Gx, Vx, Ex, Imm8");
+            nextop = F8;
+            DEFAULT;
+            break;
+        case 0x39:
+            INST_NAME("VEXTRACTI128 Ex, Gx, Imm8");
+            nextop = F8;
+            DEFAULT;
+            break;
+
         case 0x40:
             INST_NAME("VDPPS Gx, Vx, Ex, Ib");
             nextop = F8;
@@ -736,6 +779,42 @@ uintptr_t dynarec64_AVX_66_0F3A(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
             }
             break;
 
+        case 0x42:
+            INST_NAME("VMPSADBW Gx, Vx, Ex, Ib");
+            nextop = F8;
+            DEFAULT;
+            break;
+        case 0x44:
+            INST_NAME("VPCLMULQDQ Gx, Vx, Ex, Ib");
+            nextop = F8;
+            GETG;
+            avx_forget_reg(dyn, ninst, gd);
+            avx_forget_reg(dyn, ninst, vex.v);
+            MOV32w(x1, gd);    // gx
+            MOV32w(x2, vex.v); // vx
+            if (MODREG) {
+                ed = (nextop & 7) + (rex.b << 3);
+                avx_forget_reg(dyn, ninst, ed);
+                MOV32w(x3, ed); // ex
+            } else {
+                addr = geted(dyn, addr, ninst, nextop, &ed, x3, x5, &fixedaddress, rex, NULL, 0, 1);
+                if (ed != x3) MV(x3, ed);
+            }
+            u8 = F8;
+            MOV32w(x4, u8);
+            CALL4_(vex.l ? const_native_pclmul_y : const_native_pclmul_x, -1, x3, x1, x2, x3, x4);
+            if (!vex.l) {
+                LI(x4, 0);
+                STD(x4, offsetof(x64emu_t, ymm[gd]), xEmu);
+                STD(x4, offsetof(x64emu_t, ymm[gd]) + 8, xEmu);
+            }
+            break;
+        case 0x46:
+            INST_NAME("VPERM2I128 Gx, Vx, Ex, Imm8");
+            nextop = F8;
+            DEFAULT;
+            break;
+
         case 0x4A:
             INST_NAME("VBLENDVPS Gx, Vx, Ex, XMMImm8");
             nextop = F8;
@@ -777,6 +856,55 @@ uintptr_t dynarec64_AVX_66_0F3A(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
             VSPLTISB(VRREG(d1), 7);
             VSRAB(VRREG(q0), VRREG(d0), VRREG(d1));   // q0 = 0xFF where byte sign set, 0 otherwise
             VSEL(VRREG(v0), VRREG(v1), VRREG(v2), VRREG(q0));
+            break;
+
+        case 0x60:
+            INST_NAME("VPCMPESTRM Gx, Ex, Ib");
+            nextop = F8;
+            DEFAULT;
+            break;
+        case 0x61:
+            INST_NAME("VPCMPESTRI Gx, Ex, Ib");
+            nextop = F8;
+            DEFAULT;
+            break;
+        case 0x62:
+            INST_NAME("VPCMPISTRM Gx, Ex, Ib");
+            nextop = F8;
+            DEFAULT;
+            break;
+        case 0x63:
+            INST_NAME("VPCMPISTRI Gx, Ex, Ib");
+            nextop = F8;
+            DEFAULT;
+            break;
+
+        case 0xDF:
+            INST_NAME("VAESKEYGENASSIST Gx, Ex, Ib");
+            nextop = F8;
+            GETG;
+            avx_forget_reg(dyn, ninst, gd);
+            MOV32w(x1, gd); // gx
+            if (MODREG) {
+                ed = (nextop & 7) + (rex.b << 3);
+                avx_forget_reg(dyn, ninst, ed);
+                MOV32w(x2, ed);
+                MOV32w(x3, 0); // p = NULL
+            } else {
+                MOV32w(x2, 0);
+                addr = geted(dyn, addr, ninst, nextop, &ed, x3, x2, &fixedaddress, rex, NULL, 0, 1);
+                if (ed != x3) {
+                    MV(x3, ed);
+                }
+            }
+            u8 = F8;
+            MOV32w(x4, u8);
+            CALL4(const_native_aeskeygenassist, -1, x1, x2, x3, x4);
+            if (!vex.l) {
+                LI(x4, 0);
+                STD(x4, offsetof(x64emu_t, ymm[gd]), xEmu);
+                STD(x4, offsetof(x64emu_t, ymm[gd]) + 8, xEmu);
+            }
             break;
 
         default:
