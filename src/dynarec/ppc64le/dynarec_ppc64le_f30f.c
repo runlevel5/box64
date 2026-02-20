@@ -672,60 +672,40 @@ uintptr_t dynarec64_F30F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
             GETGX(v0, 1);
             u8 = F8;
             // PSHUFHW: shuffle high 4 words using imm8, keep low 4 words unchanged
-            // x86 layout: [w7,w6,w5,w4, w3,w2,w1,w0] -> [shuf(w7..w4), w3,w2,w1,w0]
-            // First copy low 64 bits from source to dest
-            if (v0 != v1) {
-                // Copy low 64 bits (x86 low = ISA dw1 on LE)
-                XXPERMDI(VSXREG(v0), VSXREG(v0), VSXREG(v1), 0b01);  // v0.dw0 = v0.dw0, v0.dw1 = v1.dw1
-            }
-            // Now shuffle the high 64 bits (x86 high = ISA dw0 on LE)
-            // PPC64LE: ISA dw0 contains x86 high qword (words w7,w6,w5,w4)
-            // In ISA LE word order within dw0: [w4 at byte12, w5 at byte8, w6 at byte4, w7 at byte0]
-            // Use VPERM to shuffle
             {
-                // Build permute vector for all 16 bytes
-                // Low 8 bytes (ISA dw1 = x86 low qword) stay as-is: bytes 8..15
-                // High 8 bytes (ISA dw0 = x86 high qword): shuffle based on imm8
-                // imm8 selects from 4 source words (x86 w4,w5,w6,w7)
-                // In PPC64LE ISA byte layout (dw0):
-                //   x86 w4 = ISA bytes 12-15 (LE word 3 of ISA)
-                //   x86 w5 = ISA bytes 8-11 (LE word 2)
-                //   x86 w6 = ISA bytes 4-7 (LE word 1)
-                //   x86 w7 = ISA bytes 0-3 (LE word 0)
-                // For each of the 4 output words (x86 w4..w7), imm8 gives src index (0=w4,1=w5,2=w6,3=w7)
-                int w[4];
-                w[0] = (u8 >> 0) & 3;  // src for x86 output w4
-                w[1] = (u8 >> 2) & 3;  // src for x86 output w5
-                w[2] = (u8 >> 4) & 3;  // src for x86 output w6
-                w[3] = (u8 >> 6) & 3;  // src for x86 output w7
-                // Map src index to ISA byte offset:
-                // src 0 (w4) -> ISA byte 12, src 1 (w5) -> byte 8, src 2 (w6) -> byte 4, src 3 (w7) -> byte 0
-                static const int src_byte[4] = {12, 8, 4, 0};
-                // ISA output positions: x86 w4 -> byte 12, w5 -> byte 8, w6 -> byte 4, w7 -> byte 0
-                static const int dst_byte[4] = {12, 8, 4, 0};
-                uint8_t perm[16];
-                // Low 8 bytes (ISA dw1 = x86 low): identity
-                for (int i = 8; i < 16; i++) perm[i] = i;
-                // High 8 bytes (ISA dw0 = x86 high): shuffled
-                for (int k = 0; k < 4; k++) {
-                    int src_off = src_byte[w[k]];
-                    int dst_off = dst_byte[k];
-                    for (int b = 0; b < 4; b++)
-                        perm[dst_off + b] = src_off + b;
+                // Extract high 64 bits (x86 high = ISA dw0)
+                MFVSRD(x4, VSXREG(v1));
+                int src_word;
+                // Word 0 of high qword (bits 0-15)
+                src_word = (u8 >> 0) & 3;
+                if (src_word == 0) {
+                    ANDI(x5, x4, 0xFFFF);
+                } else {
+                    SRDI(x5, x4, src_word * 16);
+                    ANDI(x5, x5, 0xFFFF);
                 }
-                // Load permute vector into a VMX register
-                q0 = fpu_get_scratch(dyn);
-                // Build as two 64-bit halves
-                uint64_t hi = ((uint64_t)perm[0] << 56) | ((uint64_t)perm[1] << 48) | ((uint64_t)perm[2] << 40)
-                            | ((uint64_t)perm[3] << 32) | ((uint64_t)perm[4] << 24) | ((uint64_t)perm[5] << 16)
-                            | ((uint64_t)perm[6] << 8) | (uint64_t)perm[7];
-                uint64_t lo = ((uint64_t)perm[8] << 56) | ((uint64_t)perm[9] << 48) | ((uint64_t)perm[10] << 40)
-                            | ((uint64_t)perm[11] << 32) | ((uint64_t)perm[12] << 24) | ((uint64_t)perm[13] << 16)
-                            | ((uint64_t)perm[14] << 8) | (uint64_t)perm[15];
-                MOV64x(x4, hi);
-                MOV64x(x5, lo);
-                MTVSRDD(VSXREG(q0), x4, x5);
-                VPERM(VRREG(v0), VRREG(v1), VRREG(v1), VRREG(q0));
+                // Word 1 (bits 16-31)
+                src_word = (u8 >> 2) & 3;
+                SRDI(x6, x4, src_word * 16);
+                ANDI(x6, x6, 0xFFFF);
+                SLDI(x6, x6, 16);
+                OR(x5, x5, x6);
+                // Word 2 (bits 32-47)
+                src_word = (u8 >> 4) & 3;
+                SRDI(x6, x4, src_word * 16);
+                ANDI(x6, x6, 0xFFFF);
+                SLDI(x6, x6, 32);
+                OR(x5, x5, x6);
+                // Word 3 (bits 48-63)
+                src_word = (u8 >> 6) & 3;
+                SRDI(x6, x4, src_word * 16);
+                ANDI(x6, x6, 0xFFFF);
+                SLDI(x6, x6, 48);
+                OR(x5, x5, x6);
+                // Get low 64 bits from source (x86 low = ISA dw1)
+                MFVSRLD(x6, VSXREG(v1));
+                // Build result: high 64 = shuffled, low 64 = unchanged
+                MTVSRDD(VSXREG(v0), x5, x6);
             }
             break;
 

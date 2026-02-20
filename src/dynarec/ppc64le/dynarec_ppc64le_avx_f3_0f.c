@@ -615,33 +615,40 @@ uintptr_t dynarec64_AVX_F3_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t 
             GETGY_empty_EY_xy(v0, v1, 1);
             u8 = F8;
             {
-                // PSHUFHW: shuffle high 4 words using imm8, keep low 4 words unchanged
-                int w[4];
-                w[0] = (u8 >> 0) & 3;
-                w[1] = (u8 >> 2) & 3;
-                w[2] = (u8 >> 4) & 3;
-                w[3] = (u8 >> 6) & 3;
-                static const int src_byte[4] = {12, 8, 4, 0};
-                static const int dst_byte[4] = {12, 8, 4, 0};
-                uint8_t perm[16];
-                for (int i = 8; i < 16; i++) perm[i] = i;
-                for (int k = 0; k < 4; k++) {
-                    int src_off = src_byte[w[k]];
-                    int dst_off = dst_byte[k];
-                    for (int b = 0; b < 4; b++)
-                        perm[dst_off + b] = src_off + b;
+                // Shuffle high 4 words (64 bits), keep low 64 bits unchanged
+                // Extract high 64 bits (x86 high = ISA dw0)
+                MFVSRD(x4, VSXREG(v1));
+                int src_word;
+                // Word 0 of high qword (bits 0-15)
+                src_word = (u8 >> 0) & 3;
+                if (src_word == 0) {
+                    ANDI(x5, x4, 0xFFFF);
+                } else {
+                    SRDI(x5, x4, src_word * 16);
+                    ANDI(x5, x5, 0xFFFF);
                 }
-                q0 = fpu_get_scratch(dyn);
-                uint64_t hi = ((uint64_t)perm[0] << 56) | ((uint64_t)perm[1] << 48) | ((uint64_t)perm[2] << 40)
-                            | ((uint64_t)perm[3] << 32) | ((uint64_t)perm[4] << 24) | ((uint64_t)perm[5] << 16)
-                            | ((uint64_t)perm[6] << 8) | (uint64_t)perm[7];
-                uint64_t lo = ((uint64_t)perm[8] << 56) | ((uint64_t)perm[9] << 48) | ((uint64_t)perm[10] << 40)
-                            | ((uint64_t)perm[11] << 32) | ((uint64_t)perm[12] << 24) | ((uint64_t)perm[13] << 16)
-                            | ((uint64_t)perm[14] << 8) | (uint64_t)perm[15];
-                MOV64x(x4, hi);
-                MOV64x(x5, lo);
-                MTVSRDD(VSXREG(q0), x4, x5);
-                VPERM(VRREG(v0), VRREG(v1), VRREG(v1), VRREG(q0));
+                // Word 1 (bits 16-31)
+                src_word = (u8 >> 2) & 3;
+                SRDI(x6, x4, src_word * 16);
+                ANDI(x6, x6, 0xFFFF);
+                SLDI(x6, x6, 16);
+                OR(x5, x5, x6);
+                // Word 2 (bits 32-47)
+                src_word = (u8 >> 4) & 3;
+                SRDI(x6, x4, src_word * 16);
+                ANDI(x6, x6, 0xFFFF);
+                SLDI(x6, x6, 32);
+                OR(x5, x5, x6);
+                // Word 3 (bits 48-63)
+                src_word = (u8 >> 6) & 3;
+                SRDI(x6, x4, src_word * 16);
+                ANDI(x6, x6, 0xFFFF);
+                SLDI(x6, x6, 48);
+                OR(x5, x5, x6);
+                // Get low 64 bits from source (x86 low = ISA dw1)
+                MFVSRLD(x6, VSXREG(v1));
+                // Build result: high 64 = shuffled, low 64 = unchanged
+                MTVSRDD(VSXREG(v0), x5, x6);
             }
             break;
 

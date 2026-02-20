@@ -328,7 +328,7 @@ uintptr_t dynarec64_AVX_66_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
                 LI(x4, 0x0101);
                 ORIS(x4, x4, 0x0101);                          // x4 = 0x01010101
                 MTVSRWZ(VSXREG(d1), x4);
-                VSPLTW(VRREG(d1), VRREG(d1), 3);               // d1 = 0x01010101 splatted (LE dw0)
+                VSPLTW(VRREG(d1), VRREG(d1), 1);               // d1 = 0x01010101 splatted (MTVSRWZ puts value in word 1)
                 VMULUWM(VRREG(d0), VRREG(d0), VRREG(d1));      // replicate byte to all 4 positions
                 // Build base ramp for VPERM (BE byte numbering):
                 // LE dword identity is [0,1,2,3] per dword, XOR 0x0F gives [0xF,0xE,0xD,0xC]
@@ -336,7 +336,7 @@ uintptr_t dynarec64_AVX_66_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
                 LI(x4, 0x0E0F);
                 ORIS(x4, x4, 0x0C0D);                          // x4 = 0x0C0D0E0F
                 MTVSRWZ(VSXREG(d3), x4);
-                VSPLTW(VRREG(d3), VRREG(d3), 3);               // d3 = base ramp splatted
+                VSPLTW(VRREG(d3), VRREG(d3), 1);               // d3 = base ramp splatted (MTVSRWZ puts value in word 1)
                 // VPERM control = base_ramp - byte_offset (byte-wise subtract)
                 VSUBUBM(VRREG(d0), VRREG(d3), VRREG(d0));
                 // Perform the permutation
@@ -496,7 +496,7 @@ uintptr_t dynarec64_AVX_66_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
                 addr = geted(dyn, addr, ninst, nextop, &ed, x2, x1, &fixedaddress, rex, NULL, 1, 0);
                 LWZ(x4, fixedaddress, ed);
                 MTVSRWZ(VSXREG(v0), x4);
-                XXSPLTW(VSXREG(v0), VSXREG(v0), 3);
+                XXSPLTW(VSXREG(v0), VSXREG(v0), 1);    // MTVSRWZ puts value in word 1
             }
             break;
 
@@ -747,7 +747,7 @@ uintptr_t dynarec64_AVX_66_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
             INST_NAME("VPMULDQ Gx, Vx, Ex");
             nextop = F8;
             GETGY_empty_VYEY_xy(v0, v1, v2, 0);
-            VMULESW(VRREG(v0), VRREG(v1), VRREG(v2));
+            VMULOSW(VRREG(v0), VRREG(v1), VRREG(v2));
             break;
 
         case 0x29:
@@ -1047,7 +1047,7 @@ uintptr_t dynarec64_AVX_66_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
                 addr = geted(dyn, addr, ninst, nextop, &ed, x2, x1, &fixedaddress, rex, NULL, 1, 0);
                 LWZ(x4, fixedaddress, ed);
                 MTVSRWZ(VSXREG(v0), x4);
-                XXSPLTW(VSXREG(v0), VSXREG(v0), 3);
+                XXSPLTW(VSXREG(v0), VSXREG(v0), 1);    // MTVSRWZ puts value in word 1
             }
             break;
 

@@ -788,7 +788,7 @@ uintptr_t dynarec64_AVX_66_0F3A(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
                             XXPERMDI(VSXREG(d0), VSXREG(d0), VSXREG(d1), 0b01);
                         } else {
                             // Zero LE dword 1 = ISA dw0 (bits 0:63)
-                            XXPERMDI(VSXREG(d0), VSXREG(d1), VSXREG(d0), 0b10);
+                            XXPERMDI(VSXREG(d0), VSXREG(d1), VSXREG(d0), 0b01);
                         }
                     }
                 }

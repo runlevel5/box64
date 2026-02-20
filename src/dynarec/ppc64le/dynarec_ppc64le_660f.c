@@ -2920,7 +2920,7 @@ uintptr_t dynarec64_660F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
                     GETGX(v0, 1);
                     GETEX(v1, 0, 0);
                     // Multiply signed dwords at even positions → qwords
-                    VMULESW(VRREG(v0), VRREG(v0), VRREG(v1));
+                    VMULOSW(VRREG(v0), VRREG(v0), VRREG(v1));
                     break;
                 case 0x29:
                     INST_NAME("PCMPEQQ Gx, Ex"); // SSE4
@@ -3821,7 +3821,7 @@ uintptr_t dynarec64_660F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
                                     XXPERMDI(VSXREG(d0), VSXREG(d0), VSXREG(d1), 0b01);
                                 } else {
                                     // Zero LE dword 1 = BE dword 0 (bits 0:63)
-                                    XXPERMDI(VSXREG(d0), VSXREG(d1), VSXREG(d0), 0b10);
+                                    XXPERMDI(VSXREG(d0), VSXREG(d1), VSXREG(d0), 0b01);
                                 }
                             }
                         }
