@@ -70,7 +70,7 @@ _start:
     vpmovsxbw xmm2, xmm0
     ; byte0=1 -> word0=0x0001, byte1=2 -> word1=0x0002
     vmovq rax, xmm2
-    CHECK_EQ_64 rax, 0xFFFE00FF00020001
+    CHECK_EQ_64 rax, 0xFFFEFFFF00020001
 
     ; --- Test 2: vpmovsxbd (sign-extend 4 bytes -> 4 dwords) ---
     TEST_CASE t2_name

@@ -347,6 +347,108 @@ _fw_print_dec:
     syscall
 %endmacro
 
+;; CHECK_APPROX_PS_PAIR actual_reg64, expected_imm64, tolerance
+;; Compares two packed float32s (in a 64-bit value) approximately.
+;; Each 32-bit element is compared as integer, allowing ±tolerance ULPs.
+;; Useful for RCPPS/RSQRTPS which return approximate results.
+%macro CHECK_APPROX_PS_PAIR 3
+    push r14
+    push r15
+    push rax
+    push rbx
+    push rcx
+    push rsi
+    mov r14, %1         ; actual 64-bit value
+    mov r15, %3         ; tolerance
+    ; Check low float32
+    mov eax, r14d       ; actual low32
+    mov rbx, %2
+    mov ecx, ebx        ; expected low32
+    sub eax, ecx
+    ; abs(eax)
+    cdq
+    xor eax, edx
+    sub eax, edx
+    cmp rax, r15
+    ja %%fail
+    ; Check high float32
+    mov rax, r14
+    shr rax, 32         ; actual high32
+    mov rbx, %2
+    shr rbx, 32         ; expected high32
+    sub eax, ebx
+    cdq
+    xor eax, edx
+    sub eax, edx
+    cmp rax, r15
+    ja %%fail
+    ; PASS
+    lea rsi, [rel _fw_pass_msg]
+    call _fw_print_str
+    inc r12d
+    jmp %%done
+%%fail:
+    lea rsi, [rel _fw_fail_msg]
+    call _fw_print_str
+    lea rsi, [rel _fw_expect_msg]
+    call _fw_print_str
+    mov rax, %2
+    call _fw_print_hex64
+    lea rsi, [rel _fw_got_msg]
+    call _fw_print_str
+    mov rax, r14
+    call _fw_print_hex64
+    lea rsi, [rel _fw_nl]
+    call _fw_print_str
+%%done:
+    pop rsi
+    pop rcx
+    pop rbx
+    pop rax
+    pop r15
+    pop r14
+%endmacro
+
+;; CHECK_APPROX_32 actual_reg32, expected_imm32, tolerance
+;; Compares a single float32 approximately (integer ULP difference).
+%macro CHECK_APPROX_32 3
+    push r14
+    push rax
+    push rbx
+    push rsi
+    mov r14d, %1        ; actual
+    mov eax, r14d
+    mov ebx, %2         ; expected
+    sub eax, ebx
+    cdq
+    xor eax, edx
+    sub eax, edx
+    cmp eax, %3
+    ja %%fail
+    lea rsi, [rel _fw_pass_msg]
+    call _fw_print_str
+    inc r12d
+    jmp %%done
+%%fail:
+    lea rsi, [rel _fw_fail_msg]
+    call _fw_print_str
+    lea rsi, [rel _fw_expect_msg]
+    call _fw_print_str
+    mov eax, %2
+    call _fw_print_hex32
+    lea rsi, [rel _fw_got_msg]
+    call _fw_print_str
+    mov eax, r14d
+    call _fw_print_hex32
+    lea rsi, [rel _fw_nl]
+    call _fw_print_str
+%%done:
+    pop rsi
+    pop rbx
+    pop rax
+    pop r14
+%endmacro
+
 ;; Flag bit constants
 %define CF 0x0001
 %define PF 0x0004

@@ -215,7 +215,7 @@ _start:
     movss xmm1, [rel val_1f]
     rcpss xmm0, xmm1
     movd eax, xmm0
-    CHECK_EQ_32 eax, 0x3F800000
+    CHECK_APPROX_32 eax, 0x3F800000, 0x1000
 
     TEST_CASE t20_name
     ; Check upper 96 bits preserved: dwords [1]=0x11111111, [2]=0x22222222, [3]=0x33333333
@@ -232,11 +232,11 @@ _start:
     movaps xmm0, [rel vec_ps_ones]
     rcpps xmm1, xmm0
     movq rax, xmm1
-    CHECK_EQ_64 rax, 0x3F8000003F800000
+    CHECK_APPROX_PS_PAIR rax, 0x3F8000003F800000, 0x1000
 
     TEST_CASE t22_name
     pextrq rax, xmm1, 1
-    CHECK_EQ_64 rax, 0x3F8000003F800000
+    CHECK_APPROX_PS_PAIR rax, 0x3F8000003F800000, 0x1000
 
     ; ==== Test 23-24: RSQRTSS xmm, xmm ====
     ; rsqrt(1.0) = 1/sqrt(1.0) = 1.0 = 0x3F800000
@@ -248,7 +248,7 @@ _start:
     movss xmm1, [rel val_1f]
     rsqrtss xmm0, xmm1
     movd eax, xmm0
-    CHECK_EQ_32 eax, 0x3F800000
+    CHECK_APPROX_32 eax, 0x3F800000, 0x1000
 
     TEST_CASE t24_name
     pextrq rax, xmm0, 1
@@ -262,11 +262,11 @@ _start:
     movaps xmm0, [rel vec_ps_ones]
     rsqrtps xmm1, xmm0
     movq rax, xmm1
-    CHECK_EQ_64 rax, 0x3F8000003F800000
+    CHECK_APPROX_PS_PAIR rax, 0x3F8000003F800000, 0x1000
 
     TEST_CASE t26_name
     pextrq rax, xmm1, 1
-    CHECK_EQ_64 rax, 0x3F8000003F800000
+    CHECK_APPROX_PS_PAIR rax, 0x3F8000003F800000, 0x1000
 
     ; ==== Test 27-28: MOVDDUP with zero ====
     ; Source: lo64=0, hi64=don't care

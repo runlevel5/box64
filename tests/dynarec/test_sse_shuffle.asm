@@ -470,7 +470,7 @@ _start:
     movdqa xmm1, [rel shuf_rev]
     pshufb xmm0, xmm1
     movq rax, xmm0
-    CHECK_EQ_64 rax, 0x7766554433221100
+    CHECK_EQ_64 rax, 0x8899AABBCCDDEEFF
 
     ; ==== Test 32: SHUFPD imm=0x1 - swap low/high between sources ====
     ; imm=0x1=01: [src1[1], src2[0]]
