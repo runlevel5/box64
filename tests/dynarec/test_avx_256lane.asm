@@ -68,6 +68,40 @@ section .data
         dq 0xFEDCBA9876543210
         dq 0x0123456789ABCDEF
 
+    ; VPERMD/VPERMPS dword source: 8 dwords, each with a distinct value
+    ; dword[0]=0x10, [1]=0x21, [2]=0x32, [3]=0x43, [4]=0x54, [5]=0x65, [6]=0x76, [7]=0x87
+    align 32
+    permd_src:
+        dd 0x00000010, 0x00000021, 0x00000032, 0x00000043  ; lower 128 (dwords 0-3)
+        dd 0x00000054, 0x00000065, 0x00000076, 0x00000087  ; upper 128 (dwords 4-7)
+
+    ; VPERMD index vectors
+    permd_idx_identity:
+        dd 0, 1, 2, 3, 4, 5, 6, 7    ; identity permutation
+    permd_idx_reverse:
+        dd 7, 6, 5, 4, 3, 2, 1, 0    ; reverse
+    permd_idx_broadcast:
+        dd 3, 3, 3, 3, 3, 3, 3, 3    ; broadcast dword[3]
+    permd_idx_cross:
+        dd 4, 5, 6, 7, 0, 1, 2, 3    ; swap halves
+
+    ; VPERMPS float source: 8 floats
+    align 32
+    permps_src:
+        dd 1.0, 2.0, 3.0, 4.0        ; lower 128 (floats 0-3)
+        dd 5.0, 6.0, 7.0, 8.0        ; upper 128 (floats 4-7)
+    permps_idx_rev:
+        dd 7, 6, 5, 4, 3, 2, 1, 0    ; reverse
+
+    ; Test names for VPERMD/VPERMPS
+    t_vpermd_id:      db "VPERMD identity", 0
+    t_vpermd_rev:     db "VPERMD reverse", 0
+    t_vpermd_bcast:   db "VPERMD broadcast d3", 0
+    t_vpermd_cross:   db "VPERMD swap halves", 0
+    t_vpermd_mem:     db "VPERMD mem source", 0
+    t_vpermps_rev:    db "VPERMPS reverse", 0
+    t_vpermps_id:     db "VPERMPS identity reg", 0
+
 section .bss
     align 32
     result_buf: resb 32
@@ -446,6 +480,126 @@ _start:
     TEST_CASE t_vpermq_mem
     pextrq rbx, xmm0, 1
     CHECK_EQ_64 rbx, 0x3333333333333333
+
+    ; ============================================================
+    ; VPERMD tests
+    ; ============================================================
+
+    ; VPERMD identity: dst[i] = src[i] for i=0..7
+    vmovdqa ymm1, [rel permd_idx_identity]
+    vmovdqa ymm2, [rel permd_src]
+    TEST_CASE t_vpermd_id
+    vpermd ymm0, ymm1, ymm2
+    ; dword[0] should be 0x10
+    movd eax, xmm0
+    CHECK_EQ_64 rax, 0x00000010
+    TEST_CASE t_vpermd_id
+    ; dword[3] should be 0x43
+    pextrd ebx, xmm0, 3
+    CHECK_EQ_64 rbx, 0x00000043
+    TEST_CASE t_vpermd_id
+    ; dword[4] (upper) should be 0x54
+    vextracti128 xmm5, ymm0, 1
+    movd eax, xmm5
+    CHECK_EQ_64 rax, 0x00000054
+    TEST_CASE t_vpermd_id
+    ; dword[7] (upper) should be 0x87
+    pextrd ebx, xmm5, 3
+    CHECK_EQ_64 rbx, 0x00000087
+
+    ; VPERMD reverse: dst[i] = src[7-i]
+    vmovdqa ymm1, [rel permd_idx_reverse]
+    vmovdqa ymm2, [rel permd_src]
+    TEST_CASE t_vpermd_rev
+    vpermd ymm0, ymm1, ymm2
+    ; dword[0] should be src[7] = 0x87
+    movd eax, xmm0
+    CHECK_EQ_64 rax, 0x00000087
+    TEST_CASE t_vpermd_rev
+    ; dword[3] should be src[4] = 0x54
+    pextrd ebx, xmm0, 3
+    CHECK_EQ_64 rbx, 0x00000054
+    TEST_CASE t_vpermd_rev
+    ; dword[4] should be src[3] = 0x43
+    vextracti128 xmm5, ymm0, 1
+    movd eax, xmm5
+    CHECK_EQ_64 rax, 0x00000043
+    TEST_CASE t_vpermd_rev
+    ; dword[7] should be src[0] = 0x10
+    pextrd ebx, xmm5, 3
+    CHECK_EQ_64 rbx, 0x00000010
+
+    ; VPERMD broadcast: all 8 dwords = src[3] = 0x43
+    vmovdqa ymm1, [rel permd_idx_broadcast]
+    vmovdqa ymm2, [rel permd_src]
+    TEST_CASE t_vpermd_bcast
+    vpermd ymm0, ymm1, ymm2
+    movd eax, xmm0
+    CHECK_EQ_64 rax, 0x00000043
+    TEST_CASE t_vpermd_bcast
+    vextracti128 xmm5, ymm0, 1
+    pextrd ebx, xmm5, 3
+    CHECK_EQ_64 rbx, 0x00000043
+
+    ; VPERMD cross: swap halves (dst[0..3] = src[4..7], dst[4..7] = src[0..3])
+    vmovdqa ymm1, [rel permd_idx_cross]
+    vmovdqa ymm2, [rel permd_src]
+    TEST_CASE t_vpermd_cross
+    vpermd ymm0, ymm1, ymm2
+    ; dword[0] should be src[4] = 0x54
+    movd eax, xmm0
+    CHECK_EQ_64 rax, 0x00000054
+    TEST_CASE t_vpermd_cross
+    ; dword[4] (upper) should be src[0] = 0x10
+    vextracti128 xmm5, ymm0, 1
+    movd eax, xmm5
+    CHECK_EQ_64 rax, 0x00000010
+
+    ; VPERMD with memory source operand
+    vmovdqa ymm1, [rel permd_idx_reverse]
+    TEST_CASE t_vpermd_mem
+    vpermd ymm0, ymm1, [rel permd_src]
+    ; same as reverse test
+    movd eax, xmm0
+    CHECK_EQ_64 rax, 0x00000087
+    TEST_CASE t_vpermd_mem
+    vextracti128 xmm5, ymm0, 1
+    pextrd ebx, xmm5, 3
+    CHECK_EQ_64 rbx, 0x00000010
+
+    ; ============================================================
+    ; VPERMPS tests
+    ; ============================================================
+
+    ; VPERMPS reverse: reverse 8 floats
+    vmovdqa ymm1, [rel permps_idx_rev]
+    vmovdqa ymm2, [rel permps_src]
+    TEST_CASE t_vpermps_rev
+    vpermps ymm0, ymm1, ymm2
+    ; float[0] should be src[7] = 8.0
+    movd eax, xmm0
+    ; 8.0f = 0x41000000
+    CHECK_EQ_64 rax, 0x41000000
+    TEST_CASE t_vpermps_rev
+    ; float[7] should be src[0] = 1.0
+    vextracti128 xmm5, ymm0, 1
+    pextrd ebx, xmm5, 3
+    ; 1.0f = 0x3F800000
+    CHECK_EQ_64 rbx, 0x3F800000
+
+    ; VPERMPS identity
+    vmovdqa ymm1, [rel permd_idx_identity]
+    vmovdqa ymm2, [rel permps_src]
+    TEST_CASE t_vpermps_id
+    vpermps ymm0, ymm1, ymm2
+    ; float[0] should be 1.0 = 0x3F800000
+    movd eax, xmm0
+    CHECK_EQ_64 rax, 0x3F800000
+    TEST_CASE t_vpermps_id
+    ; float[7] should be 8.0 = 0x41000000
+    vextracti128 xmm5, ymm0, 1
+    pextrd ebx, xmm5, 3
+    CHECK_EQ_64 rbx, 0x41000000
 
     vzeroupper
     END_TESTS

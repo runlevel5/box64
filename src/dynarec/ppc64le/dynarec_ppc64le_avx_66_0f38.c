@@ -411,10 +411,68 @@ uintptr_t dynarec64_AVX_66_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
             break;
 
         case 0x16:
-            INST_NAME("VPERMPS Gx, Vx, Ex");
+        case 0x36:
+            if (opcode == 0x16) { INST_NAME("VPERMPS Gx, Vx, Ex"); } else { INST_NAME("VPERMD Gx, Vx, Ex"); }
             nextop = F8;
-            // Cross-lane 256-bit permute — requires access to full 256-bit source
-            DEFAULT;
+            if (!vex.l) { DEFAULT; break; }
+            {
+                // Cross-lane 256-bit dword permute: dst[i] = src[idx[i] & 7]
+                // Strategy: flush index (Vx) and source (Ex) to memory,
+                // copy 8 source dwords to contiguous stack temp,
+                // then do 8 indexed loads to build result.
+                GETG;
+                // Flush index register (Vx) to memory
+                avx_forget_reg(dyn, ninst, vex.v);
+                int src_reg = -1;
+                if (MODREG) {
+                    src_reg = (nextop & 7) + (rex.b << 3);
+                    avx_forget_reg(dyn, ninst, src_reg);
+                }
+                // Also forget gd to avoid cache conflicts
+                avx_forget_reg(dyn, ninst, gd);
+                // x1 = base of contiguous 8-dword source area (red zone: SP-64)
+                // Layout: dwords[0..3] at SP-64, dwords[4..7] at SP-48
+                ADDI(x1, xSP, -64);
+                if (MODREG) {
+                    // Copy xmm[src] (lower 128) to SP-64
+                    d0 = fpu_get_scratch(dyn);
+                    LXV(VSXREG(d0), offsetof(x64emu_t, xmm[src_reg]), xEmu);
+                    STXV(VSXREG(d0), 0, x1);   // store at SP-64
+                    // Copy ymm[src] (upper 128) to SP-48
+                    LXV(VSXREG(d0), offsetof(x64emu_t, ymm[src_reg]), xEmu);
+                    STXV(VSXREG(d0), 16, x1);  // store at SP-48
+                } else {
+                    // Memory source: 32 bytes contiguous at [ed]
+                    addr = geted(dyn, addr, ninst, nextop, &ed, x3, x5, &fixedaddress, rex, NULL, DQ_ALIGN|0, 0);
+                    d0 = fpu_get_scratch(dyn);
+                    LXV(VSXREG(d0), fixedaddress + 0, ed);
+                    STXV(VSXREG(d0), 0, x1);
+                    LXV(VSXREG(d0), fixedaddress + 16, ed);
+                    STXV(VSXREG(d0), 16, x1);
+                }
+                // x1 = base of 8 contiguous source dwords
+                // Now process 8 index dwords from Vx, build result at SP-128..SP-97
+                ADDI(x2, xSP, -128);  // x2 = result base
+                // Process lower 4 indices (from xmm[vex.v])
+                for (int i = 0; i < 8; i++) {
+                    int idx_off;
+                    if (i < 4) {
+                        idx_off = offsetof(x64emu_t, xmm[vex.v]) + i * 4;
+                    } else {
+                        idx_off = offsetof(x64emu_t, ymm[vex.v]) + (i - 4) * 4;
+                    }
+                    LWZ(x3, idx_off, xEmu);   // load index dword
+                    ANDI(x3, x3, 7);           // mask to 3 bits
+                    SLWI(x3, x3, 2);           // multiply by 4 (byte offset)
+                    LWZX(x4, x1, x3);          // load source dword
+                    STW(x4, i * 4, x2);        // store to result
+                }
+                // Load result into xmm[gd] and ymm[gd]
+                LXV(VSXREG(d0), 0, x2);
+                STXV(VSXREG(d0), offsetof(x64emu_t, xmm[gd]), xEmu);
+                LXV(VSXREG(d0), 16, x2);
+                STXV(VSXREG(d0), offsetof(x64emu_t, ymm[gd]), xEmu);
+            }
             break;
 
         case 0x17:
@@ -865,12 +923,7 @@ uintptr_t dynarec64_AVX_66_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
             }
             break;
 
-        case 0x36:
-            INST_NAME("VPERMD Gx, Vx, Ex");
-            nextop = F8;
-            // Cross-lane 256-bit permute — requires access to full 256-bit source
-            DEFAULT;
-            break;
+        // case 0x36: VPERMD — handled above combined with case 0x16 (VPERMPS)
 
         case 0x37:
             INST_NAME("VPCMPGTQ Gx, Vx, Ex");
