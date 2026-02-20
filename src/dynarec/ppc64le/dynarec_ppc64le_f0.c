@@ -587,44 +587,30 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                                 // RDX:RAX = expected, RCX:RBX = replacement
                                 // If [wback] == RDX:RAX, store RCX:RBX and set ZF=1
                                 // Else load [wback] into RDX:RAX and set ZF=0
-                                // Use LQARX/STQCXd for 128-bit atomic
-                                // LQARX: RT=even register pair (RT:RT+1), big-endian doubleword order
-                                // On LE: RT gets high 64 bits, RT+1 gets low 64 bits of memory
-                                // x86: [wback] = low qword, [wback+8] = high qword
-                                // PPC LE LQARX byte order: same as memory order on LE
-
-                                // Use x1:x3 as the register pair for LQARX (must be even:odd)
-                                // Actually, LQARX Rt must be even, loads Rt=high (BE dw0), Rt+1=low (BE dw1)
-                                // On LE this reverses: Rt=low, Rt+1=high... actually PPC LE LQARX
-                                // loads in LE byte order, so Rt gets the lower address dword.
-                                // This is complex. Let's use a simpler LL/SC approach with LDARX on
-                                // the lower qword as a reservation monitor.
-
+                                // Use LDARX on lower qword as reservation monitor,
+                                // non-atomic LD for upper qword. Not truly 128-bit atomic
+                                // but matches the LL/SC approach used by LA64 without SCQ.
                                 LWSYNC();
                                 MARKLOCK;
                                 LDARX(x1, 0, wback);       // x1 = low qword (reservation set)
                                 LD(x3, 8, wback);          // x3 = high qword (non-atomic)
-                                // Compare with RDX:RAX
-                                CMPD(x1, xRAX);
-                                BNE(5*4);                   // not equal -> skip store
-                                CMPD(x3, xRDX);
-                                BNE(3*4);                   // not equal -> skip store
+                                // Compare with RDX:RAX — mismatch branches to MARK
+                                BNE_MARK(x1, xRAX);
+                                BNE_MARK(x3, xRDX);
                                 // Equal: store RCX:RBX
                                 STD(xRCX, 8, wback);       // high qword first (non-atomic)
                                 STDCXd(xRBX, 0, wback);    // low qword (conditional)
                                 BNE_MARKLOCK_CR0;           // retry if reservation lost
-                                // Set ZF based on match
-                                CMPD(x1, xRAX);
-                                BNE(3*4);                   // branch to "not equal" path
-                                CMPD(x3, xRDX);
-                                BNE(2*4);
-                                // Equal: set ZF=1
+                                LWSYNC();
+                                // Match: set ZF=1
                                 ORI(xFlags, xFlags, 1 << F_ZF);
-                                B(3*4);                     // skip not-equal path
-                                // Not equal: ZF=0, RAX:RDX = old value
+                                B_MARK3_nocond;             // skip not-equal path
+                                // Not equal: ZF=0, load old value into RDX:RAX
+                                MARK;
                                 RLWINM(xFlags, xFlags, 0, 32-F_ZF, 30-F_ZF); // clear ZF bit
                                 MV(xRAX, x1);
                                 MV(xRDX, x3);
+                                MARK3;
                             } else {
                                 INST_NAME("LOCK CMPXCHG8B Gq, Eq");
                                 SETFLAGS(X_ZF, SF_SUBSET, NAT_FLAGS_NOFUSION);
@@ -646,21 +632,21 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                                 LWSYNC();
                                 MARKLOCK;
                                 LDARX(x1, 0, wback);
-                                CMPD(x1, x5);
-                                BNE(3*4);
+                                // Mismatch branches to MARK
+                                BNE_MARK(x1, x5);
                                 STDCXd(x6, 0, wback);
                                 BNE_MARKLOCK_CR0;
                                 LWSYNC();
-                                // Set ZF
-                                CMPD(x1, x5);
-                                BNE(2*4);
+                                // Match: set ZF=1
                                 ORI(xFlags, xFlags, 1 << F_ZF);
-                                B(4*4);
+                                B_MARK3_nocond;              // skip not-equal path
                                 // Not equal: load old value into EDX:EAX
+                                MARK;
                                 RLWINM(xFlags, xFlags, 0, 32-F_ZF, 30-F_ZF);
                                 RLDICL(xRAX, x1, 0, 32);           // EAX = low 32 bits
                                 SRDI(x1, x1, 32);
                                 RLDICL(xRDX, x1, 0, 32);           // EDX = high 32 bits
+                                MARK3;
                             }
                             break;
                         default:
