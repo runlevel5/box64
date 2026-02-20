@@ -2957,10 +2957,13 @@ uintptr_t dynarec64_00(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                         SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_FUSION);
                     if (!dyn->insts[ninst].x64.gen_flags) {
                         GETED(0);
+                        // x86 SHL masks shift count: 0x3F for 64-bit, 0x1F for 32-bit
+                        // PPC64LE sld/slw zero the result when shift >= 64/32, so we must mask first
+                        ANDI(x3, xRCX, rex.w ? 0x3f : 0x1f);
                         if (rex.w)
-                            SLD(ed, ed, xRCX);
+                            SLD(ed, ed, x3);
                         else
-                            SLW(ed, ed, xRCX);
+                            SLW(ed, ed, x3);
                         if (dyn->insts[ninst].nat_flags_fusion) {
                             if (!rex.w) ZEROUP(ed);
                             NAT_FLAGS_OPS(ed, xZR, x5, xZR);
@@ -2986,10 +2989,13 @@ uintptr_t dynarec64_00(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                         SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_FUSION);
                     if (!dyn->insts[ninst].x64.gen_flags) {
                         GETED(0);
+                        // x86 SHR masks shift count: 0x3F for 64-bit, 0x1F for 32-bit
+                        // PPC64LE srd/srw zero the result when shift >= 64/32, so we must mask first
+                        ANDI(x3, xRCX, rex.w ? 0x3f : 0x1f);
                         if (rex.w)
-                            SRD(ed, ed, xRCX);
+                            SRD(ed, ed, x3);
                         else
-                            SRW(ed, ed, xRCX);
+                            SRW(ed, ed, x3);
                         if (dyn->insts[ninst].nat_flags_fusion) {
                             if (!rex.w) ZEROUP(ed);
                             NAT_FLAGS_OPS(ed, xZR, x5, xZR);
