@@ -3256,7 +3256,14 @@ uintptr_t dynarec64_660F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
                         XVRSPIC(VSXREG(v0), VSXREG(v1));
                     } else {
                         switch (u8 & 3) {
-                            case 0: XVRSPI(VSXREG(v0), VSXREG(v1)); break;   // nearest
+                            case 0:
+                                // PPC XVRSPI does "ties away from zero", x86 wants "ties to even"
+                                // Use XVRSPIC with FPSCR.RN forced to 0 (nearest even)
+                                MFFS(SCRATCH0);             // save FPSCR
+                                MTFSFI(7, 0);               // set RN = 0 (nearest even)
+                                XVRSPIC(VSXREG(v0), VSXREG(v1));
+                                MTFSF(0x01, SCRATCH0);      // restore FPSCR field 7 (RN)
+                                break;
                             case 1: XVRSPIM(VSXREG(v0), VSXREG(v1)); break;  // floor
                             case 2: XVRSPIP(VSXREG(v0), VSXREG(v1)); break;  // ceil
                             case 3: XVRSPIZ(VSXREG(v0), VSXREG(v1)); break;  // trunc
@@ -3273,7 +3280,12 @@ uintptr_t dynarec64_660F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
                         XVRDPIC(VSXREG(v0), VSXREG(v1));
                     } else {
                         switch (u8 & 3) {
-                            case 0: XVRDPI(VSXREG(v0), VSXREG(v1)); break;
+                            case 0:
+                                MFFS(SCRATCH0);
+                                MTFSFI(7, 0);
+                                XVRDPIC(VSXREG(v0), VSXREG(v1));
+                                MTFSF(0x01, SCRATCH0);
+                                break;
                             case 1: XVRDPIM(VSXREG(v0), VSXREG(v1)); break;
                             case 2: XVRDPIP(VSXREG(v0), VSXREG(v1)); break;
                             case 3: XVRDPIZ(VSXREG(v0), VSXREG(v1)); break;
@@ -3293,7 +3305,12 @@ uintptr_t dynarec64_660F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
                             XVRSPIC(VSXREG(d0), VSXREG(v1));
                         } else {
                             switch (u8 & 3) {
-                                case 0: XVRSPI(VSXREG(d0), VSXREG(v1)); break;
+                                case 0:
+                                    MFFS(SCRATCH0);
+                                    MTFSFI(7, 0);
+                                    XVRSPIC(VSXREG(d0), VSXREG(v1));
+                                    MTFSF(0x01, SCRATCH0);
+                                    break;
                                 case 1: XVRSPIM(VSXREG(d0), VSXREG(v1)); break;
                                 case 2: XVRSPIP(VSXREG(d0), VSXREG(v1)); break;
                                 case 3: XVRSPIZ(VSXREG(d0), VSXREG(v1)); break;
@@ -3313,7 +3330,12 @@ uintptr_t dynarec64_660F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
                             XSRDPIC(VSXREG(d0), VSXREG(v1));
                         } else {
                             switch (u8 & 3) {
-                                case 0: XSRDPI(VSXREG(d0), VSXREG(v1)); break;
+                                case 0:
+                                    MFFS(SCRATCH0);
+                                    MTFSFI(7, 0);
+                                    XSRDPIC(VSXREG(d0), VSXREG(v1));
+                                    MTFSF(0x01, SCRATCH0);
+                                    break;
                                 case 1: XSRDPIM(VSXREG(d0), VSXREG(v1)); break;
                                 case 2: XSRDPIP(VSXREG(d0), VSXREG(v1)); break;
                                 case 3: XSRDPIZ(VSXREG(d0), VSXREG(v1)); break;
@@ -3346,7 +3368,12 @@ uintptr_t dynarec64_660F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
                             XVRDPIC(VSXREG(d0), VSXREG(v1));
                         } else {
                             switch (u8 & 3) {
-                                case 0: XVRDPI(VSXREG(d0), VSXREG(v1)); break;
+                                case 0:
+                                    MFFS(SCRATCH0);
+                                    MTFSFI(7, 0);
+                                    XVRDPIC(VSXREG(d0), VSXREG(v1));
+                                    MTFSF(0x01, SCRATCH0);
+                                    break;
                                 case 1: XVRDPIM(VSXREG(d0), VSXREG(v1)); break;
                                 case 2: XVRDPIP(VSXREG(d0), VSXREG(v1)); break;
                                 case 3: XVRDPIZ(VSXREG(d0), VSXREG(v1)); break;
@@ -3369,7 +3396,12 @@ uintptr_t dynarec64_660F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
                             XSRDPIC(VSXREG(d0), VSXREG(v1));
                         } else {
                             switch (u8 & 3) {
-                                case 0: XSRDPI(VSXREG(d0), VSXREG(v1)); break;
+                                case 0:
+                                    MFFS(SCRATCH0);
+                                    MTFSFI(7, 0);
+                                    XSRDPIC(VSXREG(d0), VSXREG(v1));
+                                    MTFSF(0x01, SCRATCH0);
+                                    break;
                                 case 1: XSRDPIM(VSXREG(d0), VSXREG(v1)); break;
                                 case 2: XSRDPIP(VSXREG(d0), VSXREG(v1)); break;
                                 case 3: XSRDPIZ(VSXREG(d0), VSXREG(v1)); break;

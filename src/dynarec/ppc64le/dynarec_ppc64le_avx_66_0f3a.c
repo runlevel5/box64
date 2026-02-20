@@ -199,7 +199,12 @@ uintptr_t dynarec64_AVX_66_0F3A(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
                 XVRSPIC(VSXREG(v0), VSXREG(v1));
             } else {
                 switch (u8 & 3) {
-                    case 0: XVRSPI(VSXREG(v0), VSXREG(v1)); break;   // nearest
+                    case 0:
+                        MFFS(SCRATCH0);
+                        MTFSFI(7, 0);
+                        XVRSPIC(VSXREG(v0), VSXREG(v1));
+                        MTFSF(0x01, SCRATCH0);
+                        break;
                     case 1: XVRSPIM(VSXREG(v0), VSXREG(v1)); break;  // floor
                     case 2: XVRSPIP(VSXREG(v0), VSXREG(v1)); break;  // ceil
                     case 3: XVRSPIZ(VSXREG(v0), VSXREG(v1)); break;  // trunc
@@ -216,7 +221,12 @@ uintptr_t dynarec64_AVX_66_0F3A(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
                 XVRDPIC(VSXREG(v0), VSXREG(v1));
             } else {
                 switch (u8 & 3) {
-                    case 0: XVRDPI(VSXREG(v0), VSXREG(v1)); break;
+                    case 0:
+                        MFFS(SCRATCH0);
+                        MTFSFI(7, 0);
+                        XVRDPIC(VSXREG(v0), VSXREG(v1));
+                        MTFSF(0x01, SCRATCH0);
+                        break;
                     case 1: XVRDPIM(VSXREG(v0), VSXREG(v1)); break;
                     case 2: XVRDPIP(VSXREG(v0), VSXREG(v1)); break;
                     case 3: XVRDPIZ(VSXREG(v0), VSXREG(v1)); break;
@@ -238,7 +248,12 @@ uintptr_t dynarec64_AVX_66_0F3A(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
                     XVRSPIC(VSXREG(d0), VSXREG(v2));
                 } else {
                     switch (u8 & 3) {
-                        case 0: XVRSPI(VSXREG(d0), VSXREG(v2)); break;
+                        case 0:
+                            MFFS(SCRATCH0);
+                            MTFSFI(7, 0);
+                            XVRSPIC(VSXREG(d0), VSXREG(v2));
+                            MTFSF(0x01, SCRATCH0);
+                            break;
                         case 1: XVRSPIM(VSXREG(d0), VSXREG(v2)); break;
                         case 2: XVRSPIP(VSXREG(d0), VSXREG(v2)); break;
                         case 3: XVRSPIZ(VSXREG(d0), VSXREG(v2)); break;
@@ -261,7 +276,12 @@ uintptr_t dynarec64_AVX_66_0F3A(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
                     XSRDPIC(VSXREG(d0), VSXREG(q0));
                 } else {
                     switch (u8 & 3) {
-                        case 0: XSRDPI(VSXREG(d0), VSXREG(q0)); break;
+                        case 0:
+                            MFFS(SCRATCH0);
+                            MTFSFI(7, 0);
+                            XSRDPIC(VSXREG(d0), VSXREG(q0));
+                            MTFSF(0x01, SCRATCH0);
+                            break;
                         case 1: XSRDPIM(VSXREG(d0), VSXREG(q0)); break;
                         case 2: XSRDPIP(VSXREG(d0), VSXREG(q0)); break;
                         case 3: XSRDPIZ(VSXREG(d0), VSXREG(q0)); break;
@@ -291,7 +311,12 @@ uintptr_t dynarec64_AVX_66_0F3A(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
                     XVRDPIC(VSXREG(d0), VSXREG(v2));
                 } else {
                     switch (u8 & 3) {
-                        case 0: XVRDPI(VSXREG(d0), VSXREG(v2)); break;
+                        case 0:
+                            MFFS(SCRATCH0);
+                            MTFSFI(7, 0);
+                            XVRDPIC(VSXREG(d0), VSXREG(v2));
+                            MTFSF(0x01, SCRATCH0);
+                            break;
                         case 1: XVRDPIM(VSXREG(d0), VSXREG(v2)); break;
                         case 2: XVRDPIP(VSXREG(d0), VSXREG(v2)); break;
                         case 3: XVRDPIZ(VSXREG(d0), VSXREG(v2)); break;
@@ -313,7 +338,12 @@ uintptr_t dynarec64_AVX_66_0F3A(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
                     XSRDPIC(VSXREG(d0), VSXREG(q0));
                 } else {
                     switch (u8 & 3) {
-                        case 0: XSRDPI(VSXREG(d0), VSXREG(q0)); break;
+                        case 0:
+                            MFFS(SCRATCH0);
+                            MTFSFI(7, 0);
+                            XSRDPIC(VSXREG(d0), VSXREG(q0));
+                            MTFSF(0x01, SCRATCH0);
+                            break;
                         case 1: XSRDPIM(VSXREG(d0), VSXREG(q0)); break;
                         case 2: XSRDPIP(VSXREG(d0), VSXREG(q0)); break;
                         case 3: XSRDPIZ(VSXREG(d0), VSXREG(q0)); break;
