@@ -1563,15 +1563,18 @@ int sse_get_reg(dynarec_ppc64le_t* dyn, int ninst, int s1, int a, int forwrite)
         return dyn->v.ssecache[a].reg;
     }
     int need_vld = 1;
+    int avx_was_dirty = 0;
     // migrate from avx to sse
     if (dyn->v.avxcache[a].v != -1) {
+        avx_was_dirty = dyn->v.avxcache[a].write;
         avx_reflect_reg_upper128(dyn, ninst, a, forwrite);
         dyn->v.avxcache[a].v = -1;
         need_vld = 0;
     }
-    dyn->v.ssecache[a].reg = fpu_get_reg_xmm(dyn, forwrite ? VMX_CACHE_XMMW : VMX_CACHE_XMMR, a);
+    int is_write = forwrite || avx_was_dirty;
+    dyn->v.ssecache[a].reg = fpu_get_reg_xmm(dyn, is_write ? VMX_CACHE_XMMW : VMX_CACHE_XMMR, a);
     int ret = dyn->v.ssecache[a].reg;
-    dyn->v.ssecache[a].write = forwrite;
+    dyn->v.ssecache[a].write = is_write;
     if(need_vld) LXV(VSXREG(ret), offsetof(x64emu_t, xmm[a]), xEmu); //skip load if migrate from avx
     return ret;
 }
@@ -1778,17 +1781,16 @@ int avx_get_reg_empty(dynarec_ppc64le_t* dyn, int ninst, int s1, int a, int widt
 void avx_reflect_reg_upper128(dynarec_ppc64le_t* dyn, int ninst, int a, int forwrite)
 {
     dyn->v.ymm_used |= 1 << a;
-    if (dyn->v.avxcache[a].v == -1 || forwrite == 0)
+    if (dyn->v.avxcache[a].v == -1)
         return;
+    // Write back upper 128 bits if the AVX register was dirty and zero_upper is set,
+    // regardless of forwrite (the SSE caller needs ymm[a] memory consistent)
     if (dyn->v.vmxcache[dyn->v.avxcache[a].reg].t == VMX_CACHE_YMMW) {
         if (dyn->v.avxcache[a].zero_upper == 1) {
             XXLXOR(SCRATCH, SCRATCH, SCRATCH);
-        }
-        // else: upper 128 is already in ymm[a] memory, SCRATCH not needed
-        if (dyn->v.avxcache[a].zero_upper == 1) {
             STXV(SCRATCH, offsetof(x64emu_t, ymm[a]), xEmu);
         }
-        // else: no-op, upper 128 already in memory
+        // else: upper 128 is already in ymm[a] memory, no-op
     }
     dyn->v.avxcache[a].v = -1;
     return;

@@ -68,14 +68,66 @@ uintptr_t dynarec64_AVX_66_0F3A(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
 
     switch (opcode) {
         case 0x00:
-            INST_NAME("VPERMQ Gx, Ex, Imm8");
-            nextop = F8;
-            DEFAULT;
-            break;
         case 0x01:
-            INST_NAME("VPERMPD Gx, Ex, Imm8");
+            if (opcode == 0x01) {
+                INST_NAME("VPERMPD Gx, Ex, Imm8");
+            } else {
+                INST_NAME("VPERMQ Gx, Ex, Imm8");
+            }
             nextop = F8;
-            DEFAULT;
+            if (!vex.l) { DEFAULT; break; }
+            {
+                // 256-bit only. Source is Ex (4 qwords), permuted by imm8.
+                // Ex lower half (qwords 0,1) in VSX reg. Ex upper half (qwords 2,3) in ymm[] memory.
+                // PPC64LE ISA layout: ISA dw0 = bits 0:63 = LE qword 1, ISA dw1 = bits 64:127 = LE qword 0
+                int ex_reg = -1;
+                GETEYy(v1, 0, 1);
+                if (MODREG) ex_reg = (nextop & 7) + (rex.b << 3);
+                GETGYy_empty(v0);
+                u8 = F8;
+                // Load the upper half of Ex into a scratch register
+                d0 = fpu_get_scratch(dyn);
+                if (MODREG) {
+                    LXV(VSXREG(d0), offsetof(x64emu_t, ymm[ex_reg]), xEmu);
+                } else {
+                    LXV(VSXREG(d0), fixedaddress + 16, ed);
+                }
+                // Now v1 = Ex lower (q0=ISA dw1, q1=ISA dw0), d0 = Ex upper (q2=ISA dw1, q3=ISA dw0)
+                // Source array: src[0]=v1 ISA dw1, src[1]=v1 ISA dw0, src[2]=d0 ISA dw1, src[3]=d0 ISA dw0
+                // For output lower half:
+                //   ISA dw1 (q0) = src[imm8[1:0]]
+                //   ISA dw0 (q1) = src[imm8[3:2]]
+                // For output upper half:
+                //   ISA dw1 (q2) = src[imm8[5:4]]
+                //   ISA dw0 (q3) = src[imm8[7:6]]
+
+                // Helper: map source index 0-3 to (register, XXPERMDI bit)
+                // 0 → v1, select ISA dw1 (bit=1)
+                // 1 → v1, select ISA dw0 (bit=0)
+                // 2 → d0, select ISA dw1 (bit=1)
+                // 3 → d0, select ISA dw0 (bit=0)
+                #define SRC_REG(idx) (((idx) < 2) ? v1 : d0)
+                #define SRC_DW(idx)  (((idx) & 1) ? 0 : 1)  // 0→dw1(bit=1), 1→dw0(bit=0), 2→dw1(bit=1), 3→dw0(bit=0)
+
+                int sel0 = (u8 >> 0) & 3;  // for output q0 = ISA dw1 of lower
+                int sel1 = (u8 >> 2) & 3;  // for output q1 = ISA dw0 of lower
+                int sel2 = (u8 >> 4) & 3;  // for output q2 = ISA dw1 of upper
+                int sel3 = (u8 >> 6) & 3;  // for output q3 = ISA dw0 of upper
+
+                // Build output lower half (v0):
+                // XXPERMDI(T, A, B, DM): T dw0 = A[DM_hi], T dw1 = B[DM_lo]
+                // We want: v0 ISA dw0 = src[sel1], v0 ISA dw1 = src[sel0]
+                // So A provides dw0 → A=SRC_REG(sel1), DM_hi=SRC_DW(sel1)
+                //    B provides dw1 → B=SRC_REG(sel0), DM_lo=SRC_DW(sel0)
+                XXPERMDI(VSXREG(v0), VSXREG(SRC_REG(sel1)), VSXREG(SRC_REG(sel0)), (SRC_DW(sel1) << 1) | SRC_DW(sel0));
+
+                // Build output upper half → store to ymm[gd]
+                d1 = fpu_get_scratch(dyn);
+                XXPERMDI(VSXREG(d1), VSXREG(SRC_REG(sel3)), VSXREG(SRC_REG(sel2)), (SRC_DW(sel3) << 1) | SRC_DW(sel2));
+                STXV(VSXREG(d1), offsetof(x64emu_t, ymm[gd]), xEmu);
+                #undef SRC_REG
+                #undef SRC_DW
+            }
             break;
         case 0x02:
             INST_NAME("VPBLENDD Gx, Vx, Ex, Ib");
@@ -186,7 +238,65 @@ uintptr_t dynarec64_AVX_66_0F3A(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
         case 0x06:
             INST_NAME("VPERM2F128 Gx, Vx, Ex, Imm8");
             nextop = F8;
-            DEFAULT;
+            if (!vex.l) { DEFAULT; break; }
+            {
+                // VPERM2F128: select two 128-bit lanes from Vx and Ex to form 256-bit Gx
+                // imm8[1:0] selects source for result low 128: 0=Vx.lo, 1=Vx.hi, 2=Ex.lo, 3=Ex.hi
+                // imm8[3] = zero result low 128
+                // imm8[5:4] selects source for result high 128: same encoding
+                // imm8[7] = zero result high 128
+                int ex_reg = -1;
+                GETGY_empty_VYEY_xy(v0, v1, v2, 1);
+                if (MODREG) ex_reg = (nextop & 7) + (rex.b << 3);
+                u8 = F8;
+                uint8_t zero_lo = (u8 >> 3) & 1;
+                uint8_t zero_hi = (u8 >> 7) & 1;
+                uint8_t sel_lo = u8 & 3;        // source lane for result low 128
+                uint8_t sel_hi = (u8 >> 4) & 3; // source lane for result high 128
+
+                // Load both selected lanes into scratch registers first, then write to dest.
+                // This avoids aliasing issues when gd == vex.v or gd == ex_reg.
+                d0 = fpu_get_scratch(dyn);  // will hold result low 128
+                d1 = fpu_get_scratch(dyn);  // will hold result high 128
+
+                // Load selected lane for result low 128
+                if (zero_lo) {
+                    XXLXOR(VSXREG(d0), VSXREG(d0), VSXREG(d0));
+                } else {
+                    switch (sel_lo) {
+                        case 0: XXLOR(VSXREG(d0), VSXREG(v1), VSXREG(v1)); break;
+                        case 1: LXV(VSXREG(d0), offsetof(x64emu_t, ymm[vex.v]), xEmu); break;
+                        case 2: XXLOR(VSXREG(d0), VSXREG(v2), VSXREG(v2)); break;
+                        case 3:
+                            if (MODREG)
+                                LXV(VSXREG(d0), offsetof(x64emu_t, ymm[ex_reg]), xEmu);
+                            else
+                                LXV(VSXREG(d0), fixedaddress + 16, ed);
+                            break;
+                    }
+                }
+
+                // Load selected lane for result high 128
+                if (zero_hi) {
+                    XXLXOR(VSXREG(d1), VSXREG(d1), VSXREG(d1));
+                } else {
+                    switch (sel_hi) {
+                        case 0: XXLOR(VSXREG(d1), VSXREG(v1), VSXREG(v1)); break;
+                        case 1: LXV(VSXREG(d1), offsetof(x64emu_t, ymm[vex.v]), xEmu); break;
+                        case 2: XXLOR(VSXREG(d1), VSXREG(v2), VSXREG(v2)); break;
+                        case 3:
+                            if (MODREG)
+                                LXV(VSXREG(d1), offsetof(x64emu_t, ymm[ex_reg]), xEmu);
+                            else
+                                LXV(VSXREG(d1), fixedaddress + 16, ed);
+                            break;
+                    }
+                }
+
+                // Write results
+                XXLOR(VSXREG(v0), VSXREG(d0), VSXREG(d0));
+                STXV(VSXREG(d1), offsetof(x64emu_t, ymm[gd]), xEmu);
+            }
             break;
 
         case 0x08:
@@ -606,14 +716,71 @@ uintptr_t dynarec64_AVX_66_0F3A(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
             break;
 
         case 0x18:
-            INST_NAME("VINSERTF128 Gx, Vx, Ex, Imm8");
+        case 0x38:
+            if (opcode == 0x18) {
+                INST_NAME("VINSERTF128 Gx, Vx, Ex, Imm8");
+            } else {
+                INST_NAME("VINSERTI128 Gx, Vx, Ex, Imm8");
+            }
             nextop = F8;
-            DEFAULT;
+            {
+                // VINSERT[FI]128: copy 256-bit Vx to Gx, then overwrite either
+                // the low or high 128-bit lane with 128-bit Ex based on imm8 bit 0.
+                // Ex is always 128-bit (xmm or m128).
+                GETEYx(q2, 0, 1);  // 128-bit Ex
+                GETVYy(q1, 0);     // 256-bit Vx (lower half in VSX reg)
+                GETGYy_empty(q0);  // 256-bit Gx (empty)
+                u8 = F8;
+                if (u8 & 1) {
+                    // Insert into high lane: copy Vx.lo to Gx.lo, store Ex as Gx.hi
+                    if (q0 != q1) XXLOR(VSXREG(q0), VSXREG(q1), VSXREG(q1));
+                    STXV(VSXREG(q2), offsetof(x64emu_t, ymm[gd]), xEmu);
+                } else {
+                    // Insert into low lane: Gx.lo = Ex, Gx.hi = Vx.hi
+                    if (q0 != q2) XXLOR(VSXREG(q0), VSXREG(q2), VSXREG(q2));
+                    // Copy Vx upper to Gx upper (ymm[gd] = ymm[vex.v])
+                    d0 = fpu_get_scratch(dyn);
+                    LXV(VSXREG(d0), offsetof(x64emu_t, ymm[vex.v]), xEmu);
+                    STXV(VSXREG(d0), offsetof(x64emu_t, ymm[gd]), xEmu);
+                }
+            }
             break;
         case 0x19:
-            INST_NAME("VEXTRACTF128 Ex, Gx, Imm8");
+        case 0x39:
+            if (opcode == 0x19) {
+                INST_NAME("VEXTRACTF128 Ex, Gx, Imm8");
+            } else {
+                INST_NAME("VEXTRACTI128 Ex, Gx, Imm8");
+            }
             nextop = F8;
-            DEFAULT;
+            {
+                // VEXTRACT[FI]128: extract low or high 128-bit lane of 256-bit Gx into 128-bit Ex
+                GETGYy(q0, 0);  // 256-bit Gx (lower half in VSX reg)
+                if (MODREG) {
+                    GETEYx_empty(q1, 1);
+                    u8 = F8;
+                    if (u8 & 1) {
+                        // Extract high lane: load from ymm[gd]
+                        LXV(VSXREG(q1), offsetof(x64emu_t, ymm[gd]), xEmu);
+                    } else {
+                        // Extract low lane: copy Gx.lo
+                        if (q1 != q0) XXLOR(VSXREG(q1), VSXREG(q0), VSXREG(q0));
+                    }
+                } else {
+                    addr = geted(dyn, addr, ninst, nextop, &ed, x2, x1, &fixedaddress, rex, NULL, DQ_ALIGN|1, 1);
+                    u8 = F8;
+                    if (u8 & 1) {
+                        // Extract high lane: load from ymm[gd] and store to memory
+                        d0 = fpu_get_scratch(dyn);
+                        LXV(VSXREG(d0), offsetof(x64emu_t, ymm[gd]), xEmu);
+                        STXV(VSXREG(d0), fixedaddress, ed);
+                    } else {
+                        // Extract low lane: store Gx.lo to memory
+                        STXV(VSXREG(q0), fixedaddress, ed);
+                    }
+                    SMWRITE2();
+                }
+            }
             break;
         case 0x1D:
             INST_NAME("VCVTPS2PH Ex, Gx, Ib");
@@ -722,16 +889,8 @@ uintptr_t dynarec64_AVX_66_0F3A(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
             }
             break;
 
-        case 0x38:
-            INST_NAME("VINSERTI128 Gx, Vx, Ex, Imm8");
-            nextop = F8;
-            DEFAULT;
-            break;
-        case 0x39:
-            INST_NAME("VEXTRACTI128 Ex, Gx, Imm8");
-            nextop = F8;
-            DEFAULT;
-            break;
+        // case 0x38 handled above with case 0x18
+        // case 0x39 handled above with case 0x19
 
         case 0x40:
             INST_NAME("VDPPS Gx, Vx, Ex, Ib");
@@ -845,7 +1004,56 @@ uintptr_t dynarec64_AVX_66_0F3A(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
         case 0x46:
             INST_NAME("VPERM2I128 Gx, Vx, Ex, Imm8");
             nextop = F8;
-            DEFAULT;
+            if (!vex.l) { DEFAULT; break; }
+            {
+                // VPERM2I128: identical to VPERM2F128, integer variant
+                int ex_reg = -1;
+                GETGY_empty_VYEY_xy(v0, v1, v2, 1);
+                if (MODREG) ex_reg = (nextop & 7) + (rex.b << 3);
+                u8 = F8;
+                uint8_t zero_lo = (u8 >> 3) & 1;
+                uint8_t zero_hi = (u8 >> 7) & 1;
+                uint8_t sel_lo = u8 & 3;
+                uint8_t sel_hi = (u8 >> 4) & 3;
+
+                d0 = fpu_get_scratch(dyn);
+                d1 = fpu_get_scratch(dyn);
+
+                if (zero_lo) {
+                    XXLXOR(VSXREG(d0), VSXREG(d0), VSXREG(d0));
+                } else {
+                    switch (sel_lo) {
+                        case 0: XXLOR(VSXREG(d0), VSXREG(v1), VSXREG(v1)); break;
+                        case 1: LXV(VSXREG(d0), offsetof(x64emu_t, ymm[vex.v]), xEmu); break;
+                        case 2: XXLOR(VSXREG(d0), VSXREG(v2), VSXREG(v2)); break;
+                        case 3:
+                            if (MODREG)
+                                LXV(VSXREG(d0), offsetof(x64emu_t, ymm[ex_reg]), xEmu);
+                            else
+                                LXV(VSXREG(d0), fixedaddress + 16, ed);
+                            break;
+                    }
+                }
+
+                if (zero_hi) {
+                    XXLXOR(VSXREG(d1), VSXREG(d1), VSXREG(d1));
+                } else {
+                    switch (sel_hi) {
+                        case 0: XXLOR(VSXREG(d1), VSXREG(v1), VSXREG(v1)); break;
+                        case 1: LXV(VSXREG(d1), offsetof(x64emu_t, ymm[vex.v]), xEmu); break;
+                        case 2: XXLOR(VSXREG(d1), VSXREG(v2), VSXREG(v2)); break;
+                        case 3:
+                            if (MODREG)
+                                LXV(VSXREG(d1), offsetof(x64emu_t, ymm[ex_reg]), xEmu);
+                            else
+                                LXV(VSXREG(d1), fixedaddress + 16, ed);
+                            break;
+                    }
+                }
+
+                XXLOR(VSXREG(v0), VSXREG(d0), VSXREG(d0));
+                STXV(VSXREG(d1), offsetof(x64emu_t, ymm[gd]), xEmu);
+            }
             break;
 
         case 0x4A:

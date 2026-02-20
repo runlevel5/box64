@@ -73,11 +73,26 @@ uintptr_t dynarec64_AVX_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip,
             if (MODREG) {
                 GETGY_empty_EY_xy(v0, v1, 0);
                 XXLOR(VSXREG(v0), VSXREG(v1), VSXREG(v1));
+                if (vex.l) {
+                    // Copy upper 128 bits: ymm[src] -> ymm[gd]
+                    int src = (nextop & 7) + (rex.b << 3);
+                    if (src != gd) {
+                        q0 = fpu_get_scratch(dyn);
+                        LXV(VSXREG(q0), offsetof(x64emu_t, ymm[src]), xEmu);
+                        STXV(VSXREG(q0), offsetof(x64emu_t, ymm[gd]), xEmu);
+                    }
+                }
             } else {
                 GETGYxy_empty(v0);
                 SMREAD();
                 addr = geted(dyn, addr, ninst, nextop, &ed, x2, x3, &fixedaddress, rex, NULL, DQ_ALIGN|1, 0);
                 LXV(VSXREG(v0), fixedaddress, ed);
+                if (vex.l) {
+                    // Load upper 128 bits from memory to ymm[gd]
+                    q0 = fpu_get_scratch(dyn);
+                    LXV(VSXREG(q0), fixedaddress + 16, ed);
+                    STXV(VSXREG(q0), offsetof(x64emu_t, ymm[gd]), xEmu);
+                }
             }
             break;
         case 0x11:
@@ -87,9 +102,24 @@ uintptr_t dynarec64_AVX_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip,
             if (MODREG) {
                 GETEYxy_empty(v1, 0);
                 XXLOR(VSXREG(v1), VSXREG(v0), VSXREG(v0));
+                if (vex.l) {
+                    // Copy upper 128 bits: ymm[gd] -> ymm[dest]
+                    int dest = (nextop & 7) + (rex.b << 3);
+                    if (dest != gd) {
+                        q0 = fpu_get_scratch(dyn);
+                        LXV(VSXREG(q0), offsetof(x64emu_t, ymm[gd]), xEmu);
+                        STXV(VSXREG(q0), offsetof(x64emu_t, ymm[dest]), xEmu);
+                    }
+                }
             } else {
                 addr = geted(dyn, addr, ninst, nextop, &ed, x2, x3, &fixedaddress, rex, NULL, DQ_ALIGN|1, 0);
                 STXV(VSXREG(v0), fixedaddress, ed);
+                if (vex.l) {
+                    // Store upper 128 bits from ymm[gd] to memory
+                    q0 = fpu_get_scratch(dyn);
+                    LXV(VSXREG(q0), offsetof(x64emu_t, ymm[gd]), xEmu);
+                    STXV(VSXREG(q0), fixedaddress + 16, ed);
+                }
                 SMWRITE2();
             }
             break;
@@ -191,14 +221,26 @@ uintptr_t dynarec64_AVX_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip,
             INST_NAME("VMOVAPS Gx, Ex");
             nextop = F8;
             if (MODREG) {
-                GETEYx(v1, 0, 0);
-                GETGYx_empty(v0);
+                GETGY_empty_EY_xy(v0, v1, 0);
                 XXLOR(VSXREG(v0), VSXREG(v1), VSXREG(v1));
+                if (vex.l) {
+                    int src = (nextop & 7) + (rex.b << 3);
+                    if (src != gd) {
+                        q0 = fpu_get_scratch(dyn);
+                        LXV(VSXREG(q0), offsetof(x64emu_t, ymm[src]), xEmu);
+                        STXV(VSXREG(q0), offsetof(x64emu_t, ymm[gd]), xEmu);
+                    }
+                }
             } else {
-                GETGYx_empty(v0);
+                GETGYxy_empty(v0);
                 SMREAD();
                 addr = geted(dyn, addr, ninst, nextop, &ed, x2, x3, &fixedaddress, rex, NULL, DQ_ALIGN|1, 0);
                 LXV(VSXREG(v0), fixedaddress, ed);
+                if (vex.l) {
+                    q0 = fpu_get_scratch(dyn);
+                    LXV(VSXREG(q0), fixedaddress + 16, ed);
+                    STXV(VSXREG(q0), offsetof(x64emu_t, ymm[gd]), xEmu);
+                }
             }
             break;
 
@@ -209,9 +251,22 @@ uintptr_t dynarec64_AVX_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip,
             if (MODREG) {
                 GETEYxy_empty(v1, 0);
                 XXLOR(VSXREG(v1), VSXREG(v0), VSXREG(v0));
+                if (vex.l) {
+                    int dest = (nextop & 7) + (rex.b << 3);
+                    if (dest != gd) {
+                        q0 = fpu_get_scratch(dyn);
+                        LXV(VSXREG(q0), offsetof(x64emu_t, ymm[gd]), xEmu);
+                        STXV(VSXREG(q0), offsetof(x64emu_t, ymm[dest]), xEmu);
+                    }
+                }
             } else {
                 addr = geted(dyn, addr, ninst, nextop, &ed, x2, x3, &fixedaddress, rex, NULL, DQ_ALIGN|1, 0);
                 STXV(VSXREG(v0), fixedaddress, ed);
+                if (vex.l) {
+                    q0 = fpu_get_scratch(dyn);
+                    LXV(VSXREG(q0), offsetof(x64emu_t, ymm[gd]), xEmu);
+                    STXV(VSXREG(q0), fixedaddress + 16, ed);
+                }
                 SMWRITE2();
             }
             break;
@@ -225,6 +280,11 @@ uintptr_t dynarec64_AVX_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip,
             } else {
                 addr = geted(dyn, addr, ninst, nextop, &ed, x2, x3, &fixedaddress, rex, NULL, DQ_ALIGN|1, 0);
                 STXV(VSXREG(v0), fixedaddress, ed);
+                if (vex.l) {
+                    q0 = fpu_get_scratch(dyn);
+                    LXV(VSXREG(q0), offsetof(x64emu_t, ymm[gd]), xEmu);
+                    STXV(VSXREG(q0), fixedaddress + 16, ed);
+                }
                 SMWRITE2();
             }
             break;

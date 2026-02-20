@@ -761,14 +761,26 @@ uintptr_t dynarec64_AVX_66_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
             INST_NAME("VMOVNTDQA Gx, Ex");
             nextop = F8;
             if (MODREG) {
-                v1 = avx_get_reg(dyn, ninst, x1, (nextop & 7) + (rex.b << 3), 0, VMX_AVX_WIDTH_128);
-                GETGYx_empty(v0);
+                GETGY_empty_EY_xy(v0, v1, 0);
                 XXLOR(VSXREG(v0), VSXREG(v1), VSXREG(v1));
+                if (vex.l) {
+                    int src = (nextop & 7) + (rex.b << 3);
+                    if (src != gd) {
+                        q0 = fpu_get_scratch(dyn);
+                        LXV(VSXREG(q0), offsetof(x64emu_t, ymm[src]), xEmu);
+                        STXV(VSXREG(q0), offsetof(x64emu_t, ymm[gd]), xEmu);
+                    }
+                }
             } else {
-                GETGYx_empty(v0);
+                GETGYxy_empty(v0);
                 SMREAD();
                 addr = geted(dyn, addr, ninst, nextop, &ed, x2, x1, &fixedaddress, rex, NULL, DQ_ALIGN|1, 0);
                 LXV(VSXREG(v0), fixedaddress, ed);
+                if (vex.l) {
+                    q0 = fpu_get_scratch(dyn);
+                    LXV(VSXREG(q0), fixedaddress + 16, ed);
+                    STXV(VSXREG(q0), offsetof(x64emu_t, ymm[gd]), xEmu);
+                }
             }
             break;
 

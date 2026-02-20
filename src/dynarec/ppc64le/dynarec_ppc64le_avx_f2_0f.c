@@ -923,11 +923,24 @@ uintptr_t dynarec64_AVX_F2_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t 
             if (MODREG) {
                 GETGY_empty_EY_xy(v0, v1, 0);
                 XXLOR(VSXREG(v0), VSXREG(v1), VSXREG(v1));
+                if (vex.l) {
+                    int src = (nextop & 7) + (rex.b << 3);
+                    if (src != gd) {
+                        q0 = fpu_get_scratch(dyn);
+                        LXV(VSXREG(q0), offsetof(x64emu_t, ymm[src]), xEmu);
+                        STXV(VSXREG(q0), offsetof(x64emu_t, ymm[gd]), xEmu);
+                    }
+                }
             } else {
                 GETGYxy_empty(v0);
                 SMREAD();
                 addr = geted(dyn, addr, ninst, nextop, &ed, x2, x3, &fixedaddress, rex, NULL, DQ_ALIGN|1, 0);
                 LXV(VSXREG(v0), fixedaddress, ed);
+                if (vex.l) {
+                    q0 = fpu_get_scratch(dyn);
+                    LXV(VSXREG(q0), fixedaddress + 16, ed);
+                    STXV(VSXREG(q0), offsetof(x64emu_t, ymm[gd]), xEmu);
+                }
             }
             break;
 
