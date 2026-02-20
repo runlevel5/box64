@@ -79,8 +79,12 @@ uintptr_t dynarec64_AVX_F3_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t 
                     XXLOR(VSXREG(v0), VSXREG(v1), VSXREG(v1));
                 }
                 // Insert Ex low float (LE word 0) into v0 LE word 0
-                // For MODREG, v2 is a full 128-bit AVX reg; extract and insert word 0
-                VINSERTW(VRREG(v0), VRREG(v2), 12);  // LE word 0 = BE byte offset 12
+                // VINSERTW reads from bytes 0:3 of src (BE word 0 = LE word 3),
+                // but the float is at LE word 0 (byte offset 12). Use VEXTRACTUW
+                // to move it to bytes 0:3 of a scratch, then VINSERTW.
+                d0 = fpu_get_scratch(dyn);
+                VEXTRACTUW(VRREG(d0), VRREG(v2), 12);   // LE word 0 -> bytes 0:3 of d0
+                VINSERTW(VRREG(v0), VRREG(d0), 12);     // bytes 0:3 of d0 -> LE word 0 of v0
             } else {
                 // mem: zero dest, load 32-bit float into low 32 bits
                 GETGYx_empty(v0);
@@ -102,7 +106,9 @@ uintptr_t dynarec64_AVX_F3_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t 
                 if (v2 != v1) {
                     XXLOR(VSXREG(v2), VSXREG(v1), VSXREG(v1));
                 }
-                VINSERTW(VRREG(v2), VRREG(v0), 12);  // LE word 0 = BE byte offset 12
+                d0 = fpu_get_scratch(dyn);
+                VEXTRACTUW(VRREG(d0), VRREG(v0), 12);   // LE word 0 of v0 -> bytes 0:3 of d0
+                VINSERTW(VRREG(v2), VRREG(d0), 12);     // bytes 0:3 of d0 -> LE word 0 of v2
             } else {
                 // mem: store low 32 bits
                 addr = geted(dyn, addr, ninst, nextop, &ed, x2, x3, &fixedaddress, rex, NULL, 1, 0);

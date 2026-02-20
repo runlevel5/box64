@@ -162,11 +162,14 @@ _fw_print_dec:
 
 ;; CHECK_EQ_64 actual_reg, expected_value
 ;; Compares reg64 to immediate, prints PASS/FAIL
+;; Works correctly even when %1 is rax
 %macro CHECK_EQ_64 2
+    push r14
     push rax
     push rsi
-    mov rax, %2
-    cmp %1, rax
+    mov r14, %1         ; save actual value in r14 first (before clobbering rax)
+    mov rax, %2         ; load expected into rax
+    cmp r14, rax
     jne %%fail
     ; PASS
     lea rsi, [rel _fw_pass_msg]
@@ -183,21 +186,26 @@ _fw_print_dec:
     call _fw_print_hex64
     lea rsi, [rel _fw_got_msg]
     call _fw_print_str
-    mov rax, %1
+    mov rax, r14        ; r14 has the saved actual value
     call _fw_print_hex64
     lea rsi, [rel _fw_nl]
     call _fw_print_str
 %%done:
     pop rsi
     pop rax
+    pop r14
 %endmacro
 
 ;; CHECK_EQ_32 actual_reg, expected_value
 ;; Compares reg32 to immediate, prints PASS/FAIL
+;; Works correctly even when %1 is eax
 %macro CHECK_EQ_32 2
+    push r14
     push rax
     push rsi
-    cmp %1, %2
+    mov r14d, %1        ; save actual value in r14d first (before clobbering eax)
+    mov eax, %2         ; load expected
+    cmp r14d, eax
     jne %%fail
     lea rsi, [rel _fw_pass_msg]
     call _fw_print_str
@@ -212,13 +220,14 @@ _fw_print_dec:
     call _fw_print_hex32
     lea rsi, [rel _fw_got_msg]
     call _fw_print_str
-    mov eax, %1
+    mov eax, r14d       ; r14d has the saved actual value
     call _fw_print_hex32
     lea rsi, [rel _fw_nl]
     call _fw_print_str
 %%done:
     pop rsi
     pop rax
+    pop r14
 %endmacro
 
 ;; CHECK_EQ_XMM_LOW64 xmm_reg, expected_value

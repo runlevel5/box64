@@ -3490,12 +3490,12 @@ uintptr_t dynarec64_660F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
                                 MFVSRD(x1, VSXREG(v0));
                             else
                                 MFVSRLD(x1, VSXREG(v0));
-                            STD(x1, ed, fixedaddress);
+                            STD(x1, fixedaddress, ed);
                         } else {
                             d0 = fpu_get_scratch(dyn);
                             VEXTRACTUW(VRREG(d0), VRREG(v0), (3 - (u8 & 3)) * 4);
                             MFVSRD(x1, VSXREG(d0));
-                            STW(x1, ed, fixedaddress);
+                            STW(x1, fixedaddress, ed);
                         }
                         SMWRITE2();
                     }
@@ -3660,7 +3660,7 @@ uintptr_t dynarec64_660F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
                         d0 = fpu_get_scratch(dyn);
                         VEXTRACTUW(VRREG(d0), VRREG(v0), (3 - u8) * 4);
                         MFVSRD(x1, VSXREG(d0));
-                        STW(x1, ed, fixedaddress);
+                        STW(x1, fixedaddress, ed);
                         SMWRITE2();
                     }
                     break;
@@ -3751,10 +3751,10 @@ uintptr_t dynarec64_660F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
                         // PINSRD: insert 32-bit value
                         // Move GPR into vector via MTVSRDD (value in both halves)
                         MTVSRDD(VSXREG(d0), ed, ed);
-                        // The value is now in bits 0:31 (BE word 0, byte offset 0)
-                        // and also in bits 32:63 (BE word 1, byte offset 4)
-                        // We need to extract from a known position, then insert
-                        VEXTRACTUW(VRREG(d0), VRREG(d0), 0);
+                        // On PPC64LE, MTVSRDD puts ed in both dw0 and dw1. The low 32 bits
+                        // of the 64-bit value are at byte offset 4 (dw0) and 12 (dw1).
+                        // VEXTRACTUW byte 4 extracts the correct 32-bit value.
+                        VEXTRACTUW(VRREG(d0), VRREG(d0), 4);
                         // x86 dword index (u8 & 3) → BE byte offset (3 - index)*4
                         VINSERTW(VRREG(v0), VRREG(d0), (3 - (u8 & 3)) * 4);
                     }

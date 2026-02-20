@@ -573,12 +573,12 @@ uintptr_t dynarec64_AVX_66_0F3A(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
                         MFVSRD(x1, VSXREG(v0));
                     else
                         MFVSRLD(x1, VSXREG(v0));
-                    STD(x1, ed, fixedaddress);
+                    STD(x1, fixedaddress, ed);
                 } else {
                     d0 = fpu_get_scratch(dyn);
                     VEXTRACTUW(VRREG(d0), VRREG(v0), (3 - (u8 & 3)) * 4);
                     MFVSRD(x1, VSXREG(d0));
-                    STW(x1, ed, fixedaddress);
+                    STW(x1, fixedaddress, ed);
                 }
                 SMWRITE2();
             }
@@ -600,7 +600,7 @@ uintptr_t dynarec64_AVX_66_0F3A(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
                 d0 = fpu_get_scratch(dyn);
                 VEXTRACTUW(VRREG(d0), VRREG(v0), (3 - u8) * 4);
                 MFVSRD(x1, VSXREG(d0));
-                STW(x1, ed, fixedaddress);
+                STW(x1, fixedaddress, ed);
                 SMWRITE2();
             }
             break;
@@ -714,7 +714,10 @@ uintptr_t dynarec64_AVX_66_0F3A(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
             } else {
                 // VPINSRD: insert 32-bit value
                 MTVSRDD(VSXREG(d0), ed, ed);
-                VEXTRACTUW(VRREG(d0), VRREG(d0), 0);
+                // On PPC64LE, MTVSRDD puts ed in both dw0 and dw1. The low 32 bits
+                // of the 64-bit value are at byte offset 4 (dw0) and 12 (dw1).
+                // VEXTRACTUW byte 4 extracts the correct 32-bit value.
+                VEXTRACTUW(VRREG(d0), VRREG(d0), 4);
                 VINSERTW(VRREG(v0), VRREG(d0), (3 - (u8 & 3)) * 4);
             }
             break;

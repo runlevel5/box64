@@ -68,8 +68,11 @@ uintptr_t dynarec64_F30F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
                 // reg-reg: merge low 32 bits of source into dest, keep upper 96 bits
                 v0 = sse_get_reg(dyn, ninst, x1, gd, 1);
                 v1 = sse_get_reg(dyn, ninst, x1, (nextop & 7) + (rex.b << 3), 0);
-                // VINSERTW inserts bits 96:127 of src (LE word 0) into byte offset 12 of dest (LE word 0)
-                VINSERTW(VRREG(v0), VRREG(v1), 12);
+                // VINSERTW reads from bytes 0:3 of src (NOT LE word 0), so we need to
+                // extract LE word 0 (byte offset 12) of v1 first, then insert.
+                d0 = fpu_get_scratch(dyn);
+                VEXTRACTUW(VRREG(d0), VRREG(v1), 12);   // LE word 0 -> bytes 0:3 of d0
+                VINSERTW(VRREG(v0), VRREG(d0), 12);     // bytes 0:3 of d0 -> LE word 0 of v0
             } else {
                 // mem: zero dest, load 32-bit float into low 32 bits
                 v0 = sse_get_reg_empty(dyn, ninst, x1, gd);
@@ -88,7 +91,9 @@ uintptr_t dynarec64_F30F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
             if (MODREG) {
                 // reg-reg: merge low 32 bits of source into dest
                 v1 = sse_get_reg(dyn, ninst, x1, (nextop & 7) + (rex.b << 3), 1);
-                VINSERTW(VRREG(v1), VRREG(v0), 12);
+                d0 = fpu_get_scratch(dyn);
+                VEXTRACTUW(VRREG(d0), VRREG(v0), 12);   // LE word 0 of v0 -> bytes 0:3 of d0
+                VINSERTW(VRREG(v1), VRREG(d0), 12);     // bytes 0:3 of d0 -> LE word 0 of v1
             } else {
                 // mem: store low 32 bits (x86 scalar float = LE word 0)
                 addr = geted(dyn, addr, ninst, nextop, &ed, x2, x3, &fixedaddress, rex, NULL, 1, 0);

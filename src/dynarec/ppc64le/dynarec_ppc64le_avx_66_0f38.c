@@ -1150,8 +1150,8 @@ uintptr_t dynarec64_AVX_66_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
                 // PD: v0 = v0*v2 + v1 (MADD), save to q0; v0 = v0*v2 - v1 (MSUB)
                 // But v0 is destroyed after first op, so: copy v0 first
                 XXLOR(VSXREG(q0), VSXREG(v0), VSXREG(v0));
-                XVMADDADP(VSXREG(q0), VSXREG(v2), VSXREG(v1));   // q0 = v2*q0 + v1 (MADD)
-                XVMSUBADP(VSXREG(v0), VSXREG(v2), VSXREG(v1));   // v0 = v2*v0 - v1 (MSUB)
+                XVMADDMDP(VSXREG(q0), VSXREG(v2), VSXREG(v1));   // q0 = v2*q0 + v1 (MADD M-form)
+                XVMSUBMDP(VSXREG(v0), VSXREG(v2), VSXREG(v1));   // v0 = v2*v0 - v1 (MSUB M-form)
                 // Blend: LE dw0 (element 0) = MSUB (v0), LE dw1 (element 1) = MADD (q0)
                 // XXPERMDI: XT[ISA dw0] from q0[ISA dw0], XT[ISA dw1] from v0[ISA dw1]
                 // ISA dw0 = LE dw1 = element 1 (MADD), ISA dw1 = LE dw0 = element 0 (MSUB)
@@ -1159,8 +1159,8 @@ uintptr_t dynarec64_AVX_66_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
             } else {
                 // PS: copy v0, compute MADD and MSUB, blend with XXSEL
                 XXLOR(VSXREG(q0), VSXREG(v0), VSXREG(v0));
-                XVMADDASP(VSXREG(q0), VSXREG(v2), VSXREG(v1));   // q0 = MADD result
-                XVMSUBASP(VSXREG(v0), VSXREG(v2), VSXREG(v1));   // v0 = MSUB result
+                XVMADDMSP(VSXREG(q0), VSXREG(v2), VSXREG(v1));   // q0 = MADD result (M-form)
+                XVMSUBMSP(VSXREG(v0), VSXREG(v2), VSXREG(v1));   // v0 = MSUB result (M-form)
                 // Build mask: odd elements (1,3) from MADD, even elements (0,2) from MSUB
                 // Mask: LE word 0=0, word 1=FF, word 2=0, word 3=FF
                 // ISA dw0 = 0xFFFFFFFF00000000, ISA dw1 = 0xFFFFFFFF00000000
@@ -1179,14 +1179,14 @@ uintptr_t dynarec64_AVX_66_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
             // FMSUBADD: even elements = ADD, odd elements = SUB
             if (rex.w) {
                 XXLOR(VSXREG(q0), VSXREG(v0), VSXREG(v0));
-                XVMSUBADP(VSXREG(q0), VSXREG(v2), VSXREG(v1));   // q0 = MSUB result
-                XVMADDADP(VSXREG(v0), VSXREG(v2), VSXREG(v1));   // v0 = MADD result
+                XVMSUBMDP(VSXREG(q0), VSXREG(v2), VSXREG(v1));   // q0 = MSUB result (M-form)
+                XVMADDMDP(VSXREG(v0), VSXREG(v2), VSXREG(v1));   // v0 = MADD result (M-form)
                 // Blend: LE dw0 (element 0) = MADD (v0), LE dw1 (element 1) = MSUB (q0)
                 XXPERMDI(VSXREG(v0), VSXREG(q0), VSXREG(v0), 1);
             } else {
                 XXLOR(VSXREG(q0), VSXREG(v0), VSXREG(v0));
-                XVMSUBASP(VSXREG(q0), VSXREG(v2), VSXREG(v1));   // q0 = MSUB result
-                XVMADDASP(VSXREG(v0), VSXREG(v2), VSXREG(v1));   // v0 = MADD result
+                XVMSUBMSP(VSXREG(q0), VSXREG(v2), VSXREG(v1));   // q0 = MSUB result (M-form)
+                XVMADDMSP(VSXREG(v0), VSXREG(v2), VSXREG(v1));   // v0 = MADD result (M-form)
                 // Build mask: odd elements (1,3) from MSUB, even elements (0,2) from MADD
                 // Mask: LE word 0=0, word 1=FF, word 2=0, word 3=FF (same mask, but swap XXSEL args)
                 LI(x4, -1);
@@ -1199,11 +1199,11 @@ uintptr_t dynarec64_AVX_66_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
             INST_NAME("VFMADD132PS/D Gx, Vx, Ex");
             nextop = F8;
             GETGY_VYEY_xy(v0, v1, v2, 0);
-            // v0 = v0*v2 + v1 (A-form: XT = XA*XT + XB)
+            // v0 = v0*v2 + v1 (M-form: XT = XA*XT + XB)
             if (rex.w) {
-                XVMADDADP(VSXREG(v0), VSXREG(v2), VSXREG(v1));
+                XVMADDMDP(VSXREG(v0), VSXREG(v2), VSXREG(v1));
             } else {
-                XVMADDASP(VSXREG(v0), VSXREG(v2), VSXREG(v1));
+                XVMADDMSP(VSXREG(v0), VSXREG(v2), VSXREG(v1));
             }
             break;
         case 0x99:
@@ -1225,8 +1225,8 @@ uintptr_t dynarec64_AVX_66_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
                 } else {
                     XXLOR(VSXREG(q0), VSXREG(v2), VSXREG(v2));
                 }
-                // d0 = d0*q0 + d1 → A-form: d0 = q0*d0 + d1
-                XSMADDADP(VSXREG(d0), VSXREG(q0), VSXREG(d1));
+                // d0 = d0*q0 + d1 → M-form: d0 = q0*d0 + d1
+                XSMADDMDP(VSXREG(d0), VSXREG(q0), VSXREG(d1));
                 // Insert result into Gx, copy Vx non-scalar lanes
                 if (v0 != v1) XXLOR(VSXREG(v0), VSXREG(v1), VSXREG(v1));
                 XXPERMDI(VSXREG(v0), VSXREG(v0), VSXREG(d0), 0);
@@ -1242,8 +1242,8 @@ uintptr_t dynarec64_AVX_66_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
                 } else {
                     XXLOR(VSXREG(q0), VSXREG(v2), VSXREG(v2));
                 }
-                // d0 = d0*q0 + d1 → A-form: d0 = q0*d0 + d1
-                XSMADDADP(VSXREG(d0), VSXREG(q0), VSXREG(d1));
+                // d0 = d0*q0 + d1 → M-form: d0 = q0*d0 + d1
+                XSMADDMDP(VSXREG(d0), VSXREG(q0), VSXREG(d1));
                 // Convert back to SP, insert into Gx
                 XSCVDPSPN(VSXREG(d0), VSXREG(d0));
                 VEXTRACTUW(VRREG(d0), VRREG(d0), 0);
@@ -1255,11 +1255,11 @@ uintptr_t dynarec64_AVX_66_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
             INST_NAME("VFMSUB132PS/D Gx, Vx, Ex");
             nextop = F8;
             GETGY_VYEY_xy(v0, v1, v2, 0);
-            // v0 = v0*v2 - v1 (A-form: XT = XA*XT - XB)
+            // v0 = v0*v2 - v1 (M-form: XT = XA*XT - XB)
             if (rex.w) {
-                XVMSUBADP(VSXREG(v0), VSXREG(v2), VSXREG(v1));
+                XVMSUBMDP(VSXREG(v0), VSXREG(v2), VSXREG(v1));
             } else {
-                XVMSUBASP(VSXREG(v0), VSXREG(v2), VSXREG(v1));
+                XVMSUBMSP(VSXREG(v0), VSXREG(v2), VSXREG(v1));
             }
             break;
         case 0x9B:
@@ -1280,8 +1280,8 @@ uintptr_t dynarec64_AVX_66_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
                 } else {
                     XXLOR(VSXREG(q0), VSXREG(v2), VSXREG(v2));
                 }
-                // d0 = d0*q0 - d1 → A-form: d0 = q0*d0 - d1
-                XSMSUBADP(VSXREG(d0), VSXREG(q0), VSXREG(d1));
+                // d0 = d0*q0 - d1 → M-form: d0 = q0*d0 - d1
+                XSMSUBMDP(VSXREG(d0), VSXREG(q0), VSXREG(d1));
                 if (v0 != v1) XXLOR(VSXREG(v0), VSXREG(v1), VSXREG(v1));
                 XXPERMDI(VSXREG(v0), VSXREG(v0), VSXREG(d0), 0);
             } else {
@@ -1295,7 +1295,7 @@ uintptr_t dynarec64_AVX_66_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
                 } else {
                     XXLOR(VSXREG(q0), VSXREG(v2), VSXREG(v2));
                 }
-                XSMSUBADP(VSXREG(d0), VSXREG(q0), VSXREG(d1));
+                XSMSUBMDP(VSXREG(d0), VSXREG(q0), VSXREG(d1));
                 XSCVDPSPN(VSXREG(d0), VSXREG(d0));
                 VEXTRACTUW(VRREG(d0), VRREG(d0), 0);
                 if (v0 != v1) XXLOR(VSXREG(v0), VSXREG(v1), VSXREG(v1));
@@ -1306,11 +1306,11 @@ uintptr_t dynarec64_AVX_66_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
             INST_NAME("VFNMADD132PS/D Gx, Vx, Ex");
             nextop = F8;
             GETGY_VYEY_xy(v0, v1, v2, 0);
-            // v0 = -(v0*v2) + v1 = -(v0*v2 - v1) => PPC NMSUB (A-form: XT = -(XA*XT - XB))
+            // v0 = -(v0*v2) + v1 = -(v0*v2 - v1) => PPC NMSUB (M-form: XT = -(XA*XT - XB))
             if (rex.w) {
-                XVNMSUBADP(VSXREG(v0), VSXREG(v2), VSXREG(v1));
+                XVNMSUBMDP(VSXREG(v0), VSXREG(v2), VSXREG(v1));
             } else {
-                XVNMSUBASP(VSXREG(v0), VSXREG(v2), VSXREG(v1));
+                XVNMSUBMSP(VSXREG(v0), VSXREG(v2), VSXREG(v1));
             }
             break;
         case 0x9D:
@@ -1331,8 +1331,8 @@ uintptr_t dynarec64_AVX_66_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
                 } else {
                     XXLOR(VSXREG(q0), VSXREG(v2), VSXREG(v2));
                 }
-                // -(d0*q0) + d1 = -(d0*q0 - d1) => PPC NMSUB A-form
-                XSNMSUBADP(VSXREG(d0), VSXREG(q0), VSXREG(d1));
+                // -(d0*q0) + d1 = -(d0*q0 - d1) => PPC NMSUB M-form
+                XSNMSUBMDP(VSXREG(d0), VSXREG(q0), VSXREG(d1));
                 if (v0 != v1) XXLOR(VSXREG(v0), VSXREG(v1), VSXREG(v1));
                 XXPERMDI(VSXREG(v0), VSXREG(v0), VSXREG(d0), 0);
             } else {
@@ -1346,7 +1346,7 @@ uintptr_t dynarec64_AVX_66_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
                 } else {
                     XXLOR(VSXREG(q0), VSXREG(v2), VSXREG(v2));
                 }
-                XSNMSUBADP(VSXREG(d0), VSXREG(q0), VSXREG(d1));
+                XSNMSUBMDP(VSXREG(d0), VSXREG(q0), VSXREG(d1));
                 XSCVDPSPN(VSXREG(d0), VSXREG(d0));
                 VEXTRACTUW(VRREG(d0), VRREG(d0), 0);
                 if (v0 != v1) XXLOR(VSXREG(v0), VSXREG(v1), VSXREG(v1));
@@ -1357,11 +1357,11 @@ uintptr_t dynarec64_AVX_66_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
             INST_NAME("VFNMSUB132PS/D Gx, Vx, Ex");
             nextop = F8;
             GETGY_VYEY_xy(v0, v1, v2, 0);
-            // v0 = -(v0*v2) - v1 = -(v0*v2 + v1) => PPC NMADD (A-form: XT = -(XA*XT + XB))
+            // v0 = -(v0*v2) - v1 = -(v0*v2 + v1) => PPC NMADD (M-form: XT = -(XA*XT + XB))
             if (rex.w) {
-                XVNMADDADP(VSXREG(v0), VSXREG(v2), VSXREG(v1));
+                XVNMADDMDP(VSXREG(v0), VSXREG(v2), VSXREG(v1));
             } else {
-                XVNMADDASP(VSXREG(v0), VSXREG(v2), VSXREG(v1));
+                XVNMADDMSP(VSXREG(v0), VSXREG(v2), VSXREG(v1));
             }
             break;
         case 0x9F:
@@ -1382,8 +1382,8 @@ uintptr_t dynarec64_AVX_66_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
                 } else {
                     XXLOR(VSXREG(q0), VSXREG(v2), VSXREG(v2));
                 }
-                // -(d0*q0) - d1 = -(d0*q0 + d1) => PPC NMADD A-form
-                XSNMADDADP(VSXREG(d0), VSXREG(q0), VSXREG(d1));
+                // -(d0*q0) - d1 = -(d0*q0 + d1) => PPC NMADD M-form
+                XSNMADDMDP(VSXREG(d0), VSXREG(q0), VSXREG(d1));
                 if (v0 != v1) XXLOR(VSXREG(v0), VSXREG(v1), VSXREG(v1));
                 XXPERMDI(VSXREG(v0), VSXREG(v0), VSXREG(d0), 0);
             } else {
@@ -1397,7 +1397,7 @@ uintptr_t dynarec64_AVX_66_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
                 } else {
                     XXLOR(VSXREG(q0), VSXREG(v2), VSXREG(v2));
                 }
-                XSNMADDADP(VSXREG(d0), VSXREG(q0), VSXREG(d1));
+                XSNMADDMDP(VSXREG(d0), VSXREG(q0), VSXREG(d1));
                 XSCVDPSPN(VSXREG(d0), VSXREG(d0));
                 VEXTRACTUW(VRREG(d0), VRREG(d0), 0);
                 if (v0 != v1) XXLOR(VSXREG(v0), VSXREG(v1), VSXREG(v1));
@@ -1412,13 +1412,13 @@ uintptr_t dynarec64_AVX_66_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
             d0 = fpu_get_scratch(dyn);
             if (rex.w) {
                 XXLOR(VSXREG(q0), VSXREG(v0), VSXREG(v0));
-                XVMADDADP(VSXREG(q0), VSXREG(v1), VSXREG(v2));   // q0 = v1*q0 + v2 (MADD)
-                XVMSUBADP(VSXREG(v0), VSXREG(v1), VSXREG(v2));   // v0 = v1*v0 - v2 (MSUB)
+                XVMADDMDP(VSXREG(q0), VSXREG(v1), VSXREG(v2));   // q0 = v1*q0 + v2 (MADD M-form)
+                XVMSUBMDP(VSXREG(v0), VSXREG(v1), VSXREG(v2));   // v0 = v1*v0 - v2 (MSUB M-form)
                 XXPERMDI(VSXREG(v0), VSXREG(q0), VSXREG(v0), 1);
             } else {
                 XXLOR(VSXREG(q0), VSXREG(v0), VSXREG(v0));
-                XVMADDASP(VSXREG(q0), VSXREG(v1), VSXREG(v2));
-                XVMSUBASP(VSXREG(v0), VSXREG(v1), VSXREG(v2));
+                XVMADDMSP(VSXREG(q0), VSXREG(v1), VSXREG(v2));
+                XVMSUBMSP(VSXREG(v0), VSXREG(v1), VSXREG(v2));
                 LI(x4, -1);
                 SLDI(x4, x4, 32);
                 MTVSRDD(VSXREG(d0), x4, x4);
@@ -1433,13 +1433,13 @@ uintptr_t dynarec64_AVX_66_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
             d0 = fpu_get_scratch(dyn);
             if (rex.w) {
                 XXLOR(VSXREG(q0), VSXREG(v0), VSXREG(v0));
-                XVMSUBADP(VSXREG(q0), VSXREG(v1), VSXREG(v2));   // q0 = MSUB result
-                XVMADDADP(VSXREG(v0), VSXREG(v1), VSXREG(v2));   // v0 = MADD result
+                XVMSUBMDP(VSXREG(q0), VSXREG(v1), VSXREG(v2));   // q0 = MSUB result (M-form)
+                XVMADDMDP(VSXREG(v0), VSXREG(v1), VSXREG(v2));   // v0 = MADD result (M-form)
                 XXPERMDI(VSXREG(v0), VSXREG(q0), VSXREG(v0), 1);
             } else {
                 XXLOR(VSXREG(q0), VSXREG(v0), VSXREG(v0));
-                XVMSUBASP(VSXREG(q0), VSXREG(v1), VSXREG(v2));
-                XVMADDASP(VSXREG(v0), VSXREG(v1), VSXREG(v2));
+                XVMSUBMSP(VSXREG(q0), VSXREG(v1), VSXREG(v2));
+                XVMADDMSP(VSXREG(v0), VSXREG(v1), VSXREG(v2));
                 LI(x4, -1);
                 SLDI(x4, x4, 32);
                 MTVSRDD(VSXREG(d0), x4, x4);
@@ -1450,11 +1450,11 @@ uintptr_t dynarec64_AVX_66_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
             INST_NAME("VFMADD213PS/D Gx, Vx, Ex");
             nextop = F8;
             GETGY_VYEY_xy(v0, v1, v2, 0);
-            // v0 = v1*v0 + v2 (A-form: XT = XA*XT + XB)
+            // v0 = v1*v0 + v2 (M-form: XT = XA*XT + XB)
             if (rex.w) {
-                XVMADDADP(VSXREG(v0), VSXREG(v1), VSXREG(v2));
+                XVMADDMDP(VSXREG(v0), VSXREG(v1), VSXREG(v2));
             } else {
-                XVMADDASP(VSXREG(v0), VSXREG(v1), VSXREG(v2));
+                XVMADDMSP(VSXREG(v0), VSXREG(v1), VSXREG(v2));
             }
             break;
         case 0xA9:
@@ -1475,8 +1475,8 @@ uintptr_t dynarec64_AVX_66_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
                 } else {
                     XXLOR(VSXREG(q0), VSXREG(v2), VSXREG(v2));
                 }
-                // d0 = d1*d0 + q0 → A-form: d0 = d1*d0 + q0
-                XSMADDADP(VSXREG(d0), VSXREG(d1), VSXREG(q0));
+                // d0 = d1*d0 + q0 → M-form: d0 = d1*d0 + q0
+                XSMADDMDP(VSXREG(d0), VSXREG(d1), VSXREG(q0));
                 if (v0 != v1) XXLOR(VSXREG(v0), VSXREG(v1), VSXREG(v1));
                 XXPERMDI(VSXREG(v0), VSXREG(v0), VSXREG(d0), 0);
             } else {
@@ -1490,7 +1490,7 @@ uintptr_t dynarec64_AVX_66_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
                 } else {
                     XXLOR(VSXREG(q0), VSXREG(v2), VSXREG(v2));
                 }
-                XSMADDADP(VSXREG(d0), VSXREG(d1), VSXREG(q0));
+                XSMADDMDP(VSXREG(d0), VSXREG(d1), VSXREG(q0));
                 XSCVDPSPN(VSXREG(d0), VSXREG(d0));
                 VEXTRACTUW(VRREG(d0), VRREG(d0), 0);
                 if (v0 != v1) XXLOR(VSXREG(v0), VSXREG(v1), VSXREG(v1));
@@ -1501,11 +1501,11 @@ uintptr_t dynarec64_AVX_66_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
             INST_NAME("VFMSUB213PS/D Gx, Vx, Ex");
             nextop = F8;
             GETGY_VYEY_xy(v0, v1, v2, 0);
-            // v0 = v1*v0 - v2 (A-form: XT = XA*XT - XB)
+            // v0 = v1*v0 - v2 (M-form: XT = XA*XT - XB)
             if (rex.w) {
-                XVMSUBADP(VSXREG(v0), VSXREG(v1), VSXREG(v2));
+                XVMSUBMDP(VSXREG(v0), VSXREG(v1), VSXREG(v2));
             } else {
-                XVMSUBASP(VSXREG(v0), VSXREG(v1), VSXREG(v2));
+                XVMSUBMSP(VSXREG(v0), VSXREG(v1), VSXREG(v2));
             }
             break;
         case 0xAB:
@@ -1526,8 +1526,8 @@ uintptr_t dynarec64_AVX_66_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
                 } else {
                     XXLOR(VSXREG(q0), VSXREG(v2), VSXREG(v2));
                 }
-                // d0 = d1*d0 - q0 → A-form: d0 = d1*d0 - q0
-                XSMSUBADP(VSXREG(d0), VSXREG(d1), VSXREG(q0));
+                // d0 = d1*d0 - q0 → M-form: XT = XA*XT - XB
+                XSMSUBMDP(VSXREG(d0), VSXREG(d1), VSXREG(q0));
                 if (v0 != v1) XXLOR(VSXREG(v0), VSXREG(v1), VSXREG(v1));
                 XXPERMDI(VSXREG(v0), VSXREG(v0), VSXREG(d0), 0);
             } else {
@@ -1541,7 +1541,7 @@ uintptr_t dynarec64_AVX_66_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
                 } else {
                     XXLOR(VSXREG(q0), VSXREG(v2), VSXREG(v2));
                 }
-                XSMSUBADP(VSXREG(d0), VSXREG(d1), VSXREG(q0));
+                XSMSUBMDP(VSXREG(d0), VSXREG(d1), VSXREG(q0));
                 XSCVDPSPN(VSXREG(d0), VSXREG(d0));
                 VEXTRACTUW(VRREG(d0), VRREG(d0), 0);
                 if (v0 != v1) XXLOR(VSXREG(v0), VSXREG(v1), VSXREG(v1));
@@ -1552,11 +1552,11 @@ uintptr_t dynarec64_AVX_66_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
             INST_NAME("VFNMADD213PS/D Gx, Vx, Ex");
             nextop = F8;
             GETGY_VYEY_xy(v0, v1, v2, 0);
-            // v0 = -(v1*v0) + v2 = -(v1*v0 - v2) => PPC NMSUB
+            // v0 = -(v1*v0) + v2 = -(v1*v0 - v2) => PPC NMSUB (M-form)
             if (rex.w) {
-                XVNMSUBADP(VSXREG(v0), VSXREG(v1), VSXREG(v2));
+                XVNMSUBMDP(VSXREG(v0), VSXREG(v1), VSXREG(v2));
             } else {
-                XVNMSUBASP(VSXREG(v0), VSXREG(v1), VSXREG(v2));
+                XVNMSUBMSP(VSXREG(v0), VSXREG(v1), VSXREG(v2));
             }
             break;
         case 0xAD:
@@ -1577,8 +1577,8 @@ uintptr_t dynarec64_AVX_66_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
                 } else {
                     XXLOR(VSXREG(q0), VSXREG(v2), VSXREG(v2));
                 }
-                // -(d1*d0) + q0 = -(d1*d0 - q0) => PPC NMSUB A-form
-                XSNMSUBADP(VSXREG(d0), VSXREG(d1), VSXREG(q0));
+                // -(d1*d0) + q0 = -(d1*d0 - q0) => PPC NMSUB M-form
+                XSNMSUBMDP(VSXREG(d0), VSXREG(d1), VSXREG(q0));
                 if (v0 != v1) XXLOR(VSXREG(v0), VSXREG(v1), VSXREG(v1));
                 XXPERMDI(VSXREG(v0), VSXREG(v0), VSXREG(d0), 0);
             } else {
@@ -1592,7 +1592,7 @@ uintptr_t dynarec64_AVX_66_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
                 } else {
                     XXLOR(VSXREG(q0), VSXREG(v2), VSXREG(v2));
                 }
-                XSNMSUBADP(VSXREG(d0), VSXREG(d1), VSXREG(q0));
+                XSNMSUBMDP(VSXREG(d0), VSXREG(d1), VSXREG(q0));
                 XSCVDPSPN(VSXREG(d0), VSXREG(d0));
                 VEXTRACTUW(VRREG(d0), VRREG(d0), 0);
                 if (v0 != v1) XXLOR(VSXREG(v0), VSXREG(v1), VSXREG(v1));
@@ -1603,11 +1603,11 @@ uintptr_t dynarec64_AVX_66_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
             INST_NAME("VFNMSUB213PS/D Gx, Vx, Ex");
             nextop = F8;
             GETGY_VYEY_xy(v0, v1, v2, 0);
-            // v0 = -(v1*v0) - v2 = -(v1*v0 + v2) => PPC NMADD
+            // v0 = -(v1*v0) - v2 = -(v1*v0 + v2) => PPC NMADD (M-form)
             if (rex.w) {
-                XVNMADDADP(VSXREG(v0), VSXREG(v1), VSXREG(v2));
+                XVNMADDMDP(VSXREG(v0), VSXREG(v1), VSXREG(v2));
             } else {
-                XVNMADDASP(VSXREG(v0), VSXREG(v1), VSXREG(v2));
+                XVNMADDMSP(VSXREG(v0), VSXREG(v1), VSXREG(v2));
             }
             break;
         case 0xAF:
@@ -1628,8 +1628,8 @@ uintptr_t dynarec64_AVX_66_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
                 } else {
                     XXLOR(VSXREG(q0), VSXREG(v2), VSXREG(v2));
                 }
-                // -(d1*d0) - q0 = -(d1*d0 + q0) => PPC NMADD A-form
-                XSNMADDADP(VSXREG(d0), VSXREG(d1), VSXREG(q0));
+                // -(d1*d0) - q0 = -(d1*d0 + q0) => PPC NMADD M-form
+                XSNMADDMDP(VSXREG(d0), VSXREG(d1), VSXREG(q0));
                 if (v0 != v1) XXLOR(VSXREG(v0), VSXREG(v1), VSXREG(v1));
                 XXPERMDI(VSXREG(v0), VSXREG(v0), VSXREG(d0), 0);
             } else {
@@ -1643,7 +1643,7 @@ uintptr_t dynarec64_AVX_66_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
                 } else {
                     XXLOR(VSXREG(q0), VSXREG(v2), VSXREG(v2));
                 }
-                XSNMADDADP(VSXREG(d0), VSXREG(d1), VSXREG(q0));
+                XSNMADDMDP(VSXREG(d0), VSXREG(d1), VSXREG(q0));
                 XSCVDPSPN(VSXREG(d0), VSXREG(d0));
                 VEXTRACTUW(VRREG(d0), VRREG(d0), 0);
                 if (v0 != v1) XXLOR(VSXREG(v0), VSXREG(v1), VSXREG(v1));
@@ -1658,13 +1658,13 @@ uintptr_t dynarec64_AVX_66_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
             d0 = fpu_get_scratch(dyn);
             if (rex.w) {
                 XXLOR(VSXREG(q0), VSXREG(v0), VSXREG(v0));
-                XVMADDMDP(VSXREG(q0), VSXREG(v1), VSXREG(v2));   // q0 = v1*v2 + q0 (MADD)
-                XVMSUBMDP(VSXREG(v0), VSXREG(v1), VSXREG(v2));   // v0 = v1*v2 - v0 (MSUB)
+                XVMADDADP(VSXREG(q0), VSXREG(v1), VSXREG(v2));   // q0 = v1*v2 + q0 (MADD)
+                XVMSUBADP(VSXREG(v0), VSXREG(v1), VSXREG(v2));   // v0 = v1*v2 - v0 (MSUB)
                 XXPERMDI(VSXREG(v0), VSXREG(q0), VSXREG(v0), 1);
             } else {
                 XXLOR(VSXREG(q0), VSXREG(v0), VSXREG(v0));
-                XVMADDMSP(VSXREG(q0), VSXREG(v1), VSXREG(v2));
-                XVMSUBMSP(VSXREG(v0), VSXREG(v1), VSXREG(v2));
+                XVMADDASP(VSXREG(q0), VSXREG(v1), VSXREG(v2));
+                XVMSUBASP(VSXREG(v0), VSXREG(v1), VSXREG(v2));
                 LI(x4, -1);
                 SLDI(x4, x4, 32);
                 MTVSRDD(VSXREG(d0), x4, x4);
@@ -1679,13 +1679,13 @@ uintptr_t dynarec64_AVX_66_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
             d0 = fpu_get_scratch(dyn);
             if (rex.w) {
                 XXLOR(VSXREG(q0), VSXREG(v0), VSXREG(v0));
-                XVMSUBMDP(VSXREG(q0), VSXREG(v1), VSXREG(v2));   // q0 = MSUB result
-                XVMADDMDP(VSXREG(v0), VSXREG(v1), VSXREG(v2));   // v0 = MADD result
+                XVMSUBADP(VSXREG(q0), VSXREG(v1), VSXREG(v2));   // q0 = MSUB result
+                XVMADDADP(VSXREG(v0), VSXREG(v1), VSXREG(v2));   // v0 = MADD result
                 XXPERMDI(VSXREG(v0), VSXREG(q0), VSXREG(v0), 1);
             } else {
                 XXLOR(VSXREG(q0), VSXREG(v0), VSXREG(v0));
-                XVMSUBMSP(VSXREG(q0), VSXREG(v1), VSXREG(v2));
-                XVMADDMSP(VSXREG(v0), VSXREG(v1), VSXREG(v2));
+                XVMSUBASP(VSXREG(q0), VSXREG(v1), VSXREG(v2));
+                XVMADDASP(VSXREG(v0), VSXREG(v1), VSXREG(v2));
                 LI(x4, -1);
                 SLDI(x4, x4, 32);
                 MTVSRDD(VSXREG(d0), x4, x4);
@@ -1696,11 +1696,11 @@ uintptr_t dynarec64_AVX_66_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
             INST_NAME("VFMADD231PS/D Gx, Vx, Ex");
             nextop = F8;
             GETGY_VYEY_xy(v0, v1, v2, 0);
-            // v0 = v1*v2 + v0 (M-form: XT = XA*XB + XT)
+            // v0 = v1*v2 + v0 (A-form: XT = XA*XB + XT)
             if (rex.w) {
-                XVMADDMDP(VSXREG(v0), VSXREG(v1), VSXREG(v2));
+                XVMADDADP(VSXREG(v0), VSXREG(v1), VSXREG(v2));
             } else {
-                XVMADDMSP(VSXREG(v0), VSXREG(v1), VSXREG(v2));
+                XVMADDASP(VSXREG(v0), VSXREG(v1), VSXREG(v2));
             }
             break;
         case 0xB9:
@@ -1721,8 +1721,8 @@ uintptr_t dynarec64_AVX_66_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
                 } else {
                     XXLOR(VSXREG(q0), VSXREG(v2), VSXREG(v2));
                 }
-                // d0 = d1*q0 + d0 → M-form: d0 = d1*q0 + d0
-                XSMADDMDP(VSXREG(d0), VSXREG(d1), VSXREG(q0));
+                // d0 = d1*q0 + d0 → A-form: XT = XA*XB + XT
+                XSMADDADP(VSXREG(d0), VSXREG(d1), VSXREG(q0));
                 if (v0 != v1) XXLOR(VSXREG(v0), VSXREG(v1), VSXREG(v1));
                 XXPERMDI(VSXREG(v0), VSXREG(v0), VSXREG(d0), 0);
             } else {
@@ -1736,7 +1736,7 @@ uintptr_t dynarec64_AVX_66_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
                 } else {
                     XXLOR(VSXREG(q0), VSXREG(v2), VSXREG(v2));
                 }
-                XSMADDMDP(VSXREG(d0), VSXREG(d1), VSXREG(q0));
+                XSMADDADP(VSXREG(d0), VSXREG(d1), VSXREG(q0));
                 XSCVDPSPN(VSXREG(d0), VSXREG(d0));
                 VEXTRACTUW(VRREG(d0), VRREG(d0), 0);
                 if (v0 != v1) XXLOR(VSXREG(v0), VSXREG(v1), VSXREG(v1));
@@ -1747,11 +1747,11 @@ uintptr_t dynarec64_AVX_66_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
             INST_NAME("VFMSUB231PS/D Gx, Vx, Ex");
             nextop = F8;
             GETGY_VYEY_xy(v0, v1, v2, 0);
-            // v0 = v1*v2 - v0 (M-form: XT = XA*XB - XT)
+            // v0 = v1*v2 - v0 (A-form: XT = XA*XB - XT)
             if (rex.w) {
-                XVMSUBMDP(VSXREG(v0), VSXREG(v1), VSXREG(v2));
+                XVMSUBADP(VSXREG(v0), VSXREG(v1), VSXREG(v2));
             } else {
-                XVMSUBMSP(VSXREG(v0), VSXREG(v1), VSXREG(v2));
+                XVMSUBASP(VSXREG(v0), VSXREG(v1), VSXREG(v2));
             }
             break;
         case 0xBB:
@@ -1772,8 +1772,8 @@ uintptr_t dynarec64_AVX_66_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
                 } else {
                     XXLOR(VSXREG(q0), VSXREG(v2), VSXREG(v2));
                 }
-                // d0 = d1*q0 - d0 → M-form: d0 = d1*q0 - d0
-                XSMSUBMDP(VSXREG(d0), VSXREG(d1), VSXREG(q0));
+                // d0 = d1*q0 - d0 → A-form: XT = XA*XB - XT
+                XSMSUBADP(VSXREG(d0), VSXREG(d1), VSXREG(q0));
                 if (v0 != v1) XXLOR(VSXREG(v0), VSXREG(v1), VSXREG(v1));
                 XXPERMDI(VSXREG(v0), VSXREG(v0), VSXREG(d0), 0);
             } else {
@@ -1787,7 +1787,7 @@ uintptr_t dynarec64_AVX_66_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
                 } else {
                     XXLOR(VSXREG(q0), VSXREG(v2), VSXREG(v2));
                 }
-                XSMSUBMDP(VSXREG(d0), VSXREG(d1), VSXREG(q0));
+                XSMSUBADP(VSXREG(d0), VSXREG(d1), VSXREG(q0));
                 XSCVDPSPN(VSXREG(d0), VSXREG(d0));
                 VEXTRACTUW(VRREG(d0), VRREG(d0), 0);
                 if (v0 != v1) XXLOR(VSXREG(v0), VSXREG(v1), VSXREG(v1));
@@ -1798,11 +1798,11 @@ uintptr_t dynarec64_AVX_66_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
             INST_NAME("VFNMADD231PS/D Gx, Vx, Ex");
             nextop = F8;
             GETGY_VYEY_xy(v0, v1, v2, 0);
-            // v0 = -(v1*v2) + v0 = -(v1*v2 - v0) => PPC NMSUB (M-form: XT = -(XA*XB - XT))
+            // v0 = -(v1*v2) + v0 = -(v1*v2 - v0) => PPC NMSUB (A-form: XT = -(XA*XB - XT))
             if (rex.w) {
-                XVNMSUBMDP(VSXREG(v0), VSXREG(v1), VSXREG(v2));
+                XVNMSUBADP(VSXREG(v0), VSXREG(v1), VSXREG(v2));
             } else {
-                XVNMSUBMSP(VSXREG(v0), VSXREG(v1), VSXREG(v2));
+                XVNMSUBASP(VSXREG(v0), VSXREG(v1), VSXREG(v2));
             }
             break;
         case 0xBD:
@@ -1823,8 +1823,8 @@ uintptr_t dynarec64_AVX_66_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
                 } else {
                     XXLOR(VSXREG(q0), VSXREG(v2), VSXREG(v2));
                 }
-                // -(d1*q0) + d0 = -(d1*q0 - d0) => PPC NMSUB M-form
-                XSNMSUBMDP(VSXREG(d0), VSXREG(d1), VSXREG(q0));
+                // -(d1*q0) + d0 = -(d1*q0 - d0) => PPC NMSUB A-form
+                XSNMSUBADP(VSXREG(d0), VSXREG(d1), VSXREG(q0));
                 if (v0 != v1) XXLOR(VSXREG(v0), VSXREG(v1), VSXREG(v1));
                 XXPERMDI(VSXREG(v0), VSXREG(v0), VSXREG(d0), 0);
             } else {
@@ -1838,7 +1838,7 @@ uintptr_t dynarec64_AVX_66_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
                 } else {
                     XXLOR(VSXREG(q0), VSXREG(v2), VSXREG(v2));
                 }
-                XSNMSUBMDP(VSXREG(d0), VSXREG(d1), VSXREG(q0));
+                XSNMSUBADP(VSXREG(d0), VSXREG(d1), VSXREG(q0));
                 XSCVDPSPN(VSXREG(d0), VSXREG(d0));
                 VEXTRACTUW(VRREG(d0), VRREG(d0), 0);
                 if (v0 != v1) XXLOR(VSXREG(v0), VSXREG(v1), VSXREG(v1));
@@ -1849,11 +1849,11 @@ uintptr_t dynarec64_AVX_66_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
             INST_NAME("VFNMSUB231PS/D Gx, Vx, Ex");
             nextop = F8;
             GETGY_VYEY_xy(v0, v1, v2, 0);
-            // v0 = -(v1*v2) - v0 = -(v1*v2 + v0) => PPC NMADD (M-form: XT = -(XA*XB + XT))
+            // v0 = -(v1*v2) - v0 = -(v1*v2 + v0) => PPC NMADD (A-form: XT = -(XA*XB + XT))
             if (rex.w) {
-                XVNMADDMDP(VSXREG(v0), VSXREG(v1), VSXREG(v2));
+                XVNMADDADP(VSXREG(v0), VSXREG(v1), VSXREG(v2));
             } else {
-                XVNMADDMSP(VSXREG(v0), VSXREG(v1), VSXREG(v2));
+                XVNMADDASP(VSXREG(v0), VSXREG(v1), VSXREG(v2));
             }
             break;
         case 0xBF:
@@ -1874,8 +1874,8 @@ uintptr_t dynarec64_AVX_66_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
                 } else {
                     XXLOR(VSXREG(q0), VSXREG(v2), VSXREG(v2));
                 }
-                // -(d1*q0) - d0 = -(d1*q0 + d0) => PPC NMADD M-form
-                XSNMADDMDP(VSXREG(d0), VSXREG(d1), VSXREG(q0));
+                // -(d1*q0) - d0 = -(d1*q0 + d0) => PPC NMADD A-form
+                XSNMADDADP(VSXREG(d0), VSXREG(d1), VSXREG(q0));
                 if (v0 != v1) XXLOR(VSXREG(v0), VSXREG(v1), VSXREG(v1));
                 XXPERMDI(VSXREG(v0), VSXREG(v0), VSXREG(d0), 0);
             } else {
@@ -1889,7 +1889,7 @@ uintptr_t dynarec64_AVX_66_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
                 } else {
                     XXLOR(VSXREG(q0), VSXREG(v2), VSXREG(v2));
                 }
-                XSNMADDMDP(VSXREG(d0), VSXREG(d1), VSXREG(q0));
+                XSNMADDADP(VSXREG(d0), VSXREG(d1), VSXREG(q0));
                 XSCVDPSPN(VSXREG(d0), VSXREG(d0));
                 VEXTRACTUW(VRREG(d0), VRREG(d0), 0);
                 if (v0 != v1) XXLOR(VSXREG(v0), VSXREG(v1), VSXREG(v1));
