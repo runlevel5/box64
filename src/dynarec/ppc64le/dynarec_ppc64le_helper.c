@@ -2474,8 +2474,8 @@ static void flagsCacheTransform(dynarec_ppc64le_t* dyn, int ninst, int s1)
     if (go_fetch) {
         if (dyn->f == status_unk) {
             LWZ(s1, offsetof(x64emu_t, df), xEmu);
-            j64 = (GETMARKF2) - (dyn->native_size);
             CMPDI(s1, 0);
+            j64 = (GETMARKF2) - (dyn->native_size);
             BEQ(j64);
         }
         CALL_(const_updateflags, -1, 0, 0, 0);
