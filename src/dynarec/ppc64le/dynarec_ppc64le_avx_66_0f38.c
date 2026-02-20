@@ -1182,25 +1182,195 @@ uintptr_t dynarec64_AVX_66_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
             break;
 
         case 0x90:
-            INST_NAME("VPGATHERDD/Q Gx, Ey, Vx");
+        case 0x92:
+            if (opcode == 0x90) { INST_NAME("VPGATHERDD/Q Gx, VSIB, Vx"); } else { INST_NAME("VGATHERDPS/D Gx, VSIB, Vx"); }
             nextop = F8;
-            // Complex VSIB gather — fall back to interpreter
-            DEFAULT;
+            if (((nextop & 7) != 4) || MODREG) { UDF(); }
+            GETG;
+            u8 = F8; // SIB byte
+            if ((u8 & 0x7) == 0x5 && !(nextop & 0xC0)) {
+                j64 = F32S64;
+                MOV64x(x5, j64);
+                eb1 = x5;
+            } else {
+                eb1 = TO_NAT((u8 & 0x7) + (rex.b << 3));
+            }
+            eb2 = ((u8 >> 3) & 7) + (rex.x << 3); // index register
+            if (nextop & 0x40)
+                i32 = F8S;
+            else if (nextop & 0x80)
+                i32 = F32S;
+            else
+                i32 = 0;
+            if (!i32) {
+                ed = eb1;
+            } else {
+                ed = x3;
+                if (i32 >= -32768 && i32 <= 32767) {
+                    ADDI(ed, eb1, i32);
+                } else {
+                    MOV64x(ed, (int64_t)i32);
+                    ADD(ed, ed, eb1);
+                }
+            }
+            wb1 = u8 >> 6; // scale
+            {
+                // Dword-index gather: indices are 32-bit signed dwords
+                // Element count: rex.w ? (vex.l?4:2) : (vex.l?8:4)
+                int nelem = rex.w ? (vex.l ? 4 : 2) : (vex.l ? 8 : 4);
+
+                avx_forget_reg(dyn, ninst, gd);
+                avx_forget_reg(dyn, ninst, vex.v);
+                avx_forget_reg(dyn, ninst, eb2);
+
+                for (int i = 0; i < nelem; i++) {
+                    // Load mask element and check sign bit
+                    if (rex.w) {
+                        int moff = (i < 2) ? offsetof(x64emu_t, xmm[vex.v]) + i * 8 + 4
+                                           : offsetof(x64emu_t, ymm[vex.v]) + (i - 2) * 8 + 4;
+                        LWZ(x4, moff, xEmu);  // high dword of qword mask
+                    } else {
+                        int moff = (i < 4) ? offsetof(x64emu_t, xmm[vex.v]) + i * 4
+                                           : offsetof(x64emu_t, ymm[vex.v]) + (i - 4) * 4;
+                        LWZ(x4, moff, xEmu);
+                    }
+                    CMPWI(x4, 0);
+                    BGE(6 * 4);  // skip 5 insns after BGE: target = BGE + 24 bytes
+
+                    // Load 32-bit index, sign-extend and shift by scale
+                    int ioff = (i < 4) ? offsetof(x64emu_t, xmm[eb2]) + i * 4
+                                       : offsetof(x64emu_t, ymm[eb2]) + (i - 4) * 4;
+                    LWZ(x4, ioff, xEmu);
+                    EXTSWSLI(x4, x4, wb1);  // sign-extend word + shift left by scale
+                    ADD(x4, x4, ed);         // effective address
+
+                    if (rex.w) {
+                        int doff = (i < 2) ? offsetof(x64emu_t, xmm[gd]) + i * 8
+                                           : offsetof(x64emu_t, ymm[gd]) + (i - 2) * 8;
+                        LD(x6, 0, x4);
+                        STD(x6, doff, xEmu);
+                    } else {
+                        int doff = (i < 4) ? offsetof(x64emu_t, xmm[gd]) + i * 4
+                                           : offsetof(x64emu_t, ymm[gd]) + (i - 4) * 4;
+                        LWZ(x6, 0, x4);
+                        STW(x6, doff, xEmu);
+                    }
+                    // BGE lands here
+                }
+                // Zero entire mask register (vex.v)
+                d0 = fpu_get_scratch(dyn);
+                VXOR(VRREG(d0), VRREG(d0), VRREG(d0));
+                STXV(VSXREG(d0), offsetof(x64emu_t, xmm[vex.v]), xEmu);
+                STXV(VSXREG(d0), offsetof(x64emu_t, ymm[vex.v]), xEmu);
+                // For 128-bit, zero upper ymm of gd
+                if (!vex.l) {
+                    STXV(VSXREG(d0), offsetof(x64emu_t, ymm[gd]), xEmu);
+                }
+            }
             break;
         case 0x91:
-            INST_NAME("VPGATHERQD/Q Gx, Ey, Vx");
-            nextop = F8;
-            DEFAULT;
-            break;
-        case 0x92:
-            INST_NAME("VGATHERDPS/D Gx, Ey, Vx");
-            nextop = F8;
-            DEFAULT;
-            break;
         case 0x93:
-            INST_NAME("VGATHERQPS/D Gx, Ey, Vx");
+            if (opcode == 0x91) { INST_NAME("VPGATHERQD/Q Gx, VSIB, Vx"); } else { INST_NAME("VGATHERQPS/D Gx, VSIB, Vx"); }
             nextop = F8;
-            DEFAULT;
+            if (((nextop & 7) != 4) || MODREG) { UDF(); }
+            GETG;
+            u8 = F8; // SIB byte
+            if ((u8 & 0x7) == 0x5 && !(nextop & 0xC0)) {
+                j64 = F32S64;
+                MOV64x(x5, j64);
+                eb1 = x5;
+            } else {
+                eb1 = TO_NAT((u8 & 0x7) + (rex.b << 3));
+            }
+            eb2 = ((u8 >> 3) & 7) + (rex.x << 3); // index register
+            if (nextop & 0x40)
+                i32 = F8S;
+            else if (nextop & 0x80)
+                i32 = F32S;
+            else
+                i32 = 0;
+            if (!i32) {
+                ed = eb1;
+            } else {
+                ed = x3;
+                if (i32 >= -32768 && i32 <= 32767) {
+                    ADDI(ed, eb1, i32);
+                } else {
+                    MOV64x(ed, (int64_t)i32);
+                    ADD(ed, ed, eb1);
+                }
+            }
+            wb1 = u8 >> 6; // scale
+            {
+                // Qword-index gather: indices are 64-bit qwords
+                // Index count = vex.l ? 4 : 2
+                // For rex.w=1: qword dest elements (same count as indices)
+                // For rex.w=0: dword dest elements (same count, packed, upper zeroed)
+                int nelem = vex.l ? 4 : 2;
+
+                avx_forget_reg(dyn, ninst, gd);
+                avx_forget_reg(dyn, ninst, vex.v);
+                avx_forget_reg(dyn, ninst, eb2);
+
+                for (int i = 0; i < nelem; i++) {
+                    // Load mask element and check sign bit
+                    if (rex.w) {
+                        int moff = (i < 2) ? offsetof(x64emu_t, xmm[vex.v]) + i * 8 + 4
+                                           : offsetof(x64emu_t, ymm[vex.v]) + (i - 2) * 8 + 4;
+                        LWZ(x4, moff, xEmu);  // high dword of qword mask
+                    } else {
+                        // Dword mask elements packed in lower part
+                        int moff = offsetof(x64emu_t, xmm[vex.v]) + i * 4;
+                        LWZ(x4, moff, xEmu);
+                    }
+                    CMPWI(x4, 0);
+                    BGE(6 * 4);  // skip 5 insns: LD + SLDI + ADD + load + store
+
+                    // Load 64-bit index
+                    int ioff = (i < 2) ? offsetof(x64emu_t, xmm[eb2]) + i * 8
+                                       : offsetof(x64emu_t, ymm[eb2]) + (i - 2) * 8;
+                    LD(x4, ioff, xEmu);
+                    SLDI(x4, x4, wb1);  // shift by scale (SLDI by 0 = nop)
+                    ADD(x4, x4, ed);     // effective address
+
+                    if (rex.w) {
+                        int doff = (i < 2) ? offsetof(x64emu_t, xmm[gd]) + i * 8
+                                           : offsetof(x64emu_t, ymm[gd]) + (i - 2) * 8;
+                        LD(x6, 0, x4);
+                        STD(x6, doff, xEmu);
+                    } else {
+                        // Dword dest packed in lower part of xmm
+                        int doff = offsetof(x64emu_t, xmm[gd]) + i * 4;
+                        LWZ(x6, 0, x4);
+                        STW(x6, doff, xEmu);
+                    }
+                    // BGE lands here
+                }
+                // Zero upper unused dwords for !rex.w (dword dest with qword index)
+                if (!rex.w) {
+                    // nelem is 2 or 4; need to zero dwords from nelem to 3 in xmm[gd]
+                    // Use LI to get a zero register (xZR=r0 is NOT reliable as zero)
+                    if (nelem < 4) {
+                        MOV32w(x4, 0);
+                        for (int i = nelem; i < 4; i++) {
+                            STW(x4, offsetof(x64emu_t, xmm[gd]) + i * 4, xEmu);
+                        }
+                    }
+                }
+                // Zero entire mask register (vex.v)
+                d0 = fpu_get_scratch(dyn);
+                VXOR(VRREG(d0), VRREG(d0), VRREG(d0));
+                STXV(VSXREG(d0), offsetof(x64emu_t, xmm[vex.v]), xEmu);
+                STXV(VSXREG(d0), offsetof(x64emu_t, ymm[vex.v]), xEmu);
+                // For 128-bit, zero upper ymm of gd
+                if (!vex.l) {
+                    STXV(VSXREG(d0), offsetof(x64emu_t, ymm[gd]), xEmu);
+                }
+                // For 256-bit !rex.w, also zero ymm[gd] (upper 128 not written by dword gather)
+                if (vex.l && !rex.w) {
+                    STXV(VSXREG(d0), offsetof(x64emu_t, ymm[gd]), xEmu);
+                }
+            }
             break;
 
         case 0x96:
