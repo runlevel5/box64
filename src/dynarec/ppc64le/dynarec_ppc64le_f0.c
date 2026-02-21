@@ -269,7 +269,7 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                         *ok = 0;
                     } else {
                         INST_NAME("LOCK CMPXCHG Eb, Gb");
-                        SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_FUSION);
+                        SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_NOFUSION);
                         GETGB(x7);
                         addr = geted(dyn, addr, ninst, nextop, &wback, x2, x1, &fixedaddress, rex, LOCK_LOCK, 0, 0);
                         // AL = expected; compare [wback] with AL
@@ -305,7 +305,7 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                         *ok = 0;
                     } else {
                         INST_NAME("LOCK CMPXCHG Ed, Gd");
-                        SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_FUSION);
+                        SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_NOFUSION);
                         GETGD;
                         addr = geted(dyn, addr, ninst, nextop, &wback, x2, x1, &fixedaddress, rex, LOCK_LOCK, 0, 0);
                         // EAX/RAX = expected
@@ -582,35 +582,47 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                                 *ok = 0;
                             } else if (rex.w) {
                                 INST_NAME("LOCK CMPXCHG16B Gq, Eq");
+                                static int warned = 0;
+                                PASS3(if (!warned) dynarec_log(LOG_INFO, "Warning, LOCK CMPXCHG16B is not well supported on PPC64LE and issues are expected.\n"));
+                                PASS3(warned = 1);
                                 SETFLAGS(X_ZF, SF_SUBSET, NAT_FLAGS_NOFUSION);
                                 addr = geted(dyn, addr, ninst, nextop, &wback, x2, x1, &fixedaddress, rex, LOCK_LOCK, 0, 0);
                                 // RDX:RAX = expected, RCX:RBX = replacement
-                                // If [wback] == RDX:RAX, store RCX:RBX and set ZF=1
-                                // Else load [wback] into RDX:RAX and set ZF=0
-                                // Use LDARX on lower qword as reservation monitor,
-                                // non-atomic LD for upper qword. Not truly 128-bit atomic
-                                // but matches the LL/SC approach used by LA64 without SCQ.
-                                LWSYNC();
-                                MARKLOCK;
-                                LDARX(x1, 0, wback);       // x1 = low qword (reservation set)
-                                LD(x3, 8, wback);          // x3 = high qword (non-atomic)
-                                // Compare with RDX:RAX — mismatch branches to MARK
+                                // PPC64LE (pre-POWER10) lacks 128-bit LL/SC, so use the
+                                // mutex_16b spinlock to protect the critical section, matching
+                                // the interpreter and the LA64/RV64 fallback paths.
+                                RLWINM(xFlags, xFlags, 0, 32-F_ZF, 30-F_ZF); // clear ZF
+                                // Acquire mutex_16b spinlock
+                                LD(x5, offsetof(x64emu_t, context), xEmu);  // x5 = emu->context
+                                ADDI(x5, x5, offsetof(box64context_t, mutex_16b)); // x5 = &mutex_16b
+                                LI(x4, 1);
+                                MARK2;
+                                LWARX(x6, 0, x5);          // x6 = old mutex value
+                                BNEZ_MARK2(x6);             // spin if already locked
+                                STWCXd(x4, 0, x5);          // try to store 1
+                                BNE_MARK2_CR0;              // retry if reservation lost
+                                ISYNC();                     // acquire barrier
+                                // Under lock: plain loads of 128-bit value
+                                LD(x1, 0, wback);           // x1 = low qword
+                                LD(x3, 8, wback);           // x3 = high qword
+                                // Compare with RDX:RAX
                                 BNE_MARK(x1, xRAX);
                                 BNE_MARK(x3, xRDX);
                                 // Equal: store RCX:RBX
-                                STD(xRCX, 8, wback);       // high qword first (non-atomic)
-                                STDCXd(xRBX, 0, wback);    // low qword (conditional)
-                                BNE_MARKLOCK_CR0;           // retry if reservation lost
-                                LWSYNC();
-                                // Match: set ZF=1
+                                STD(xRBX, 0, wback);
+                                STD(xRCX, 8, wback);
+                                // Set ZF=1
                                 ORI(xFlags, xFlags, 1 << F_ZF);
-                                B_MARK3_nocond;             // skip not-equal path
-                                // Not equal: ZF=0, load old value into RDX:RAX
+                                B_MARK3_nocond;
+                                // Not equal: load old value into RDX:RAX
                                 MARK;
-                                RLWINM(xFlags, xFlags, 0, 32-F_ZF, 30-F_ZF); // clear ZF bit
                                 MV(xRAX, x1);
                                 MV(xRDX, x3);
                                 MARK3;
+                                // Release mutex_16b spinlock
+                                LWSYNC();                    // release barrier
+                                LI(x6, 0);
+                                STW(x6, 0, x5);             // store 0 to unlock
                             } else {
                                 INST_NAME("LOCK CMPXCHG8B Gq, Eq");
                                 SETFLAGS(X_ZF, SF_SUBSET, NAT_FLAGS_NOFUSION);
@@ -1654,7 +1666,7 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                         *ok = 0;
                     } else {
                         INST_NAME("LOCK INC Eb");
-                        SETFLAGS(X_ALL & ~X_CF, SF_SET_PENDING, NAT_FLAGS_FUSION);
+                        SETFLAGS(X_ALL & ~X_CF, SF_SUBSET, NAT_FLAGS_FUSION);
                         addr = geted(dyn, addr, ninst, nextop, &wback, x2, x1, &fixedaddress, rex, LOCK_LOCK, 0, 0);
                         LI(x7, 1);
                         LOCK_8_OP(ADD(x4, x1, x7), x1, wback, x3, x4, x5, x6);
@@ -1671,7 +1683,7 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                         *ok = 0;
                     } else {
                         INST_NAME("LOCK DEC Eb");
-                        SETFLAGS(X_ALL & ~X_CF, SF_SET_PENDING, NAT_FLAGS_FUSION);
+                        SETFLAGS(X_ALL & ~X_CF, SF_SUBSET, NAT_FLAGS_FUSION);
                         addr = geted(dyn, addr, ninst, nextop, &wback, x2, x1, &fixedaddress, rex, LOCK_LOCK, 0, 0);
                         LI(x7, -1);
                         LOCK_8_OP(ADD(x4, x1, x7), x1, wback, x3, x4, x5, x6);
@@ -1696,7 +1708,7 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                         *ok = 0;
                     } else {
                         INST_NAME("LOCK INC Ed");
-                        SETFLAGS(X_ALL & ~X_CF, SF_SET_PENDING, NAT_FLAGS_FUSION);
+                        SETFLAGS(X_ALL & ~X_CF, SF_SUBSET, NAT_FLAGS_FUSION);
                         addr = geted(dyn, addr, ninst, nextop, &wback, x2, x1, &fixedaddress, rex, LOCK_LOCK, 0, 0);
                         if (rex.w) {
                             if (!ALIGNED_ATOMICxw) {
@@ -1752,7 +1764,7 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                         *ok = 0;
                     } else {
                         INST_NAME("LOCK DEC Ed");
-                        SETFLAGS(X_ALL & ~X_CF, SF_SET_PENDING, NAT_FLAGS_FUSION);
+                        SETFLAGS(X_ALL & ~X_CF, SF_SUBSET, NAT_FLAGS_FUSION);
                         addr = geted(dyn, addr, ninst, nextop, &wback, x2, x1, &fixedaddress, rex, LOCK_LOCK, 0, 0);
                         if (rex.w) {
                             if (!ALIGNED_ATOMICxw) {

@@ -1039,6 +1039,10 @@
 #define BNE_MARKLOCK2_CR0                        \
     j64 = GETMARKLOCK2 - dyn->native_size;       \
     BNE(j64)
+// Branch to MARK2 on CR0.EQ=0 (for STWCX./STDCX. retry loops)
+#define BNE_MARK2_CR0                            \
+    j64 = GETMARK2 - dyn->native_size;           \
+    BNE(j64)
 
 // Branch to MARK unconditional (use j64)
 #define B_MARK_nocond                            \

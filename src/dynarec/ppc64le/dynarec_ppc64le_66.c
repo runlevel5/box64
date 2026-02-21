@@ -287,7 +287,7 @@ uintptr_t dynarec64_66(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             break;
         case 0x69:
             INST_NAME("IMUL Gw, Ew, Iw");
-            SETFLAGS(X_ALL, SF_PENDING, NAT_FLAGS_FUSION);
+            SETFLAGS(X_ALL, SF_SET, NAT_FLAGS_NOFUSION);
             nextop = F8;
             GETSEW(x1, 2);
             i32 = F16;
@@ -314,7 +314,7 @@ uintptr_t dynarec64_66(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             break;
         case 0x6B:
             INST_NAME("IMUL Gw, Ew, Ib");
-            SETFLAGS(X_ALL, SF_PENDING, NAT_FLAGS_FUSION);
+            SETFLAGS(X_ALL, SF_SET, NAT_FLAGS_NOFUSION);
             nextop = F8;
             GETSEW(x1, 1);
             i32 = F8S;
@@ -593,7 +593,7 @@ uintptr_t dynarec64_66(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             switch ((nextop >> 3) & 7) {
                 case 0:
                     INST_NAME("ROL Ew, Ib");
-                    SETFLAGS(X_OF | X_CF, SF_SET_PENDING, NAT_FLAGS_NOFUSION);
+                    SETFLAGS(X_OF | X_CF, SF_SUBSET, NAT_FLAGS_FUSION);
                     GETEW(x1, 1);
                     u8 = F8;
                     emit_rol16c(dyn, ninst, ed, u8 & 0x1f, x3, x4, x5);
@@ -601,7 +601,7 @@ uintptr_t dynarec64_66(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                     break;
                 case 1:
                     INST_NAME("ROR Ew, Ib");
-                    SETFLAGS(X_OF | X_CF, SF_SET_PENDING, NAT_FLAGS_NOFUSION);
+                    SETFLAGS(X_OF | X_CF, SF_SUBSET, NAT_FLAGS_FUSION);
                     GETEW(x1, 1);
                     u8 = F8;
                     emit_ror16c(dyn, ninst, ed, u8 & 0x1f, x3, x4);
@@ -655,14 +655,14 @@ uintptr_t dynarec64_66(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             switch ((nextop >> 3) & 7) {
                 case 0:
                     INST_NAME("ROL Ew, 1");
-                    SETFLAGS(X_OF | X_CF, SF_SET_PENDING, NAT_FLAGS_NOFUSION);
+                    SETFLAGS(X_OF | X_CF, SF_SUBSET, NAT_FLAGS_FUSION);
                     GETEW(x1, 0);
                     emit_rol16c(dyn, ninst, ed, 1, x3, x4, x5);
                     EWBACK;
                     break;
                 case 1:
                     INST_NAME("ROR Ew, 1");
-                    SETFLAGS(X_OF | X_CF, SF_SET_PENDING, NAT_FLAGS_NOFUSION);
+                    SETFLAGS(X_OF | X_CF, SF_SUBSET, NAT_FLAGS_FUSION);
                     GETEW(x1, 0);
                     emit_ror16c(dyn, ninst, ed, 1, x3, x4);
                     EWBACK;
@@ -749,7 +749,7 @@ uintptr_t dynarec64_66(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                     break;
                 case 4:
                     INST_NAME("MUL AX, Ew");
-                    SETFLAGS(X_ALL, SF_PENDING, NAT_FLAGS_NOFUSION);
+                    SETFLAGS(X_ALL, SF_SET, NAT_FLAGS_NOFUSION);
                     GETEW(x1, 0);
                     BSTRPICK_D(x2, xRAX, 15, 0);
                     MULLW(x2, x2, ed);
@@ -810,14 +810,14 @@ uintptr_t dynarec64_66(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             switch ((nextop >> 3) & 7) {
                 case 0:
                     INST_NAME("INC Ew");
-                    SETFLAGS(X_ALL & ~X_CF, SF_SET_PENDING, NAT_FLAGS_FUSION);
+                    SETFLAGS(X_ALL & ~X_CF, SF_SUBSET, NAT_FLAGS_FUSION);
                     GETEW(x1, 0);
                     emit_inc16(dyn, ninst, ed, x3, x4, x5);
                     EWBACK;
                     break;
                 case 1:
                     INST_NAME("DEC Ew");
-                    SETFLAGS(X_ALL & ~X_CF, SF_SET_PENDING, NAT_FLAGS_FUSION);
+                    SETFLAGS(X_ALL & ~X_CF, SF_SUBSET, NAT_FLAGS_FUSION);
                     GETEW(x1, 0);
                     emit_dec16(dyn, ninst, ed, x3, x4, x5, x6);
                     EWBACK;
