@@ -1043,7 +1043,7 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                             INST_NAME("LOCK ADD Ed, Ib");
                         }
                         SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_FUSION);
-                        addr = geted(dyn, addr, ninst, nextop, &wback, x2, x1, &fixedaddress, rex, LOCK_LOCK, 0, (opcode==0x81)?(rex.w?8:4):1);
+                        addr = geted(dyn, addr, ninst, nextop, &wback, x2, x1, &fixedaddress, rex, LOCK_LOCK, 0, (opcode==0x81)?4:1);
                         if (opcode == 0x81) i64 = F32S; else i64 = F8S;
                         MOV64x(x7, i64);
                         if (rex.w) {
@@ -1105,7 +1105,7 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                             INST_NAME("LOCK OR Ed, Ib");
                         }
                         SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_FUSION);
-                        addr = geted(dyn, addr, ninst, nextop, &wback, x2, x1, &fixedaddress, rex, LOCK_LOCK, 0, (opcode==0x81)?(rex.w?8:4):1);
+                        addr = geted(dyn, addr, ninst, nextop, &wback, x2, x1, &fixedaddress, rex, LOCK_LOCK, 0, (opcode==0x81)?4:1);
                         if (opcode == 0x81) i64 = F32S; else i64 = F8S;
                         MOV64x(x7, i64);
                         if (rex.w) {
@@ -1166,7 +1166,7 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                             INST_NAME("LOCK ADC Ed, Ib");
                         }
                         SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_FUSION);
-                        addr = geted(dyn, addr, ninst, nextop, &wback, x2, x1, &fixedaddress, rex, LOCK_LOCK, 0, (opcode==0x81)?(rex.w?8:4):1);
+                        addr = geted(dyn, addr, ninst, nextop, &wback, x2, x1, &fixedaddress, rex, LOCK_LOCK, 0, (opcode==0x81)?4:1);
                         if (opcode == 0x81) i64 = F32S; else i64 = F8S;
                         RESTORE_EFLAGS(x5);
                         BSTRPICK_D(x5, xFlags, F_CF, F_CF);
@@ -1231,7 +1231,7 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                             INST_NAME("LOCK SBB Ed, Ib");
                         }
                         SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_FUSION);
-                        addr = geted(dyn, addr, ninst, nextop, &wback, x2, x1, &fixedaddress, rex, LOCK_LOCK, 0, (opcode==0x81)?(rex.w?8:4):1);
+                        addr = geted(dyn, addr, ninst, nextop, &wback, x2, x1, &fixedaddress, rex, LOCK_LOCK, 0, (opcode==0x81)?4:1);
                         if (opcode == 0x81) i64 = F32S; else i64 = F8S;
                         RESTORE_EFLAGS(x5);
                         BSTRPICK_D(x5, xFlags, F_CF, F_CF);
@@ -1296,7 +1296,7 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                             INST_NAME("LOCK AND Ed, Ib");
                         }
                         SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_FUSION);
-                        addr = geted(dyn, addr, ninst, nextop, &wback, x2, x1, &fixedaddress, rex, LOCK_LOCK, 0, (opcode==0x81)?(rex.w?8:4):1);
+                        addr = geted(dyn, addr, ninst, nextop, &wback, x2, x1, &fixedaddress, rex, LOCK_LOCK, 0, (opcode==0x81)?4:1);
                         if (opcode == 0x81) i64 = F32S; else i64 = F8S;
                         MOV64x(x7, i64);
                         if (rex.w) {
@@ -1357,7 +1357,7 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                             INST_NAME("LOCK SUB Ed, Ib");
                         }
                         SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_FUSION);
-                        addr = geted(dyn, addr, ninst, nextop, &wback, x2, x1, &fixedaddress, rex, LOCK_LOCK, 0, (opcode==0x81)?(rex.w?8:4):1);
+                        addr = geted(dyn, addr, ninst, nextop, &wback, x2, x1, &fixedaddress, rex, LOCK_LOCK, 0, (opcode==0x81)?4:1);
                         if (opcode == 0x81) i64 = F32S; else i64 = F8S;
                         MOV64x(x7, i64);
                         if (rex.w) {
@@ -1419,7 +1419,7 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                             INST_NAME("LOCK XOR Ed, Ib");
                         }
                         SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_FUSION);
-                        addr = geted(dyn, addr, ninst, nextop, &wback, x2, x1, &fixedaddress, rex, LOCK_LOCK, 0, (opcode==0x81)?(rex.w?8:4):1);
+                        addr = geted(dyn, addr, ninst, nextop, &wback, x2, x1, &fixedaddress, rex, LOCK_LOCK, 0, (opcode==0x81)?4:1);
                         if (opcode == 0x81) i64 = F32S; else i64 = F8S;
                         MOV64x(x7, i64);
                         if (rex.w) {
