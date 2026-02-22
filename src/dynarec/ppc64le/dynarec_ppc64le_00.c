@@ -2044,7 +2044,6 @@ uintptr_t dynarec64_00(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
         case 0xB3:
             INST_NAME("MOV xL, Ib");
             u8 = F8;
-            SCRATCH_USAGE(0);
             if (rex.rex)
                 gb1 = TO_NAT((opcode & 7) + (rex.b << 3));
             else
