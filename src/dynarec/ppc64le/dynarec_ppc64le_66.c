@@ -596,7 +596,7 @@ uintptr_t dynarec64_66(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                     SETFLAGS(X_OF | X_CF, SF_SUBSET, NAT_FLAGS_FUSION);
                     GETEW(x1, 1);
                     u8 = F8;
-                    emit_rol16c(dyn, ninst, ed, u8 & 0x1f, x3, x4, x5);
+                    emit_rol16c(dyn, ninst, ed, u8 & 0x1f, x4, x5, x6);
                     EWBACK;
                     break;
                 case 1:
@@ -604,7 +604,7 @@ uintptr_t dynarec64_66(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                     SETFLAGS(X_OF | X_CF, SF_SUBSET, NAT_FLAGS_FUSION);
                     GETEW(x1, 1);
                     u8 = F8;
-                    emit_ror16c(dyn, ninst, ed, u8 & 0x1f, x3, x4);
+                    emit_ror16c(dyn, ninst, ed, u8 & 0x1f, x4, x5);
                     EWBACK;
                     break;
                 case 4:
@@ -612,7 +612,7 @@ uintptr_t dynarec64_66(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                     SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_FUSION);
                     GETEW(x1, 1);
                     u8 = (F8) & 0x1f;
-                    emit_shl16c(dyn, ninst, ed, u8, x3, x4, x5);
+                    emit_shl16c(dyn, ninst, ed, u8, x5, x4, x6);
                     EWBACK;
                     break;
                 case 5:
@@ -620,7 +620,7 @@ uintptr_t dynarec64_66(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                     SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_FUSION);
                     GETEW(x1, 1);
                     u8 = (F8) & 0x1f;
-                    emit_shr16c(dyn, ninst, ed, u8, x3, x4, x5);
+                    emit_shr16c(dyn, ninst, ed, u8, x5, x4, x6);
                     EWBACK;
                     break;
                 case 7:
@@ -628,7 +628,7 @@ uintptr_t dynarec64_66(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                     SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_FUSION);
                     GETSEW(x1, 1);
                     u8 = (F8) & 0x1f;
-                    emit_sar16c(dyn, ninst, ed, u8, x3, x4, x5);
+                    emit_sar16c(dyn, ninst, ed, u8, x5, x4, x6);
                     EWBACK;
                     break;
                 default: DEFAULT;
@@ -657,35 +657,35 @@ uintptr_t dynarec64_66(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                     INST_NAME("ROL Ew, 1");
                     SETFLAGS(X_OF | X_CF, SF_SUBSET, NAT_FLAGS_FUSION);
                     GETEW(x1, 0);
-                    emit_rol16c(dyn, ninst, ed, 1, x3, x4, x5);
+                    emit_rol16c(dyn, ninst, ed, 1, x5, x4, x6);
                     EWBACK;
                     break;
                 case 1:
                     INST_NAME("ROR Ew, 1");
                     SETFLAGS(X_OF | X_CF, SF_SUBSET, NAT_FLAGS_FUSION);
                     GETEW(x1, 0);
-                    emit_ror16c(dyn, ninst, ed, 1, x3, x4);
+                    emit_ror16c(dyn, ninst, ed, 1, x5, x4);
                     EWBACK;
                     break;
                 case 4:
                     INST_NAME("SHL Ew, 1");
                     SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_FUSION);
                     GETEW(x1, 0);
-                    emit_shl16c(dyn, ninst, ed, 1, x3, x4, x5);
+                    emit_shl16c(dyn, ninst, ed, 1, x5, x4, x6);
                     EWBACK;
                     break;
                 case 5:
                     INST_NAME("SHR Ew, 1");
                     SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_FUSION);
                     GETEW(x1, 0);
-                    emit_shr16c(dyn, ninst, ed, 1, x3, x4, x5);
+                    emit_shr16c(dyn, ninst, ed, 1, x5, x4, x6);
                     EWBACK;
                     break;
                 case 7:
                     INST_NAME("SAR Ew, 1");
                     SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_FUSION);
                     GETSEW(x1, 0);
-                    emit_sar16c(dyn, ninst, ed, 1, x3, x4, x5);
+                    emit_sar16c(dyn, ninst, ed, 1, x5, x4, x6);
                     EWBACK;
                     break;
                 default: DEFAULT;
@@ -699,7 +699,7 @@ uintptr_t dynarec64_66(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                     SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_FUSION);
                     GETEW(x1, 0);
                     BSTRPICK_D(x2, xRCX, 4, 0);
-                    emit_shl16(dyn, ninst, ed, x2, x3, x4, x5);
+                    emit_shl16(dyn, ninst, ed, x2, x5, x4, x6);
                     EWBACK;
                     break;
                 case 5:
@@ -707,7 +707,7 @@ uintptr_t dynarec64_66(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                     SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_FUSION);
                     GETEW(x1, 0);
                     BSTRPICK_D(x2, xRCX, 4, 0);
-                    emit_shr16(dyn, ninst, ed, x2, x3, x4, x5);
+                    emit_shr16(dyn, ninst, ed, x2, x5, x4, x6);
                     EWBACK;
                     break;
                 case 7:
@@ -715,7 +715,7 @@ uintptr_t dynarec64_66(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                     SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_FUSION);
                     GETSEW(x1, 0);
                     BSTRPICK_D(x2, xRCX, 4, 0);
-                    emit_sar16(dyn, ninst, ed, x2, x3, x4, x5);
+                    emit_sar16(dyn, ninst, ed, x2, x5, x4, x6);
                     EWBACK;
                     break;
                 default: DEFAULT;
@@ -744,7 +744,7 @@ uintptr_t dynarec64_66(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                     INST_NAME("NEG Ew");
                     SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_FUSION);
                     GETEW(x1, 0);
-                    emit_neg16(dyn, ninst, ed, x3, x4);
+                    emit_neg16(dyn, ninst, ed, x2, x4);
                     EWBACK;
                     break;
                 case 4:
@@ -812,14 +812,14 @@ uintptr_t dynarec64_66(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                     INST_NAME("INC Ew");
                     SETFLAGS(X_ALL & ~X_CF, SF_SUBSET, NAT_FLAGS_FUSION);
                     GETEW(x1, 0);
-                    emit_inc16(dyn, ninst, ed, x3, x4, x5);
+                    emit_inc16(dyn, ninst, ed, x2, x4, x5);
                     EWBACK;
                     break;
                 case 1:
                     INST_NAME("DEC Ew");
                     SETFLAGS(X_ALL & ~X_CF, SF_SUBSET, NAT_FLAGS_FUSION);
                     GETEW(x1, 0);
-                    emit_dec16(dyn, ninst, ed, x3, x4, x5, x6);
+                    emit_dec16(dyn, ninst, ed, x2, x4, x5, x6);
                     EWBACK;
                     break;
                 case 6:
