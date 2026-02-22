@@ -39,6 +39,7 @@ uintptr_t dynarec64_660F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
     int v0, v1, v2;
     int q0, q1, q2;
     int d0, d1, d2;
+    uint8_t tmp1, tmp2, tmp3;
     int64_t fixedaddress, gdoffset;
     int unscaled;
     MAYUSE(d0);
@@ -61,6 +62,9 @@ uintptr_t dynarec64_660F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
     MAYUSE(i32);
     MAYUSE(u8);
     MAYUSE(gdoffset);
+    MAYUSE(tmp1);
+    MAYUSE(tmp2);
+    MAYUSE(tmp3);
 
     switch (opcode) {
         case 0x10:
@@ -397,6 +401,38 @@ uintptr_t dynarec64_660F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
             // Write to xFlags
             OR(xFlags, xFlags, x2);
             break;
+
+#define GO(GETFLAGS, NO, YES, NATNO, NATYES, F, I)                                          \
+    READFLAGS_FUSION(F, x1, x2, x3, x4, x5);                                               \
+    if (!dyn->insts[ninst].nat_flags_fusion) {                                               \
+        GETFLAGS;                                                                            \
+    }                                                                                        \
+    nextop = F8;                                                                             \
+    GETGD;                                                                                   \
+    if (MODREG) {                                                                            \
+        ed = TO_NAT((nextop & 7) + (rex.b << 3));                                            \
+        if (dyn->insts[ninst].nat_flags_fusion) {                                            \
+            NATIVEJUMP(NATNO, 8);                                                            \
+        } else {                                                                             \
+            B##NO##_MARK2(tmp1);                                                             \
+        }                                                                                    \
+        BSTRINS_D(gd, ed, 15, 0);                                                           \
+        MARK2;                                                                               \
+    } else {                                                                                 \
+        SMREAD();                                                                            \
+        addr = geted(dyn, addr, ninst, nextop, &ed, tmp2, tmp3, &fixedaddress, rex, NULL, 1, 0); \
+        LHZ(x1, fixedaddress, ed);                                                          \
+        if (dyn->insts[ninst].nat_flags_fusion) {                                            \
+            NATIVEJUMP(NATNO, 8);                                                            \
+        } else {                                                                             \
+            B##NO##_MARK2(tmp1);                                                             \
+        }                                                                                    \
+        BSTRINS_D(gd, x1, 15, 0);                                                           \
+        MARK2;                                                                               \
+    }
+
+            GOCOND(0x40, "CMOV", "Gw, Ew");
+#undef GO
 
         case 0x50:
             INST_NAME("MOVMSKPD Gd, Ex");
