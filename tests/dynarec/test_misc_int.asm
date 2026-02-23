@@ -55,6 +55,19 @@ section .data
     t50_name: db "cmovl 16 not taken", 0
     t51_name: db "cmovne 16 preserves hi", 0
     t52_name: db "cmova 16 preserves hi", 0
+    ; Tests 53-64: 32-bit CMOVcc native fusion upper-bits tests
+    t53_name: db "cmovne 32 not-taken hi", 0
+    t54_name: db "cmove 32 not-taken hi", 0
+    t55_name: db "cmova 32 not-taken hi", 0
+    t56_name: db "cmovb 32 not-taken hi", 0
+    t57_name: db "cmovl 32 not-taken hi", 0
+    t58_name: db "cmovge 32 not-taken hi", 0
+    t59_name: db "cmovne 32 taken zeros", 0
+    t60_name: db "cmove 32 taken zeros", 0
+    t61_name: db "cmovne 64 not-taken", 0
+    t62_name: db "cmovne 64 taken", 0
+    t63_name: db "setne via cmp fusion", 0
+    t64_name: db "sete via cmp fusion", 0
 
     align 8
     bt_mem_val: dq 0x00000000DEADBEEF
@@ -469,5 +482,125 @@ _start:
     cmp eax, 100             ; 1 < 100 -> not above
     cmova dx, cx             ; not taken: rdx should be completely unchanged
     CHECK_EQ_64 rdx, 0xBEEF5678
+
+    ; ==== Tests 53-58: 32-bit CMOVcc not-taken must preserve upper 32 bits ====
+    ; These test the NATIVEJUMP skip distance bug: when !rex.w, ZEROUP(gd)
+    ; follows the MR, making the skip distance 16 not 12. If the branch
+    ; lands ON the ZEROUP, the upper bits get incorrectly zeroed.
+    ; Pattern: set upper bits in dest, CMP + CMOVcc (not taken), check upper bits survive.
+
+    ; ==== Test 53: cmovne 32-bit not-taken preserves upper 32 bits ====
+    TEST_CASE t53_name
+    mov rcx, 0x1111111100000001  ; source (ecx = 1)
+    mov rdx, 0xDEADBEEF00005678  ; dest: edx = 0x5678, upper = 0xDEADBEEF
+    xor eax, eax
+    cmp eax, 0               ; ZF=1 -> equal, so NE is false
+    cmovne edx, ecx          ; not taken: edx should stay 0x5678, upper zeroed by 32-bit op? NO.
+    ; x86-64: 32-bit CMOVcc not-taken leaves dest ENTIRELY unchanged (64 bits)
+    CHECK_EQ_64 rdx, 0xDEADBEEF00005678
+
+    ; ==== Test 54: cmove 32-bit not-taken preserves upper 32 bits ====
+    TEST_CASE t54_name
+    mov rcx, 0x2222222200000002
+    mov rdx, 0xCAFEBABE00009ABC
+    mov eax, 1
+    cmp eax, 2               ; ZF=0 -> not equal, so E is false
+    cmove edx, ecx           ; not taken
+    CHECK_EQ_64 rdx, 0xCAFEBABE00009ABC
+
+    ; ==== Test 55: cmova 32-bit not-taken preserves upper 32 bits ====
+    TEST_CASE t55_name
+    mov rcx, 0x3333333300000003
+    mov rdx, 0xFEEDFACE0000DEF0
+    mov eax, 1
+    cmp eax, 100             ; 1 < 100 unsigned -> not above
+    cmova edx, ecx           ; not taken
+    CHECK_EQ_64 rdx, 0xFEEDFACE0000DEF0
+
+    ; ==== Test 56: cmovb 32-bit not-taken preserves upper 32 bits ====
+    TEST_CASE t56_name
+    mov rcx, 0x4444444400000004
+    mov rdx, 0xAAAABBBB0000CCCC
+    mov eax, 100
+    cmp eax, 1               ; 100 > 1 unsigned -> not below
+    cmovb edx, ecx           ; not taken
+    CHECK_EQ_64 rdx, 0xAAAABBBB0000CCCC
+
+    ; ==== Test 57: cmovl 32-bit not-taken preserves upper 32 bits ====
+    TEST_CASE t57_name
+    mov rcx, 0x5555555500000005
+    mov rdx, 0x1234ABCD0000DDDD
+    mov eax, 50
+    cmp eax, 10              ; 50 > 10 signed -> not less
+    cmovl edx, ecx           ; not taken
+    CHECK_EQ_64 rdx, 0x1234ABCD0000DDDD
+
+    ; ==== Test 58: cmovge 32-bit not-taken preserves upper 32 bits ====
+    TEST_CASE t58_name
+    mov rcx, 0x6666666600000006
+    mov rdx, 0x9876543200001111
+    mov eax, 5
+    cmp eax, 10              ; 5 < 10 signed -> not greater-or-equal
+    cmovge edx, ecx          ; not taken
+    CHECK_EQ_64 rdx, 0x9876543200001111
+
+    ; ==== Tests 59-60: 32-bit CMOVcc taken must zero upper 32 bits ====
+    ; x86-64 semantics: any 32-bit register write zero-extends to 64 bits.
+
+    ; ==== Test 59: cmovne 32-bit taken zeros upper 32 bits ====
+    TEST_CASE t59_name
+    mov rcx, 0xFFFFFFFF0000ABCD  ; ecx = 0x0000ABCD
+    mov rdx, 0xDEADBEEF00005678  ; rdx has upper bits set
+    mov eax, 1
+    cmp eax, 2               ; ZF=0 -> NE is true
+    cmovne edx, ecx          ; taken: edx = 0x0000ABCD, rdx = 0x000000000000ABCD
+    CHECK_EQ_64 rdx, 0x000000000000ABCD
+
+    ; ==== Test 60: cmove 32-bit taken zeros upper 32 bits ====
+    TEST_CASE t60_name
+    mov rcx, 0xFFFFFFFF00001234
+    mov rdx, 0xCAFEBABE00009999
+    xor eax, eax
+    cmp eax, 0               ; ZF=1 -> E is true
+    cmove edx, ecx           ; taken: edx = 0x00001234, rdx = 0x0000000000001234
+    CHECK_EQ_64 rdx, 0x0000000000001234
+
+    ; ==== Tests 61-62: 64-bit CMOVcc (regression, should be correct) ====
+
+    ; ==== Test 61: cmovne 64-bit not-taken preserves value ====
+    TEST_CASE t61_name
+    mov rcx, 0x1111111111111111
+    mov rdx, 0xDEADBEEFCAFEBABE
+    xor eax, eax
+    cmp eax, 0               ; ZF=1 -> NE is false
+    cmovne rdx, rcx          ; not taken
+    CHECK_EQ_64 rdx, 0xDEADBEEFCAFEBABE
+
+    ; ==== Test 62: cmovne 64-bit taken ====
+    TEST_CASE t62_name
+    mov rcx, 0x123456789ABCDEF0
+    mov rdx, 0xDEADBEEFCAFEBABE
+    mov eax, 1
+    cmp eax, 2               ; ZF=0 -> NE is true
+    cmovne rdx, rcx          ; taken
+    CHECK_EQ_64 rdx, 0x123456789ABCDEF0
+
+    ; ==== Tests 63-64: SETcc with CMP fusion (NATIVESET path) ====
+
+    ; ==== Test 63: setne via cmp fusion ====
+    TEST_CASE t63_name
+    mov eax, 5
+    cmp eax, 10              ; ZF=0 -> NE is true
+    setne al                 ; al = 1
+    movzx eax, al
+    CHECK_EQ_32 eax, 1
+
+    ; ==== Test 64: sete via cmp fusion ====
+    TEST_CASE t64_name
+    mov eax, 42
+    cmp eax, 42              ; ZF=1 -> E is true
+    sete al                  ; al = 1
+    movzx eax, al
+    CHECK_EQ_32 eax, 1
 
     END_TESTS
