@@ -894,7 +894,7 @@ uintptr_t dynarec64_AVX_66_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
                 addr = geted(dyn, addr, ninst, nextop, &ed, x2, x1, &fixedaddress, rex, NULL, 0, 0);
                 LI(x3, 0);
                 LI(x4, 0);
-                // 4 x 32-bit elements
+                // Lower lane: 4 x 32-bit elements
                 MFVSRLD(x5, VSXREG(v1));     // mask low dw (elems 0,1)
                 // Element 0: test bit 31
                 RLWINMd(x6, x5, 1, 31, 31);
@@ -917,6 +917,36 @@ uintptr_t dynarec64_AVX_66_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
                 LWZ(x6, fixedaddress+12, ed);
                 RLDIMI(x4, x6, 32, 0);
                 MTVSRDD(VSXREG(v0), x4, x3);
+                if (vex.l) {
+                    // Upper lane: load mask from emu->ymm[vex.v], data from ed+16
+                    d0 = fpu_get_scratch(dyn);
+                    LXV(VSXREG(d0), offsetof(x64emu_t, ymm[vex.v]), xEmu);
+                    LI(x3, 0);
+                    LI(x4, 0);
+                    MFVSRLD(x5, VSXREG(d0));
+                    RLWINMd(x6, x5, 1, 31, 31);
+                    BEQ(2*4);
+                    LWZ(x3, fixedaddress+16, ed);
+                    CMPDI(x5, 0);
+                    BGE(3*4);
+                    LWZ(x6, fixedaddress+20, ed);
+                    RLDIMI(x3, x6, 32, 0);
+                    MFVSRD(x5, VSXREG(d0));
+                    RLWINMd(x6, x5, 1, 31, 31);
+                    BEQ(2*4);
+                    LWZ(x4, fixedaddress+24, ed);
+                    CMPDI(x5, 0);
+                    BGE(3*4);
+                    LWZ(x6, fixedaddress+28, ed);
+                    RLDIMI(x4, x6, 32, 0);
+                    MTVSRDD(VSXREG(d0), x4, x3);
+                    STXV(VSXREG(d0), offsetof(x64emu_t, ymm[gd]), xEmu);
+                } else {
+                    // Zero upper ymm for 128-bit
+                    d0 = fpu_get_scratch(dyn);
+                    XXLXOR(VSXREG(d0), VSXREG(d0), VSXREG(d0));
+                    STXV(VSXREG(d0), offsetof(x64emu_t, ymm[gd]), xEmu);
+                }
             }
             break;
 
@@ -948,6 +978,28 @@ uintptr_t dynarec64_AVX_66_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
                 BGE(2*4);
                 LD(x4, fixedaddress+8, ed);
                 MTVSRDD(VSXREG(v0), x4, x3);
+                if (vex.l) {
+                    // Upper lane: load mask from emu->ymm[vex.v], data from ed+16
+                    d0 = fpu_get_scratch(dyn);
+                    LXV(VSXREG(d0), offsetof(x64emu_t, ymm[vex.v]), xEmu);
+                    LI(x3, 0);
+                    LI(x4, 0);
+                    MFVSRLD(x5, VSXREG(d0));     // mask elem 0 (upper lane)
+                    CMPDI(x5, 0);
+                    BGE(2*4);
+                    LD(x3, fixedaddress+16, ed);
+                    MFVSRD(x5, VSXREG(d0));      // mask elem 1 (upper lane)
+                    CMPDI(x5, 0);
+                    BGE(2*4);
+                    LD(x4, fixedaddress+24, ed);
+                    MTVSRDD(VSXREG(d0), x4, x3);
+                    STXV(VSXREG(d0), offsetof(x64emu_t, ymm[gd]), xEmu);
+                } else {
+                    // Zero upper ymm for 128-bit
+                    d0 = fpu_get_scratch(dyn);
+                    XXLXOR(VSXREG(d0), VSXREG(d0), VSXREG(d0));
+                    STXV(VSXREG(d0), offsetof(x64emu_t, ymm[gd]), xEmu);
+                }
             }
             break;
 
@@ -990,6 +1042,36 @@ uintptr_t dynarec64_AVX_66_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
                 BGE(3*4);
                 SRDI(x6, x4, 32);
                 STW(x6, fixedaddress+12, ed);
+                if (vex.l) {
+                    // Upper lane: load mask from emu->ymm[vex.v], data from emu->ymm[gd]
+                    d0 = fpu_get_scratch(dyn);
+                    LXV(VSXREG(d0), offsetof(x64emu_t, ymm[vex.v]), xEmu);
+                    v2 = fpu_get_scratch(dyn);
+                    LXV(VSXREG(v2), offsetof(x64emu_t, ymm[gd]), xEmu);
+                    MFVSRLD(x3, VSXREG(v2));     // data low dw (elems 4,5)
+                    MFVSRD(x4, VSXREG(v2));      // data high dw (elems 6,7)
+                    MFVSRLD(x5, VSXREG(d0));     // mask low dw
+                    // Element 4
+                    RLWINMd(x6, x5, 1, 31, 31);
+                    BEQ(2*4);
+                    STW(x3, fixedaddress+16, ed);
+                    // Element 5
+                    CMPDI(x5, 0);
+                    BGE(3*4);
+                    SRDI(x6, x3, 32);
+                    STW(x6, fixedaddress+20, ed);
+                    // Mask high dw
+                    MFVSRD(x5, VSXREG(d0));
+                    // Element 6
+                    RLWINMd(x6, x5, 1, 31, 31);
+                    BEQ(2*4);
+                    STW(x4, fixedaddress+24, ed);
+                    // Element 7
+                    CMPDI(x5, 0);
+                    BGE(3*4);
+                    SRDI(x6, x4, 32);
+                    STW(x6, fixedaddress+28, ed);
+                }
                 SMWRITE2();
             }
             break;
@@ -1021,6 +1103,25 @@ uintptr_t dynarec64_AVX_66_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
                 BGE(3*4);
                 MFVSRD(x3, VSXREG(v2));      // data elem 1
                 STD(x3, fixedaddress+8, ed);
+                if (vex.l) {
+                    // Upper lane: load mask from emu->ymm[vex.v], data from emu->ymm[gd]
+                    d0 = fpu_get_scratch(dyn);
+                    LXV(VSXREG(d0), offsetof(x64emu_t, ymm[vex.v]), xEmu);
+                    v2 = fpu_get_scratch(dyn);
+                    LXV(VSXREG(v2), offsetof(x64emu_t, ymm[gd]), xEmu);
+                    // Element 2 (upper lane elem 0)
+                    MFVSRLD(x5, VSXREG(d0));     // mask elem 0 (upper lane)
+                    CMPDI(x5, 0);
+                    BGE(3*4);
+                    MFVSRLD(x3, VSXREG(v2));     // data elem 0 (upper lane)
+                    STD(x3, fixedaddress+16, ed);
+                    // Element 3 (upper lane elem 1)
+                    MFVSRD(x5, VSXREG(d0));      // mask elem 1 (upper lane)
+                    CMPDI(x5, 0);
+                    BGE(3*4);
+                    MFVSRD(x3, VSXREG(v2));      // data elem 1 (upper lane)
+                    STD(x3, fixedaddress+24, ed);
+                }
                 SMWRITE2();
             }
             break;
@@ -2295,6 +2396,49 @@ uintptr_t dynarec64_AVX_66_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
                 }
                 // Build result vector: high dw = x4, low dw = x3
                 MTVSRDD(VSXREG(v0), x4, x3);
+                if (vex.l) {
+                    // Upper lane: load mask from emu->ymm[vex.v], data from ed+16
+                    d0 = fpu_get_scratch(dyn);
+                    LXV(VSXREG(d0), offsetof(x64emu_t, ymm[vex.v]), xEmu);
+                    LI(x3, 0);
+                    LI(x4, 0);
+                    if (rex.w) {
+                        // VPMASKMOVQ upper: 2 x 64-bit elements
+                        MFVSRLD(x5, VSXREG(d0));
+                        CMPDI(x5, 0);
+                        BGE(2*4);
+                        LD(x3, fixedaddress+16, ed);
+                        MFVSRD(x5, VSXREG(d0));
+                        CMPDI(x5, 0);
+                        BGE(2*4);
+                        LD(x4, fixedaddress+24, ed);
+                    } else {
+                        // VPMASKMOVD upper: 4 x 32-bit elements
+                        MFVSRLD(x5, VSXREG(d0));
+                        RLWINMd(x6, x5, 1, 31, 31);
+                        BEQ(2*4);
+                        LWZ(x3, fixedaddress+16, ed);
+                        CMPDI(x5, 0);
+                        BGE(3*4);
+                        LWZ(x6, fixedaddress+20, ed);
+                        RLDIMI(x3, x6, 32, 0);
+                        MFVSRD(x5, VSXREG(d0));
+                        RLWINMd(x6, x5, 1, 31, 31);
+                        BEQ(2*4);
+                        LWZ(x4, fixedaddress+24, ed);
+                        CMPDI(x5, 0);
+                        BGE(3*4);
+                        LWZ(x6, fixedaddress+28, ed);
+                        RLDIMI(x4, x6, 32, 0);
+                    }
+                    MTVSRDD(VSXREG(d0), x4, x3);
+                    STXV(VSXREG(d0), offsetof(x64emu_t, ymm[gd]), xEmu);
+                } else {
+                    // Zero upper ymm for 128-bit
+                    d0 = fpu_get_scratch(dyn);
+                    XXLXOR(VSXREG(d0), VSXREG(d0), VSXREG(d0));
+                    STXV(VSXREG(d0), offsetof(x64emu_t, ymm[gd]), xEmu);
+                }
             }
             break;
         case 0x8E:
@@ -2357,6 +2501,51 @@ uintptr_t dynarec64_AVX_66_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
                     BGE(3*4);
                     SRDI(x6, x4, 32);
                     STW(x6, fixedaddress+12, ed);
+                }
+                if (vex.l) {
+                    // Upper lane: load mask from emu->ymm[vex.v], data from emu->ymm[gd]
+                    d0 = fpu_get_scratch(dyn);
+                    LXV(VSXREG(d0), offsetof(x64emu_t, ymm[vex.v]), xEmu);
+                    v2 = fpu_get_scratch(dyn);
+                    LXV(VSXREG(v2), offsetof(x64emu_t, ymm[gd]), xEmu);
+                    if (rex.w) {
+                        // VPMASKMOVQ upper store: 2 x 64-bit elements
+                        MFVSRLD(x5, VSXREG(d0));
+                        CMPDI(x5, 0);
+                        BGE(3*4);
+                        MFVSRLD(x3, VSXREG(v2));
+                        STD(x3, fixedaddress+16, ed);
+                        MFVSRD(x5, VSXREG(d0));
+                        CMPDI(x5, 0);
+                        BGE(3*4);
+                        MFVSRD(x3, VSXREG(v2));
+                        STD(x3, fixedaddress+24, ed);
+                    } else {
+                        // VPMASKMOVD upper store: 4 x 32-bit elements
+                        MFVSRLD(x3, VSXREG(v2));     // data low dw (elems 4,5)
+                        MFVSRD(x4, VSXREG(v2));      // data high dw (elems 6,7)
+                        MFVSRLD(x5, VSXREG(d0));     // mask low dw
+                        // Element 4
+                        RLWINMd(x6, x5, 1, 31, 31);
+                        BEQ(2*4);
+                        STW(x3, fixedaddress+16, ed);
+                        // Element 5
+                        CMPDI(x5, 0);
+                        BGE(3*4);
+                        SRDI(x6, x3, 32);
+                        STW(x6, fixedaddress+20, ed);
+                        // Mask high dw
+                        MFVSRD(x5, VSXREG(d0));
+                        // Element 6
+                        RLWINMd(x6, x5, 1, 31, 31);
+                        BEQ(2*4);
+                        STW(x4, fixedaddress+24, ed);
+                        // Element 7
+                        CMPDI(x5, 0);
+                        BGE(3*4);
+                        SRDI(x6, x4, 32);
+                        STW(x6, fixedaddress+28, ed);
+                    }
                 }
                 SMWRITE2();
             }

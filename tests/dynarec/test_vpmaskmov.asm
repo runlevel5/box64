@@ -37,6 +37,35 @@ section .data
     t32_name: db "vmaskmovpd fault sup hi", 0
     t33_name: db "vpmaskmovd st fault sup", 0
     t34_name: db "vmaskmovps st fault sup", 0
+    ; 256-bit test names
+    t35_name: db "vpmaskmovd ymm lo lo", 0
+    t36_name: db "vpmaskmovd ymm lo hi", 0
+    t37_name: db "vpmaskmovd ymm hi lo", 0
+    t38_name: db "vpmaskmovd ymm hi hi", 0
+    t39_name: db "vpmaskmovq ymm lo", 0
+    t40_name: db "vpmaskmovq ymm hi lo", 0
+    t41_name: db "vpmaskmovq ymm hi hi", 0
+    t42_name: db "vmaskmovps ymm lo lo", 0
+    t43_name: db "vmaskmovps ymm lo hi", 0
+    t44_name: db "vmaskmovps ymm hi lo", 0
+    t45_name: db "vmaskmovps ymm hi hi", 0
+    t46_name: db "vmaskmovpd ymm lo", 0
+    t47_name: db "vmaskmovpd ymm hi lo", 0
+    t48_name: db "vmaskmovpd ymm hi hi", 0
+    t49_name: db "vpmaskmovd ymm st lo lo", 0
+    t50_name: db "vpmaskmovd ymm st lo hi", 0
+    t51_name: db "vpmaskmovd ymm st hi lo", 0
+    t52_name: db "vpmaskmovd ymm st hi hi", 0
+    t53_name: db "vpmaskmovq ymm st lo", 0
+    t54_name: db "vpmaskmovq ymm st hi lo", 0
+    t55_name: db "vpmaskmovq ymm st hi hi", 0
+    t56_name: db "vmaskmovps ymm st lo lo", 0
+    t57_name: db "vmaskmovps ymm st lo hi", 0
+    t58_name: db "vmaskmovps ymm st hi lo", 0
+    t59_name: db "vmaskmovps ymm st hi hi", 0
+    t60_name: db "vmaskmovpd ymm st lo", 0
+    t61_name: db "vmaskmovpd ymm st hi lo", 0
+    t62_name: db "vmaskmovpd ymm st hi hi", 0
 
     align 16
     ; Source data for 32-bit tests
@@ -64,8 +93,32 @@ section .data
     store_ps: dd 0x3F800000, 0x40000000, 0x40400000, 0x40800000
     store_pd: dq 0x3FF0000000000000, 0x4000000000000000
 
+    ; 256-bit source data (8 x dword, 4 x qword)
+    align 32
+    src_d256:  dd 0xAAAA0001, 0xBBBB0002, 0xCCCC0003, 0xDDDD0004
+               dd 0xEEEE0005, 0xFFFF0006, 0x11110007, 0x22220008
+    src_q256:  dq 0xAAAAAAAA00000001, 0xBBBBBBBB00000002
+               dq 0xCCCCCCCC00000003, 0xDDDDDDDD00000004
+    ; {1.0f..8.0f}
+    src_ps256: dd 0x3F800000, 0x40000000, 0x40400000, 0x40800000
+               dd 0x40A00000, 0x40C00000, 0x40E00000, 0x41000000
+    ; {1.0, 2.0, 3.0, 4.0}
+    src_pd256: dq 0x3FF0000000000000, 0x4000000000000000
+               dq 0x4008000000000000, 0x4010000000000000
+
+    ; 256-bit masks
+    align 32
+    mask_d256_02:  dd 0x80000000, 0x00000000, 0x80000000, 0x00000000
+                   dd 0x80000000, 0x00000000, 0x80000000, 0x00000000
+    mask_d256_all: dd 0x80000000, 0x80000000, 0x80000000, 0x80000000
+                   dd 0x80000000, 0x80000000, 0x80000000, 0x80000000
+    mask_q256_02:  dq 0x8000000000000000, 0x0000000000000000
+                   dq 0x8000000000000000, 0x0000000000000000
+    mask_q256_all: dq 0x8000000000000000, 0x8000000000000000
+                   dq 0x8000000000000000, 0x8000000000000000
+
 section .bss
-    align 16
+    align 32
     dst_buf: resb 64
     mmap_ptr: resq 1
 
@@ -228,6 +281,179 @@ _start:
 
     TEST_CASE t24_name
     mov rax, [rel dst_buf+8]
+    CHECK_EQ_64 rax, 0xFFFFFFFFFFFFFFFF
+
+    ; ================================================================
+    ; 256-bit (YMM) tests
+    ; ================================================================
+
+    ; ---- vpmaskmovd ymm load, mask=alternating {s,0,s,0,s,0,s,0} ----
+    vmovdqa ymm1, [rel mask_d256_02]
+    vpmaskmovd ymm0, ymm1, [rel src_d256]
+
+    TEST_CASE t35_name
+    vmovq rax, xmm0
+    CHECK_EQ_64 rax, 0x00000000AAAA0001
+
+    TEST_CASE t36_name
+    vpextrq rax, xmm0, 1
+    CHECK_EQ_64 rax, 0x00000000CCCC0003
+
+    TEST_CASE t37_name
+    vextracti128 xmm7, ymm0, 1
+    vmovq rax, xmm7
+    CHECK_EQ_64 rax, 0x00000000EEEE0005
+
+    TEST_CASE t38_name
+    vextracti128 xmm7, ymm0, 1
+    vpextrq rax, xmm7, 1
+    CHECK_EQ_64 rax, 0x0000000011110007
+
+    ; ---- vpmaskmovq ymm load, mask={s,0,s,0} ----
+    vmovdqa ymm1, [rel mask_q256_02]
+    vpmaskmovq ymm0, ymm1, [rel src_q256]
+
+    TEST_CASE t39_name
+    vmovq rax, xmm0
+    CHECK_EQ_64 rax, 0xAAAAAAAA00000001
+
+    TEST_CASE t40_name
+    vextracti128 xmm7, ymm0, 1
+    vmovq rax, xmm7
+    CHECK_EQ_64 rax, 0xCCCCCCCC00000003
+
+    TEST_CASE t41_name
+    vextracti128 xmm7, ymm0, 1
+    vpextrq rax, xmm7, 1
+    CHECK_EQ_64 rax, 0x0000000000000000
+
+    ; ---- vmaskmovps ymm load, mask=alternating ----
+    vmovdqa ymm1, [rel mask_d256_02]
+    vmaskmovps ymm0, ymm1, [rel src_ps256]
+
+    TEST_CASE t42_name
+    vmovq rax, xmm0
+    CHECK_EQ_64 rax, 0x000000003F800000
+
+    TEST_CASE t43_name
+    vpextrq rax, xmm0, 1
+    CHECK_EQ_64 rax, 0x0000000040400000
+
+    TEST_CASE t44_name
+    vextracti128 xmm7, ymm0, 1
+    vmovq rax, xmm7
+    CHECK_EQ_64 rax, 0x0000000040A00000
+
+    TEST_CASE t45_name
+    vextracti128 xmm7, ymm0, 1
+    vpextrq rax, xmm7, 1
+    CHECK_EQ_64 rax, 0x0000000040E00000
+
+    ; ---- vmaskmovpd ymm load, mask={s,0,s,0} ----
+    vmovdqa ymm1, [rel mask_q256_02]
+    vmaskmovpd ymm0, ymm1, [rel src_pd256]
+
+    TEST_CASE t46_name
+    vmovq rax, xmm0
+    CHECK_EQ_64 rax, 0x3FF0000000000000
+
+    TEST_CASE t47_name
+    vextracti128 xmm7, ymm0, 1
+    vmovq rax, xmm7
+    CHECK_EQ_64 rax, 0x4008000000000000
+
+    TEST_CASE t48_name
+    vextracti128 xmm7, ymm0, 1
+    vpextrq rax, xmm7, 1
+    CHECK_EQ_64 rax, 0x0000000000000000
+
+    ; ---- vpmaskmovd ymm store, mask=alternating ----
+    ; Fill dst_buf with 0xFF (use 128-bit ops to avoid 256-bit compute bugs)
+    vpcmpeqd xmm3, xmm3, xmm3
+    vmovdqu [rel dst_buf], xmm3
+    vmovdqu [rel dst_buf+16], xmm3
+    vmovdqa ymm2, [rel src_d256]
+    vmovdqa ymm1, [rel mask_d256_02]
+    vpmaskmovd [rel dst_buf], ymm1, ymm2
+
+    TEST_CASE t49_name
+    mov rax, [rel dst_buf]
+    CHECK_EQ_64 rax, 0xFFFFFFFFAAAA0001
+
+    TEST_CASE t50_name
+    mov rax, [rel dst_buf+8]
+    CHECK_EQ_64 rax, 0xFFFFFFFFCCCC0003
+
+    TEST_CASE t51_name
+    mov rax, [rel dst_buf+16]
+    CHECK_EQ_64 rax, 0xFFFFFFFFEEEE0005
+
+    TEST_CASE t52_name
+    mov rax, [rel dst_buf+24]
+    CHECK_EQ_64 rax, 0xFFFFFFFF11110007
+
+    ; ---- vpmaskmovq ymm store, mask={s,0,s,0} ----
+    vpcmpeqd xmm3, xmm3, xmm3
+    vmovdqu [rel dst_buf], xmm3
+    vmovdqu [rel dst_buf+16], xmm3
+    vmovdqa ymm2, [rel src_q256]
+    vmovdqa ymm1, [rel mask_q256_02]
+    vpmaskmovq [rel dst_buf], ymm1, ymm2
+
+    TEST_CASE t53_name
+    mov rax, [rel dst_buf]
+    CHECK_EQ_64 rax, 0xAAAAAAAA00000001
+
+    TEST_CASE t54_name
+    mov rax, [rel dst_buf+16]
+    CHECK_EQ_64 rax, 0xCCCCCCCC00000003
+
+    TEST_CASE t55_name
+    mov rax, [rel dst_buf+24]
+    CHECK_EQ_64 rax, 0xFFFFFFFFFFFFFFFF
+
+    ; ---- vmaskmovps ymm store, mask=alternating ----
+    vpcmpeqd xmm3, xmm3, xmm3
+    vmovdqu [rel dst_buf], xmm3
+    vmovdqu [rel dst_buf+16], xmm3
+    vmovaps ymm2, [rel src_ps256]
+    vmovdqa ymm1, [rel mask_d256_02]
+    vmaskmovps [rel dst_buf], ymm1, ymm2
+
+    TEST_CASE t56_name
+    mov rax, [rel dst_buf]
+    CHECK_EQ_64 rax, 0xFFFFFFFF3F800000
+
+    TEST_CASE t57_name
+    mov rax, [rel dst_buf+8]
+    CHECK_EQ_64 rax, 0xFFFFFFFF40400000
+
+    TEST_CASE t58_name
+    mov rax, [rel dst_buf+16]
+    CHECK_EQ_64 rax, 0xFFFFFFFF40A00000
+
+    TEST_CASE t59_name
+    mov rax, [rel dst_buf+24]
+    CHECK_EQ_64 rax, 0xFFFFFFFF40E00000
+
+    ; ---- vmaskmovpd ymm store, mask={s,0,s,0} ----
+    vpcmpeqd xmm3, xmm3, xmm3
+    vmovdqu [rel dst_buf], xmm3
+    vmovdqu [rel dst_buf+16], xmm3
+    vmovapd ymm2, [rel src_pd256]
+    vmovdqa ymm1, [rel mask_q256_02]
+    vmaskmovpd [rel dst_buf], ymm1, ymm2
+
+    TEST_CASE t60_name
+    mov rax, [rel dst_buf]
+    CHECK_EQ_64 rax, 0x3FF0000000000000
+
+    TEST_CASE t61_name
+    mov rax, [rel dst_buf+16]
+    CHECK_EQ_64 rax, 0x4008000000000000
+
+    TEST_CASE t62_name
+    mov rax, [rel dst_buf+24]
     CHECK_EQ_64 rax, 0xFFFFFFFFFFFFFFFF
 
     ; ================================================================
