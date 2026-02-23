@@ -498,22 +498,16 @@ uintptr_t dynarec64_66(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             }
             break;
         case 0x8D:
-            INST_NAME("LEA Gd, Ed");
+            INST_NAME("LEA Gw, Ed");
             nextop = F8;
             GETGD;
             if (MODREG) {
                 DEFAULT;
             } else {
-                addr = geted(dyn, addr, ninst, nextop, &ed, gd, x1, &fixedaddress, rex, NULL, 0, 0);
-                if (ed != gd) {
-                    MV(gd, ed);
-                }
-                if (fixedaddress) {
-                    ADDI(gd, gd, fixedaddress);
-                }
-                if (!rex.w || rex.is32bits) {
-                    ZEROUP(gd);
-                }
+                rex.seg = 0; // LEA doesn't use segment
+                addr = geted(dyn, addr, ninst, nextop, &ed, x2, x1, &fixedaddress, rex, NULL, 0, 0);
+                // 16-bit LEA: insert only bits 0-15 into gd, preserving bits 16-63
+                BSTRINS_D(gd, ed, 15, 0);
             }
             break;
         case 0x90:
