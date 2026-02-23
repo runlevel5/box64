@@ -1257,11 +1257,32 @@ uintptr_t dynarec64_AVX_66_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t 
             INST_NAME("VADDSUBPD Gx, Vx, Ex");
             nextop = F8;
             GETGY_empty_VYEY_xy(v0, v1, v2, 0);
+            // VADDSUBPD: dst[63:0] = Vx[63:0] - Ex[63:0], dst[127:64] = Vx[127:64] + Ex[127:64]
+            // Use XOR-then-ADD: flip sign of x86 low lane (sub lane) in Ex, then add.
+            // This correctly handles NaN: x86 SUB flips NaN sign bit, and
+            // the XOR-then-ADD trick replicates this. PPC SUB does NOT flip NaN sign.
             q0 = fpu_get_scratch(dyn);
-            XVSUBDP(VSXREG(q0), VSXREG(v1), VSXREG(v2));   // q0 = Vx - Ex (both)
-            XVADDDP(VSXREG(v0), VSXREG(v1), VSXREG(v2));   // v0 = Vx + Ex (both)
-            // x86 low = sub, x86 high = add => ISA dw0=add(v0), ISA dw1=sub(q0)
-            XXPERMDI(VSXREG(v0), VSXREG(v0), VSXREG(q0), 0b01);
+            // Sign mask: dw0=0 (x86 high = add, no flip), dw1=0x8000000000000000 (x86 low = sub, flip)
+            LI(x4, 1);
+            SLDI(x4, x4, 63);  // x4 = 0x8000000000000000
+            MTVSRDD(VSXREG(q0), xZR, x4);
+            XXLXOR(VSXREG(q0), VSXREG(v2), VSXREG(q0));
+            if (!BOX64ENV(dynarec_fastnan)) {
+                d0 = fpu_get_scratch(dyn);
+                d1 = fpu_get_scratch(dyn);
+                XVCMPEQDP(VSXREG(d0), VSXREG(v1), VSXREG(v1));  // d0 = -1 where Vx NOT NaN
+                XVCMPEQDP(VSXREG(d1), VSXREG(v2), VSXREG(v2));  // d1 = -1 where Ex NOT NaN
+                XXLAND(VSXREG(d0), VSXREG(d0), VSXREG(d1));      // d0 = both ordered mask
+            }
+            XVADDDP(VSXREG(v0), VSXREG(v1), VSXREG(q0));
+            if (!BOX64ENV(dynarec_fastnan)) {
+                // Newly generated NaNs (both inputs ordered, result NaN) — set sign bit
+                XVCMPEQDP(VSXREG(d1), VSXREG(v0), VSXREG(v0));  // d1 = -1 where result NOT NaN
+                XXLANDC(VSXREG(d1), VSXREG(d0), VSXREG(d1));     // both-ordered AND result-NaN
+                XXSPLTIB(VSXREG(d0), 63);
+                VSLD(VRREG(d1), VRREG(d1), VRREG(d0));
+                XXLOR(VSXREG(v0), VSXREG(v0), VSXREG(d1));      // OR sign bit
+            }
             break;
 
         case 0xD1:

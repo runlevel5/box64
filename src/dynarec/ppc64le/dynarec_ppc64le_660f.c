@@ -1846,14 +1846,32 @@ uintptr_t dynarec64_660F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
             GETGX(v0, 1);
             GETEX(v1, 0, 0);
             // ADDSUBPD: dst[63:0] = Gx[63:0] - Ex[63:0], dst[127:64] = Gx[127:64] + Ex[127:64]
+            // Use XOR-then-ADD: flip sign of x86 low lane (sub lane) in Ex, then add.
+            // This correctly handles NaN: x86 SUB flips NaN sign bit, and
+            // the XOR-then-ADD trick replicates this. PPC SUB does NOT flip NaN sign,
+            // so the old separate SUB/ADD + XXPERMDI approach was wrong for NaN inputs.
             q0 = fpu_get_scratch(dyn);
-            XVSUBDP(VSXREG(q0), VSXREG(v0), VSXREG(v1));  // q0 = Gx - Ex (both lanes)
-            XVADDDP(VSXREG(v0), VSXREG(v0), VSXREG(v1));  // v0 = Gx + Ex (both lanes)
-            // Now: v0 has [add_high, add_low], q0 has [sub_high, sub_low] (ISA: dw0=x86 high, dw1=x86 low)
-            // We want: x86 low = sub (from q0), x86 high = add (from v0)
-            // => ISA dw0 = v0's dw0 (add_high), ISA dw1 = q0's dw1 (sub_low)
-            // XXPERMDI(v0, XA=v0, XB=q0, DM=0b01): dw0=v0[0:63] ✓, dw1=q0[64:127] ✓
-            XXPERMDI(VSXREG(v0), VSXREG(v0), VSXREG(q0), 0b01);
+            // Sign mask: dw0=0 (x86 high = add, no flip), dw1=0x8000000000000000 (x86 low = sub, flip)
+            LI(x4, 1);
+            SLDI(x4, x4, 63);  // x4 = 0x8000000000000000
+            MTVSRDD(VSXREG(q0), xZR, x4);
+            XXLXOR(VSXREG(q0), VSXREG(v1), VSXREG(q0));
+            if (!BOX64ENV(dynarec_fastnan)) {
+                d0 = fpu_get_scratch(dyn);
+                d1 = fpu_get_scratch(dyn);
+                XVCMPEQDP(VSXREG(d0), VSXREG(v0), VSXREG(v0));  // d0 = -1 where Gx NOT NaN
+                XVCMPEQDP(VSXREG(d1), VSXREG(v1), VSXREG(v1));  // d1 = -1 where Ex NOT NaN
+                XXLAND(VSXREG(d0), VSXREG(d0), VSXREG(d1));      // d0 = both ordered mask
+            }
+            XVADDDP(VSXREG(v0), VSXREG(v0), VSXREG(q0));
+            if (!BOX64ENV(dynarec_fastnan)) {
+                // Newly generated NaNs (both inputs ordered, result NaN) — set sign bit
+                XVCMPEQDP(VSXREG(d1), VSXREG(v0), VSXREG(v0));  // d1 = -1 where result NOT NaN
+                XXLANDC(VSXREG(d1), VSXREG(d0), VSXREG(d1));     // both-ordered AND result-NaN
+                XXSPLTIB(VSXREG(d0), 63);
+                VSLD(VRREG(d1), VRREG(d1), VRREG(d0));
+                XXLOR(VSXREG(v0), VSXREG(v0), VSXREG(d1));      // OR sign bit
+            }
             break;
         case 0xD1:
             INST_NAME("PSRLW Gx, Ex");

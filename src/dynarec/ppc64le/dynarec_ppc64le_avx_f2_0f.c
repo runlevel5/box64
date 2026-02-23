@@ -649,10 +649,9 @@ uintptr_t dynarec64_AVX_F2_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t 
             // Add: Vx + modified_Ex gives sub for even, add for odd
             if (!BOX64ENV(dynarec_fastnan)) {
                 q0 = fpu_get_scratch(dyn);
-                q1 = fpu_get_scratch(dyn);
-                XVCMPEQSP(VSXREG(q0), VSXREG(v1), VSXREG(v1));  // q0 = -1 where Vx NOT NaN
-                XVCMPEQSP(VSXREG(q1), VSXREG(v2), VSXREG(v2));  // q1 = -1 where Ex NOT NaN
-                XXLAND(VSXREG(d0), VSXREG(q0), VSXREG(q1));      // d0 = both ordered mask (reuse d0)
+                XVCMPEQSP(VSXREG(d0), VSXREG(v1), VSXREG(v1));  // d0 = -1 where Vx NOT NaN
+                XVCMPEQSP(VSXREG(q0), VSXREG(v2), VSXREG(v2));  // q0 = -1 where Ex NOT NaN
+                XXLAND(VSXREG(d0), VSXREG(d0), VSXREG(q0));      // d0 = both ordered mask
             }
             XVADDSP(VSXREG(v0), VSXREG(v1), VSXREG(d1));
             if (!BOX64ENV(dynarec_fastnan)) {
@@ -662,15 +661,9 @@ uintptr_t dynarec64_AVX_F2_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t 
                 XXSPLTIB(VSXREG(d0), 31);
                 VSLW(VRREG(d1), VRREG(d1), VRREG(d0));
                 XXLOR(VSXREG(v0), VSXREG(v0), VSXREG(d1));      // OR sign bit
-                // Fix 2: XOR corrupted NaN signs for Ex NaN lanes.
-                // Where Vx is ordered and Ex is NaN, the XOR flipped Ex's NaN sign
-                // before the ADD, propagating a sign-flipped NaN. Replace those
-                // lanes with the original Ex NaN (v2). Where Vx is NaN, PPC ADD
-                // propagated Vx NaN correctly (sign preserved).
-                // q0 = Vx-ordered mask, q1 = Ex-ordered mask
-                // We want: lanes where Vx ordered AND Ex NaN → select v2
-                XXLANDC(VSXREG(q0), VSXREG(q0), VSXREG(q1));    // q0 = Vx-ordered AND Ex-NaN
-                XXSEL(VSXREG(v0), VSXREG(v0), VSXREG(v2), VSXREG(q0));
+                // Note: no fixup needed for Ex NaN in subtraction lanes. The XOR
+                // sign flip before ADD correctly emulates x86 SUB's NaN sign
+                // negation behavior (x86 SUB flips NaN sign, PPC SUB does not).
             }
             break;
 

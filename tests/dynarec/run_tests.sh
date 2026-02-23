@@ -43,9 +43,9 @@ run_test() {
     local mode="$2"  # "dynarec" or "interp"
 
     if [ "$mode" = "interp" ]; then
-        BOX64_DYNAREC=0 "$BOX64" "$bin" 2>/dev/null
+        BOX64_DYNAREC=0 BOX64_DYNAREC_FASTNAN=0 "$BOX64" "$bin" 2>/dev/null
     else
-        BOX64_DYNAREC=1 "$BOX64" "$bin" 2>/dev/null
+        BOX64_DYNAREC=1 BOX64_DYNAREC_FASTNAN=0 "$BOX64" "$bin" 2>/dev/null
     fi
     return $?
 }

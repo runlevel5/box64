@@ -627,10 +627,28 @@ uintptr_t dynarec64_F20F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
             LI(x4, 1);
             SLDI(x4, x4, 31);  // x4 = 0x00000000_80000000
             MTVSRDD(VSXREG(d0), x4, x4);  // both halves = 0x00000000_80000000
-            // XOR Ex with sign mask to flip sign of even float lanes
+            // XOR Ex with sign mask to flip sign of even float lanes.
+            // This correctly handles NaN: x86 SUB flips NaN sign bit, and
+            // the XOR-then-ADD trick replicates this (XOR flips sign, ADD preserves it).
+            // PPC SUB does NOT flip NaN sign, so using separate SUB/ADD would be wrong.
             XXLXOR(VSXREG(d1), VSXREG(v1), VSXREG(d0));
             // Add: Gx + modified_Ex gives sub for even, add for odd
+            if (!BOX64ENV(dynarec_fastnan)) {
+                q0 = fpu_get_scratch(dyn);
+                XVCMPEQSP(VSXREG(d0), VSXREG(v0), VSXREG(v0));  // d0 = -1 where Gx NOT NaN
+                XVCMPEQSP(VSXREG(q0), VSXREG(v1), VSXREG(v1));  // q0 = -1 where Ex NOT NaN
+                XXLAND(VSXREG(d0), VSXREG(d0), VSXREG(q0));      // d0 = both ordered mask
+            }
             XVADDSP(VSXREG(v0), VSXREG(v0), VSXREG(d1));
+            if (!BOX64ENV(dynarec_fastnan)) {
+                // Newly generated NaNs (both inputs ordered, result NaN) — set sign bit
+                // This handles INF-INF and INF+(-INF) producing negative indefinite NaN.
+                XVCMPEQSP(VSXREG(d1), VSXREG(v0), VSXREG(v0));  // d1 = -1 where result NOT NaN
+                XXLANDC(VSXREG(d1), VSXREG(d0), VSXREG(d1));     // both-ordered AND result-NaN
+                XXSPLTIB(VSXREG(d0), 31);
+                VSLW(VRREG(d1), VRREG(d1), VRREG(d0));
+                XXLOR(VSXREG(v0), VSXREG(v0), VSXREG(d1));      // OR sign bit
+            }
             break;
         case 0xD6:
             INST_NAME("MOVDQ2Q Gm, Ex");
