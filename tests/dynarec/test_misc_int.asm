@@ -43,6 +43,18 @@ section .data
     t38_name: db "cmova taken", 0
     t39_name: db "bt mem,imm", 0
     t40_name: db "popcnt 32 zf", 0
+    t41_name: db "cmovne 16 taken", 0
+    t42_name: db "cmovne 16 not taken", 0
+    t43_name: db "cmova 16 taken", 0
+    t44_name: db "cmova 16 not taken", 0
+    t45_name: db "cmove 16 taken", 0
+    t46_name: db "cmove 16 not taken", 0
+    t47_name: db "cmovb 16 taken", 0
+    t48_name: db "cmovb 16 not taken", 0
+    t49_name: db "cmovl 16 taken", 0
+    t50_name: db "cmovl 16 not taken", 0
+    t51_name: db "cmovne 16 preserves hi", 0
+    t52_name: db "cmova 16 preserves hi", 0
 
     align 8
     bt_mem_val: dq 0x00000000DEADBEEF
@@ -338,5 +350,124 @@ _start:
     pop rcx
     ; Note: we already counted one test for the CHECK_EQ_32 above.
     ; The ZF check is implicitly verified by the zero result.
+
+    ; ==== Test 41: cmovne 16-bit taken (not equal) ====
+    ; CMP + CMOVcc pattern triggers native flags fusion
+    TEST_CASE t41_name
+    mov ecx, 0x1234          ; source: cx = 0x1234
+    mov edx, 0x5678          ; dest: dx = 0x5678
+    cmp eax, 1               ; ZF=0 (eax=0 from popcnt above)
+    cmovne dx, cx            ; ZF=0 -> taken, dx should become 0x1234
+    movzx eax, dx
+    CHECK_EQ_32 eax, 0x1234
+
+    ; ==== Test 42: cmovne 16-bit not taken (equal) ====
+    TEST_CASE t42_name
+    mov ecx, 0x1234          ; source: cx = 0x1234
+    mov edx, 0x5678          ; dest: dx = 0x5678
+    xor eax, eax
+    cmp eax, 0               ; ZF=1 (0 == 0)
+    cmovne dx, cx            ; ZF=1 -> not taken, dx should stay 0x5678
+    movzx eax, dx
+    CHECK_EQ_32 eax, 0x5678
+
+    ; ==== Test 43: cmova 16-bit taken (unsigned above) ====
+    TEST_CASE t43_name
+    mov ecx, 0xBEEF          ; source: cx = 0xBEEF
+    mov edx, 0xCAFE          ; dest: dx = 0xCAFE
+    mov eax, 100
+    cmp eax, 1               ; 100 > 1 unsigned, CF=0 ZF=0
+    cmova dx, cx             ; taken -> dx = 0xBEEF
+    movzx eax, dx
+    CHECK_EQ_32 eax, 0xBEEF
+
+    ; ==== Test 44: cmova 16-bit not taken (not above) ====
+    TEST_CASE t44_name
+    mov ecx, 0xBEEF          ; source
+    mov edx, 0xCAFE          ; dest
+    mov eax, 1
+    cmp eax, 100             ; 1 < 100 unsigned, CF=1
+    cmova dx, cx             ; not taken -> dx stays 0xCAFE
+    movzx eax, dx
+    CHECK_EQ_32 eax, 0xCAFE
+
+    ; ==== Test 45: cmove 16-bit taken (equal) ====
+    TEST_CASE t45_name
+    mov ecx, 0xAAAA
+    mov edx, 0xBBBB
+    mov eax, 42
+    cmp eax, 42              ; ZF=1
+    cmove dx, cx             ; taken -> dx = 0xAAAA
+    movzx eax, dx
+    CHECK_EQ_32 eax, 0xAAAA
+
+    ; ==== Test 46: cmove 16-bit not taken (not equal) ====
+    TEST_CASE t46_name
+    mov ecx, 0xAAAA
+    mov edx, 0xBBBB
+    mov eax, 42
+    cmp eax, 43              ; ZF=0
+    cmove dx, cx             ; not taken -> dx stays 0xBBBB
+    movzx eax, dx
+    CHECK_EQ_32 eax, 0xBBBB
+
+    ; ==== Test 47: cmovb 16-bit taken (below) ====
+    TEST_CASE t47_name
+    mov ecx, 0x1111
+    mov edx, 0x2222
+    mov eax, 1
+    cmp eax, 100             ; 1 < 100 -> CF=1
+    cmovb dx, cx             ; taken -> dx = 0x1111
+    movzx eax, dx
+    CHECK_EQ_32 eax, 0x1111
+
+    ; ==== Test 48: cmovb 16-bit not taken (not below) ====
+    TEST_CASE t48_name
+    mov ecx, 0x1111
+    mov edx, 0x2222
+    mov eax, 100
+    cmp eax, 1               ; 100 > 1 -> CF=0
+    cmovb dx, cx             ; not taken -> dx stays 0x2222
+    movzx eax, dx
+    CHECK_EQ_32 eax, 0x2222
+
+    ; ==== Test 49: cmovl 16-bit taken (signed less) ====
+    TEST_CASE t49_name
+    mov ecx, 0x3333
+    mov edx, 0x4444
+    mov eax, -5
+    cmp eax, 3               ; -5 < 3 signed
+    cmovl dx, cx             ; taken -> dx = 0x3333
+    movzx eax, dx
+    CHECK_EQ_32 eax, 0x3333
+
+    ; ==== Test 50: cmovl 16-bit not taken (not less) ====
+    TEST_CASE t50_name
+    mov ecx, 0x3333
+    mov edx, 0x4444
+    mov eax, 5
+    cmp eax, 3               ; 5 > 3 signed -> not less
+    cmovl dx, cx             ; not taken -> dx stays 0x4444
+    movzx eax, dx
+    CHECK_EQ_32 eax, 0x4444
+
+    ; ==== Test 51: cmovne 16-bit preserves upper bits ====
+    ; When taken, only low 16 bits should change; upper bits preserved
+    TEST_CASE t51_name
+    mov rcx, 0xDEAD1234      ; source: cx = 0x1234
+    mov rdx, 0xBEEF5678      ; dest: dx = 0x5678, upper = 0xBEEF
+    mov eax, 1
+    cmp eax, 2               ; ZF=0 -> NE
+    cmovne dx, cx            ; taken: dx = 0x1234, upper rdx should still be 0xBEEF
+    CHECK_EQ_64 rdx, 0xBEEF1234
+
+    ; ==== Test 52: cmova 16-bit preserves upper bits when not taken ====
+    TEST_CASE t52_name
+    mov rcx, 0xDEAD1234
+    mov rdx, 0xBEEF5678
+    mov eax, 1
+    cmp eax, 100             ; 1 < 100 -> not above
+    cmova dx, cx             ; not taken: rdx should be completely unchanged
+    CHECK_EQ_64 rdx, 0xBEEF5678
 
     END_TESTS

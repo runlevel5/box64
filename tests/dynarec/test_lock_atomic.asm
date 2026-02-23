@@ -39,6 +39,10 @@ section .data
     t33_name: db "xchg [mem] dword", 0
     t34_name: db "xchg [mem] qword", 0
     t35_name: db "lock add dword imm", 0
+    t36_name: db "cmpxchg16b match ZF=1", 0
+    t37_name: db "cmpxchg16b fail ZF=0", 0
+    t38_name: db "cmpxchg16b match SETZ", 0
+    t39_name: db "cmpxchg16b fail SETZ", 0
 
 section .bss
     alignb 8
@@ -453,5 +457,78 @@ _start:
     lock add dword [rbx], 0x10
     mov eax, [rbx]
     CHECK_EQ_32 eax, 0x80000000
+
+    ; ==== Test 36: LOCK CMPXCHG16B match -> ZF=1 (via RFLAGS) ====
+    TEST_CASE t36_name
+    push rbx
+    lea rdi, [rel val16]
+    mov rax, 0x1111111111111111
+    mov [rdi], rax                ; low qword
+    mov rax, 0x2222222222222222
+    mov [rdi+8], rax              ; high qword
+    mov rax, 0x1111111111111111   ; expected low
+    mov rdx, 0x2222222222222222   ; expected high
+    mov rbx, 0x3333333333333333   ; new low
+    mov rcx, 0x4444444444444444   ; new high
+    lock cmpxchg16b [rdi]
+    SAVE_FLAGS                    ; must be immediately after (before any cmp/test)
+    pop rbx
+    ; ZF should be set (bit 6 = 0x40)
+    CHECK_FLAGS_EQ 0x40, 0x40
+
+    ; ==== Test 37: LOCK CMPXCHG16B mismatch -> ZF=0 (via RFLAGS) ====
+    TEST_CASE t37_name
+    push rbx
+    lea rdi, [rel val16]
+    mov rax, 0xAAAAAAAAAAAAAAAA
+    mov [rdi], rax                ; low qword
+    mov rax, 0xBBBBBBBBBBBBBBBB
+    mov [rdi+8], rax              ; high qword
+    mov rax, 0x1111111111111111   ; expected low (wrong)
+    mov rdx, 0x2222222222222222   ; expected high (wrong)
+    mov rbx, 0x9999999999999999   ; new (should not be stored)
+    mov rcx, 0x8888888888888888
+    lock cmpxchg16b [rdi]
+    SAVE_FLAGS                    ; must be immediately after
+    pop rbx
+    ; ZF should be clear (bit 6 = 0x40, expected 0x00)
+    CHECK_FLAGS_EQ 0x40, 0x00
+
+    ; ==== Test 38: LOCK CMPXCHG16B match -> SETZ cl = 1 ====
+    ; This exactly matches the PoE crash pattern
+    TEST_CASE t38_name
+    push rbx
+    lea rdi, [rel val16]
+    mov rax, 0xDEADBEEFCAFEBABE
+    mov [rdi], rax                ; low qword
+    mov rax, 0x0123456789ABCDEF
+    mov [rdi+8], rax              ; high qword
+    mov rax, 0xDEADBEEFCAFEBABE   ; expected low
+    mov rdx, 0x0123456789ABCDEF   ; expected high
+    mov rbx, 0xAAAABBBBCCCCDDDD   ; new low
+    mov rcx, 0x1111222233334444   ; new high
+    lock cmpxchg16b [rdi]
+    setz cl                       ; cl = 1 if ZF=1 (match)
+    movzx eax, cl
+    pop rbx
+    CHECK_EQ_32 eax, 1
+
+    ; ==== Test 39: LOCK CMPXCHG16B mismatch -> SETZ cl = 0 ====
+    TEST_CASE t39_name
+    push rbx
+    lea rdi, [rel val16]
+    mov rax, 0xDEADBEEFCAFEBABE
+    mov [rdi], rax                ; low qword
+    mov rax, 0x0123456789ABCDEF
+    mov [rdi+8], rax              ; high qword
+    mov rax, 0x0000000000000000   ; expected low (wrong!)
+    mov rdx, 0x0000000000000000   ; expected high (wrong!)
+    mov rbx, 0xAAAABBBBCCCCDDDD   ; new low (should not be stored)
+    mov rcx, 0x1111222233334444   ; new high
+    lock cmpxchg16b [rdi]
+    setz cl                       ; cl = 0 if ZF=0 (mismatch)
+    movzx eax, cl
+    pop rbx
+    CHECK_EQ_32 eax, 0
 
     END_TESTS
