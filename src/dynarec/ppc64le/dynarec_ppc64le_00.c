@@ -1349,7 +1349,7 @@ uintptr_t dynarec64_00(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             break;
         case 0x8C:
             nextop = F8;
-            u8 = (nextop & 38) >> 3;
+            u8 = (nextop & 0x38) >> 3;
             if (u8 > 5) {
                 INST_NAME("Invalid MOV Ed, Seg");
                 UDF();
@@ -3032,7 +3032,7 @@ uintptr_t dynarec64_00(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
         case 0xD7:
             INST_NAME("XLAT");
             BSTRPICK_D(x1, xRAX, 7, 0);
-            LDXxw(x1, xRBX, x1);
+            LBZX(x1, xRBX, x1);
             BSTRINS_D(xRAX, x1, 7, 0);
             break;
         case 0xD8:

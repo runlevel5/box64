@@ -920,7 +920,7 @@
 // VPKSDUS — vector pack signed doubleword unsigned saturate (POWER8)
 #define VPKSDUS(Vrt, Vra, Vrb)  EMIT(VX_form_gen(Vrt, Vra, Vrb, 1358))
 // VPKUDUS — vector pack unsigned doubleword unsigned saturate (POWER8)
-#define VPKUDUS(Vrt, Vra, Vrb)  EMIT(VX_form_gen(Vrt, Vra, Vrb, 1102))
+#define VPKUDUS(Vrt, Vra, Vrb)  EMIT(VX_form_gen(Vrt, Vra, Vrb, 1230))
 // VPKUDUM — vector pack unsigned doubleword unsigned modulo (POWER8)
 #define VPKUDUM(Vrt, Vra, Vrb)  EMIT(VX_form_gen(Vrt, Vra, Vrb, 1102))
 
