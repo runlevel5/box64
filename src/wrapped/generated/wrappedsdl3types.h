@@ -11,9 +11,11 @@
 #define ADDED_FUNCTIONS() 
 #endif
 
+typedef void* (*pFv_t)(void);
 typedef void* (*pFp_t)(void*);
 
 #define SUPER() ADDED_FUNCTIONS() \
+	GO(SDL_Vulkan_GetVkGetInstanceProcAddr, pFv_t) \
 	GO(SDL_GL_GetProcAddress, pFp_t)
 
 #endif // __wrappedsdl3TYPES_H_

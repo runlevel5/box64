@@ -4060,8 +4060,6 @@
 #() iFEpuvvppp -> iFEpuppp
 wrappedalure:
 wrappedalut:
-wrappedandroidshmem:
-wrappedandroidsupport:
 wrappedanl:
 wrappedatk:
 - vFp:
@@ -5173,7 +5171,6 @@ wrappedgtkx112:
 - pFpipppppppi:
   - gtk_toolbar_insert_element
 wrappedharfbuzzsubset:
-wrappediconv:
 wrappedicui18n64:
 wrappedicui18n66:
 wrappedicui18n67:
@@ -6968,6 +6965,8 @@ wrappedsdl2ttf:
 - pFpiii:
   - TTF_OpenFontIndexRW
 wrappedsdl3:
+- pFv:
+  - SDL_Vulkan_GetVkGetInstanceProcAddr
 - pFp:
   - SDL_GL_GetProcAddress
 wrappedsdl3ttf:
@@ -7063,7 +7062,6 @@ wrappedtcmallocminimal:
 - pFpLiiil:
   - mmap
   - mmap64
-wrappedtermuxexec:
 wrappedudev0:
 wrappedudev1:
 - vFpp:
