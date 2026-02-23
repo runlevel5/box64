@@ -586,6 +586,7 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                                 PASS3(if (!warned) dynarec_log(LOG_INFO, "Warning, LOCK CMPXCHG16B is not well supported on PPC64LE and issues are expected.\n"));
                                 PASS3(warned = 1);
                                 SETFLAGS(X_ZF, SF_SUBSET, NAT_FLAGS_NOFUSION);
+                                SKIPTEST(x1);
                                 addr = geted(dyn, addr, ninst, nextop, &wback, x2, x1, &fixedaddress, rex, LOCK_LOCK, 0, 0);
                                 // RDX:RAX = expected, RCX:RBX = replacement
                                 // PPC64LE (pre-POWER10) lacks 128-bit LL/SC, so use the
@@ -626,6 +627,7 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                             } else {
                                 INST_NAME("LOCK CMPXCHG8B Gq, Eq");
                                 SETFLAGS(X_ZF, SF_SUBSET, NAT_FLAGS_NOFUSION);
+                                SKIPTEST(x1);
                                 addr = geted(dyn, addr, ninst, nextop, &wback, x2, x1, &fixedaddress, rex, LOCK_LOCK, 0, 0);
                                 // EDX:EAX = expected, ECX:EBX = replacement
                                 // [wback] is 8 bytes = one doubleword
