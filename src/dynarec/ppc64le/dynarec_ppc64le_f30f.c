@@ -627,25 +627,25 @@ uintptr_t dynarec64_F30F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
     if (MODREG) {                                                                            \
         ed = TO_NAT((nextop & 7) + (rex.b << 3));                                            \
         if (dyn->insts[ninst].nat_flags_fusion) {                                            \
-            /* CMPD_ZR(4) + BC(4) + MR(4) [+ ZEROUP(4)] → MARK2 */                          \
-            NATIVEJUMP(NATNO, rex.w ? 12 : 16);                                             \
+            /* CMPD_ZR(4) + BC(4) + MR(4) → MARK2; ZEROUP unconditional */                   \
+            NATIVEJUMP(NATNO, 12);                                                           \
         } else {                                                                             \
             B##NO##_MARK2(tmp1);                                                             \
         }                                                                                    \
         MR(gd, ed);                                                                          \
-        if (!rex.w) ZEROUP(gd);                                                              \
         MARK2;                                                                               \
+        if (!rex.w) ZEROUP(gd);                                                              \
     } else {                                                                                 \
         addr = geted(dyn, addr, ninst, nextop, &ed, tmp2, tmp3, &fixedaddress, rex, NULL, 1, 0); \
         if (dyn->insts[ninst].nat_flags_fusion) {                                            \
-            /* CMPD_ZR(4) + BC(4) + LDxw(4) [+ ZEROUP(4)] → MARK2 */                        \
-            NATIVEJUMP(NATNO, rex.w ? 12 : 16);                                             \
+            /* CMPD_ZR(4) + BC(4) + LDxw(4) → MARK2; ZEROUP unconditional */                 \
+            NATIVEJUMP(NATNO, 12);                                                           \
         } else {                                                                             \
             B##NO##_MARK2(tmp1);                                                             \
         }                                                                                    \
         LDxw(gd, ed, fixedaddress);                                                          \
-        if (!rex.w) ZEROUP(gd);                                                              \
         MARK2;                                                                               \
+        if (!rex.w) ZEROUP(gd);                                                              \
     }
 
             GOCOND(0x40, "CMOV", "Gd, Ed");

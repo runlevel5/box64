@@ -483,66 +483,66 @@ _start:
     cmova dx, cx             ; not taken: rdx should be completely unchanged
     CHECK_EQ_64 rdx, 0xBEEF5678
 
-    ; ==== Tests 53-58: 32-bit CMOVcc not-taken must preserve upper 32 bits ====
-    ; These test the NATIVEJUMP skip distance bug: when !rex.w, ZEROUP(gd)
-    ; follows the MR, making the skip distance 16 not 12. If the branch
-    ; lands ON the ZEROUP, the upper bits get incorrectly zeroed.
-    ; Pattern: set upper bits in dest, CMP + CMOVcc (not taken), check upper bits survive.
+    ; ==== Tests 53-58: 32-bit CMOVcc not-taken still zeroes upper 32 bits ====
+    ; x86-64: 32-bit CMOVcc always zeroes upper 32 bits of the destination,
+    ; even when the condition is false and the move is not taken.
+    ; Per Intel/AMD docs: the 32-bit operand encoding implies zero-extension.
+    ; Pattern: set upper bits in dest, CMP + CMOVcc (not taken), verify upper bits zeroed.
 
-    ; ==== Test 53: cmovne 32-bit not-taken preserves upper 32 bits ====
+    ; ==== Test 53: cmovne 32-bit not-taken zeroes upper 32 bits ====
     TEST_CASE t53_name
     mov rcx, 0x1111111100000001  ; source (ecx = 1)
     mov rdx, 0xDEADBEEF00005678  ; dest: edx = 0x5678, upper = 0xDEADBEEF
     xor eax, eax
     cmp eax, 0               ; ZF=1 -> equal, so NE is false
-    cmovne edx, ecx          ; not taken: edx should stay 0x5678, upper zeroed by 32-bit op? NO.
-    ; x86-64: 32-bit CMOVcc not-taken leaves dest ENTIRELY unchanged (64 bits)
-    CHECK_EQ_64 rdx, 0xDEADBEEF00005678
+    cmovne edx, ecx          ; not taken: lower 32 unchanged, upper 32 zeroed
+    CHECK_EQ_64 rdx, 0x0000000000005678
 
-    ; ==== Test 54: cmove 32-bit not-taken preserves upper 32 bits ====
+    ; ==== Test 54: cmove 32-bit not-taken zeroes upper 32 bits ====
     TEST_CASE t54_name
     mov rcx, 0x2222222200000002
     mov rdx, 0xCAFEBABE00009ABC
     mov eax, 1
     cmp eax, 2               ; ZF=0 -> not equal, so E is false
     cmove edx, ecx           ; not taken
-    CHECK_EQ_64 rdx, 0xCAFEBABE00009ABC
+    CHECK_EQ_64 rdx, 0x0000000000009ABC
 
-    ; ==== Test 55: cmova 32-bit not-taken preserves upper 32 bits ====
+    ; ==== Test 55: cmova 32-bit not-taken zeroes upper 32 bits ====
     TEST_CASE t55_name
     mov rcx, 0x3333333300000003
     mov rdx, 0xFEEDFACE0000DEF0
     mov eax, 1
     cmp eax, 100             ; 1 < 100 unsigned -> not above
     cmova edx, ecx           ; not taken
-    CHECK_EQ_64 rdx, 0xFEEDFACE0000DEF0
+    CHECK_EQ_64 rdx, 0x000000000000DEF0
 
-    ; ==== Test 56: cmovb 32-bit not-taken preserves upper 32 bits ====
+    ; ==== Test 56: cmovb 32-bit not-taken zeroes upper 32 bits ====
     TEST_CASE t56_name
     mov rcx, 0x4444444400000004
     mov rdx, 0xAAAABBBB0000CCCC
     mov eax, 100
     cmp eax, 1               ; 100 > 1 unsigned -> not below
     cmovb edx, ecx           ; not taken
-    CHECK_EQ_64 rdx, 0xAAAABBBB0000CCCC
+    CHECK_EQ_64 rdx, 0x000000000000CCCC
 
-    ; ==== Test 57: cmovl 32-bit not-taken preserves upper 32 bits ====
+    ; ==== Test 57: cmovl 32-bit not-taken zeroes upper 32 bits ====
     TEST_CASE t57_name
     mov rcx, 0x5555555500000005
     mov rdx, 0x1234ABCD0000DDDD
     mov eax, 50
     cmp eax, 10              ; 50 > 10 signed -> not less
     cmovl edx, ecx           ; not taken
-    CHECK_EQ_64 rdx, 0x1234ABCD0000DDDD
+    CHECK_EQ_64 rdx, 0x000000000000DDDD
 
     ; ==== Test 58: cmovge 32-bit not-taken preserves upper 32 bits ====
+    ; ==== Test 58: cmovge 32-bit not-taken zeroes upper 32 bits ====
     TEST_CASE t58_name
     mov rcx, 0x6666666600000006
     mov rdx, 0x9876543200001111
     mov eax, 5
     cmp eax, 10              ; 5 < 10 signed -> not greater-or-equal
     cmovge edx, ecx          ; not taken
-    CHECK_EQ_64 rdx, 0x9876543200001111
+    CHECK_EQ_64 rdx, 0x0000000000001111
 
     ; ==== Tests 59-60: 32-bit CMOVcc taken must zero upper 32 bits ====
     ; x86-64 semantics: any 32-bit register write zero-extends to 64 bits.
