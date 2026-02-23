@@ -412,7 +412,7 @@ uintptr_t dynarec64_660F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
     if (MODREG) {                                                                            \
         ed = TO_NAT((nextop & 7) + (rex.b << 3));                                            \
         if (dyn->insts[ninst].nat_flags_fusion) {                                            \
-            NATIVEJUMP(NATNO, 8);                                                            \
+            NATIVEJUMP(NATNO, 12);                                                           \
         } else {                                                                             \
             B##NO##_MARK2(tmp1);                                                             \
         }                                                                                    \
@@ -423,7 +423,7 @@ uintptr_t dynarec64_660F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
         addr = geted(dyn, addr, ninst, nextop, &ed, tmp2, tmp3, &fixedaddress, rex, NULL, 1, 0); \
         LHZ(x1, fixedaddress, ed);                                                          \
         if (dyn->insts[ninst].nat_flags_fusion) {                                            \
-            NATIVEJUMP(NATNO, 8);                                                            \
+            NATIVEJUMP(NATNO, 12);                                                           \
         } else {                                                                             \
             B##NO##_MARK2(tmp1);                                                             \
         }                                                                                    \
