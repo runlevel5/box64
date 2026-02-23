@@ -360,10 +360,13 @@ uintptr_t dynarec64_AVX_66_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
                 // Negate to create mask: 0→0x0, 1→0xFFFFFFFFFFFFFFFF
                 XXLXOR(VSXREG(d0), VSXREG(d0), VSXREG(d0));   // zero
                 VSUBUDM(VRREG(d1), VRREG(d0), VRREG(d1));      // 0-0=0, 0-1=all-1s
-                // Create swapped version of Vx
-                XXPERMDI(VSXREG(d2_tmp), VSXREG(v1), VSXREG(v1), 0b10);  // swap halves
-                // Select: mask=0 → original (qw0), mask=1 → swapped (qw1)
-                XXSEL(VSXREG(v0), VSXREG(v1), VSXREG(d2_tmp), VSXREG(d1));
+                // Broadcast each source qword to both positions:
+                // d0 = {qw0, qw0} (source low qword in both halves)
+                XXPERMDI(VSXREG(d0), VSXREG(v1), VSXREG(v1), 3);
+                // d2_tmp = {qw1, qw1} (source high qword in both halves)
+                XXPERMDI(VSXREG(d2_tmp), VSXREG(v1), VSXREG(v1), 0);
+                // Select per qword: mask=0 → qw0, mask=1 → qw1
+                XXSEL(VSXREG(v0), VSXREG(d0), VSXREG(d2_tmp), VSXREG(d1));
             }
             break;
 
@@ -381,9 +384,20 @@ uintptr_t dynarec64_AVX_66_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
             CLEAR_FLAGS(x3);
             SET_DFNONE();
             d0 = fpu_get_scratch(dyn);
+            d1 = fpu_get_scratch(dyn);
+            {
+                // Create sign-bit mask: VTESTPS checks bit 31 per dword, VTESTPD checks bit 63 per qword
+                VSPLTISW(VRREG(d1), -1);                       // d1 = all 1s
+                if (opcode == 0x0E) {
+                    VSLW(VRREG(d1), VRREG(d1), VRREG(d1));     // d1 = 0x80000000 per dword (shift by 31)
+                } else {
+                    VSLD(VRREG(d1), VRREG(d1), VRREG(d1));     // d1 = 0x8000000000000000 per qword (shift by 63)
+                }
+            }
             IFX (X_ZF) {
-                // ZF = (Gx AND Ex) == 0 (check sign bits only)
+                // ZF = (Gx AND Ex)[sign bits] == 0
                 XXLAND(VSXREG(d0), VSXREG(v1), VSXREG(v0));
+                VAND(VRREG(d0), VRREG(d0), VRREG(d1));         // mask to sign bits only
                 MFVSRD(x1, VSXREG(d0));
                 MFVSRLD(x2, VSXREG(d0));
                 OR(x1, x1, x2);
@@ -392,8 +406,9 @@ uintptr_t dynarec64_AVX_66_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
                 ORI(xFlags, xFlags, 1 << F_ZF);
             }
             IFX (X_CF) {
-                // CF = (NOT(Gx) AND Ex) == 0
+                // CF = (NOT(Gx) AND Ex)[sign bits] == 0
                 XXLANDC(VSXREG(d0), VSXREG(v1), VSXREG(v0));
+                VAND(VRREG(d0), VRREG(d0), VRREG(d1));         // mask to sign bits only
                 MFVSRD(x1, VSXREG(d0));
                 MFVSRLD(x2, VSXREG(d0));
                 OR(x1, x1, x2);

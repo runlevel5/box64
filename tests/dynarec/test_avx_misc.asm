@@ -29,6 +29,17 @@ section .data
     t23_name: db "vpsignb", 0
     t24_name: db "vpslldq imm=8", 0
     t25_name: db "vpsrldq imm=8", 0
+    t26_name: db "vpermilpd [0,0] q0", 0
+    t27_name: db "vpermilpd [0,0] q1", 0
+    t28_name: db "vpermilpd [2,2] q0", 0
+    t29_name: db "vpermilpd [2,2] q1", 0
+    t30_name: db "vpermilpd [0,2] q0", 0
+    t31_name: db "vpermilpd [0,2] q1", 0
+    t32_name: db "vpermilpd [2,0] q0", 0
+    t33_name: db "vpermilpd [2,0] q1", 0
+    t34_name: db "vtestps sign ZF", 0
+    t35_name: db "vtestps sign CF", 0
+    t36_name: db "vtestpd sign ZF", 0
 
     align 16
     ; Float vectors
@@ -54,6 +65,16 @@ section .data
     vec_signw_ctrl: dw 1, -1, 0, 1, -1, 0, 1, -1
     vec_signb_data: db 10, 20, 30, 40, 50, 60, 70, 80, 10, 20, 30, 40, 50, 60, 70, 80
     vec_signb_ctrl: db 1, 0xFF, 0, 1, 0xFF, 0, 1, 0xFF, 1, 0xFF, 0, 1, 0xFF, 0, 1, 0xFF
+    ; VPERMILPD variable control vectors (bit 1 of each qword selects source)
+    vec_vpermilpd_00: dq 0, 0           ; both bit1=0 → both select src qw0
+    vec_vpermilpd_22: dq 2, 2           ; both bit1=1 → both select src qw1
+    vec_vpermilpd_02: dq 0, 2           ; qw0: bit1=0→src[0], qw1: bit1=1→src[1] (identity)
+    vec_vpermilpd_20: dq 2, 0           ; qw0: bit1=1→src[1], qw1: bit1=0→src[0] (full swap)
+    ; VTESTPS/VTESTPD data (positive values with non-zero bits but zero sign bits)
+    vec_pos_ps: dd 0x3F800000, 0x3F800000, 0x3F800000, 0x3F800000  ; +1.0f x4 (sign=0)
+    vec_neg_ps: dd 0xBF800000, 0xBF800000, 0xBF800000, 0xBF800000  ; -1.0f x4 (sign=1)
+    vec_pos_pd: dq 0x3FF0000000000000, 0x3FF0000000000000  ; +1.0 x2 (sign=0)
+    vec_neg_pd: dq 0xBFF0000000000000, 0xBFF0000000000000  ; -1.0 x2 (sign=1)
 
 section .text
 global _start
@@ -282,5 +303,98 @@ _start:
     ; Original high64=0xFEDCBA9876543210 -> goes to low64
     vmovq rax, xmm2
     CHECK_EQ_64 rax, 0xFEDCBA9876543210
+
+    ; --- Test 26: vpermilpd [0,0] q0 — both ctrl=0, check low qword ---
+    TEST_CASE t26_name
+    vmovapd xmm0, [rel vec_pd_a]              ; qw0=1.0, qw1=2.0
+    vmovdqa xmm1, [rel vec_vpermilpd_00]      ; both bit1=0 → both select src qw0
+    vpermilpd xmm2, xmm0, xmm1
+    vmovq rax, xmm2
+    CHECK_EQ_64 rax, 0x3FF0000000000000
+
+    ; --- Test 27: vpermilpd [0,0] q1 — both ctrl=0, check high qword ---
+    TEST_CASE t27_name
+    vmovapd xmm0, [rel vec_pd_a]
+    vmovdqa xmm1, [rel vec_vpermilpd_00]
+    vpermilpd xmm2, xmm0, xmm1
+    vpextrq rax, xmm2, 1
+    CHECK_EQ_64 rax, 0x3FF0000000000000
+
+    ; --- Test 28: vpermilpd [2,2] q0 — both ctrl=2 (bit1=1), check low qword ---
+    TEST_CASE t28_name
+    vmovapd xmm0, [rel vec_pd_a]
+    vmovdqa xmm1, [rel vec_vpermilpd_22]      ; both bit1=1 → both select src qw1
+    vpermilpd xmm2, xmm0, xmm1
+    vmovq rax, xmm2
+    CHECK_EQ_64 rax, 0x4000000000000000
+
+    ; --- Test 29: vpermilpd [2,2] q1 — both ctrl=2, check high qword ---
+    TEST_CASE t29_name
+    vmovapd xmm0, [rel vec_pd_a]
+    vmovdqa xmm1, [rel vec_vpermilpd_22]
+    vpermilpd xmm2, xmm0, xmm1
+    vpextrq rax, xmm2, 1
+    CHECK_EQ_64 rax, 0x4000000000000000
+
+    ; --- Test 30: vpermilpd [0,2] q0 — identity pattern, check low qword ---
+    TEST_CASE t30_name
+    vmovapd xmm0, [rel vec_pd_a]
+    vmovdqa xmm1, [rel vec_vpermilpd_02]      ; qw0:bit1=0→src[0], qw1:bit1=1→src[1]
+    vpermilpd xmm2, xmm0, xmm1
+    vmovq rax, xmm2
+    CHECK_EQ_64 rax, 0x3FF0000000000000
+
+    ; --- Test 31: vpermilpd [0,2] q1 — identity pattern, check high qword ---
+    TEST_CASE t31_name
+    vmovapd xmm0, [rel vec_pd_a]
+    vmovdqa xmm1, [rel vec_vpermilpd_02]
+    vpermilpd xmm2, xmm0, xmm1
+    vpextrq rax, xmm2, 1
+    CHECK_EQ_64 rax, 0x4000000000000000
+
+    ; --- Test 32: vpermilpd [2,0] q0 — full swap, check low qword ---
+    TEST_CASE t32_name
+    vmovapd xmm0, [rel vec_pd_a]
+    vmovdqa xmm1, [rel vec_vpermilpd_20]      ; qw0:bit1=1→src[1], qw1:bit1=0→src[0]
+    vpermilpd xmm2, xmm0, xmm1
+    vmovq rax, xmm2
+    CHECK_EQ_64 rax, 0x4000000000000000
+
+    ; --- Test 33: vpermilpd [2,0] q1 — full swap, check high qword ---
+    TEST_CASE t33_name
+    vmovapd xmm0, [rel vec_pd_a]
+    vmovdqa xmm1, [rel vec_vpermilpd_20]
+    vpermilpd xmm2, xmm0, xmm1
+    vpextrq rax, xmm2, 1
+    CHECK_EQ_64 rax, 0x3FF0000000000000
+
+    ; --- Test 34: vtestps sign-bit ZF (positive values: ZF=1 despite non-zero AND) ---
+    TEST_CASE t34_name
+    vmovaps xmm0, [rel vec_pos_ps]            ; +1.0 x4 (sign bits all 0)
+    vmovaps xmm1, [rel vec_pos_ps]            ; +1.0 x4
+    vtestps xmm0, xmm1
+    ; AND result = 0x3F800000 per dword (non-zero, but sign bits = 0)
+    ; So ZF should be 1 (sign bits of AND are all zero)
+    SAVE_FLAGS
+    CHECK_FLAGS_EQ ZF, ZF
+
+    ; --- Test 35: vtestps sign-bit CF (negative values: CF=1) ---
+    TEST_CASE t35_name
+    vmovaps xmm0, [rel vec_neg_ps]            ; -1.0 x4 (sign bits all 1)
+    vmovaps xmm1, [rel vec_neg_ps]            ; -1.0 x4
+    vtestps xmm0, xmm1
+    ; ZF: AND(-1,-1) sign bits = all 1 → ZF=0
+    ; CF: AND(NOT(-1), -1) sign bits: NOT(sign=1)=0, AND(0,1)=0 → all zero → CF=1
+    SAVE_FLAGS
+    CHECK_FLAGS_EQ (ZF|CF), CF
+
+    ; --- Test 36: vtestpd sign-bit ZF (positive doubles: ZF=1) ---
+    TEST_CASE t36_name
+    vmovapd xmm0, [rel vec_pos_pd]            ; +1.0 x2
+    vmovapd xmm1, [rel vec_pos_pd]            ; +1.0 x2
+    vtestpd xmm0, xmm1
+    ; Sign bits of AND = all 0 → ZF=1
+    SAVE_FLAGS
+    CHECK_FLAGS_EQ ZF, ZF
 
     END_TESTS
