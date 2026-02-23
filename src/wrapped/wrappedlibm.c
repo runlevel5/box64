@@ -169,6 +169,32 @@ EXPORT int my_fetestexcept(x64emu_t* emu, int e) {
     return native_to_x86_excepts(r);
 }
 
+// x86_64 FE_DFL_ENV = ((const fenv_t *) -1)
+// x86_64 FE_NOMASK_ENV = ((const fenv_t *) -2)
+// On some architectures (e.g. ppc64le), these are real pointers, not sentinels,
+// so passing x86 sentinel values directly would cause a SIGSEGV.
+// Translate x86 sentinel values to the native equivalents on all architectures.
+static const fenv_t* x86_to_native_fenv(const fenv_t* envp)
+{
+    if (envp == (const fenv_t*)(intptr_t)-1)
+        return FE_DFL_ENV;
+#ifdef FE_NOMASK_ENV
+    if (envp == (const fenv_t*)(intptr_t)-2)
+        return FE_NOMASK_ENV;
+#endif
+    return envp;
+}
+
+EXPORT int my_fesetenv(x64emu_t* emu, const fenv_t* envp)
+{
+    return fesetenv(x86_to_native_fenv(envp));
+}
+
+EXPORT int my_feupdateenv(x64emu_t* emu, const fenv_t* envp)
+{
+    return feupdateenv(x86_to_native_fenv(envp));
+}
+
 // See https://github.com/bminor/glibc/blob/master/sysdeps/x86_64/fpu/fesetround.c
 EXPORT int my_fesetround(x64emu_t* emu, int round)
 {
@@ -185,7 +211,7 @@ EXPORT int my_fesetround(x64emu_t* emu, int round)
 
         return 0;
     } else {
-        return fesetround(round);
+        return fesetround(TO_NATIVE(round));
     }
 }
 
