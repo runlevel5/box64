@@ -879,62 +879,149 @@ uintptr_t dynarec64_AVX_66_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
         case 0x2C:
             INST_NAME("VMASKMOVPS Gx, Vx, Ex");
             nextop = F8;
-            GETGY_empty_VYEY_xy(v0, v1, v2, 0);
-            d0 = fpu_get_scratch(dyn);
-            d1 = fpu_get_scratch(dyn);
-            // Create all-ones/all-zeros mask from sign bits
-            VSPLTISW(VRREG(d0), 0);
-            VSRAW(VRREG(d1), VRREG(v1), VRREG(d0));  // Need shift by 31...
-            // Actually use XXSPLTIB for shift count
-            {
-                int d2_tmp = fpu_get_scratch(dyn);
-                XXSPLTIB(VSXREG(d2_tmp), 31);
-                VSRAW(VRREG(d1), VRREG(v1), VRREG(d2_tmp));    // d1 = 0xFFFFFFFF or 0x00000000
+            if (MODREG) {
+                // Register-register: no fault possible, use bulk mask
+                GETGY_empty_VYEY_xy(v0, v1, v2, 0);
+                d0 = fpu_get_scratch(dyn);
                 XXLXOR(VSXREG(d0), VSXREG(d0), VSXREG(d0));
-                VSEL(VRREG(v0), VRREG(d0), VRREG(v2), VRREG(d1));
+                VCMPGTSW(VRREG(d0), VRREG(d0), VRREG(v1));
+                VAND(VRREG(v0), VRREG(v2), VRREG(d0));
+            } else {
+                // Memory: per-element conditional load for fault suppression
+                GETVYxy(v1, 0);
+                GETGYxy_empty(v0);
+                SMREAD();
+                addr = geted(dyn, addr, ninst, nextop, &ed, x2, x1, &fixedaddress, rex, NULL, 0, 0);
+                LI(x3, 0);
+                LI(x4, 0);
+                // 4 x 32-bit elements
+                MFVSRLD(x5, VSXREG(v1));     // mask low dw (elems 0,1)
+                // Element 0: test bit 31
+                RLWINMd(x6, x5, 1, 31, 31);
+                BEQ(2*4);
+                LWZ(x3, fixedaddress, ed);
+                // Element 1: test bit 63
+                CMPDI(x5, 0);
+                BGE(3*4);
+                LWZ(x6, fixedaddress+4, ed);
+                RLDIMI(x3, x6, 32, 0);
+                // Mask high dw (elems 2,3)
+                MFVSRD(x5, VSXREG(v1));
+                // Element 2: test bit 31
+                RLWINMd(x6, x5, 1, 31, 31);
+                BEQ(2*4);
+                LWZ(x4, fixedaddress+8, ed);
+                // Element 3: test bit 63
+                CMPDI(x5, 0);
+                BGE(3*4);
+                LWZ(x6, fixedaddress+12, ed);
+                RLDIMI(x4, x6, 32, 0);
+                MTVSRDD(VSXREG(v0), x4, x3);
             }
             break;
 
         case 0x2D:
             INST_NAME("VMASKMOVPD Gx, Vx, Ex");
             nextop = F8;
-            GETGY_empty_VYEY_xy(v0, v1, v2, 0);
-            d0 = fpu_get_scratch(dyn);
-            d1 = fpu_get_scratch(dyn);
-            {
-                int d2_tmp = fpu_get_scratch(dyn);
-                XXSPLTIB(VSXREG(d2_tmp), 63);
-                VSRAD(VRREG(d1), VRREG(v1), VRREG(d2_tmp));    // d1 = all-ones or all-zeros per qword
+            if (MODREG) {
+                // Register-register: no fault possible, use bulk mask
+                GETGY_empty_VYEY_xy(v0, v1, v2, 0);
+                d0 = fpu_get_scratch(dyn);
                 XXLXOR(VSXREG(d0), VSXREG(d0), VSXREG(d0));
-                VSEL(VRREG(v0), VRREG(d0), VRREG(v2), VRREG(d1));
+                VCMPGTSD(VRREG(d0), VRREG(d0), VRREG(v1));
+                VAND(VRREG(v0), VRREG(v2), VRREG(d0));
+            } else {
+                // Memory: per-element conditional load for fault suppression
+                GETVYxy(v1, 0);
+                GETGYxy_empty(v0);
+                SMREAD();
+                addr = geted(dyn, addr, ninst, nextop, &ed, x2, x1, &fixedaddress, rex, NULL, 0, 0);
+                LI(x3, 0);
+                LI(x4, 0);
+                // 2 x 64-bit elements
+                MFVSRLD(x5, VSXREG(v1));     // mask elem 0
+                CMPDI(x5, 0);
+                BGE(2*4);
+                LD(x3, fixedaddress, ed);
+                MFVSRD(x5, VSXREG(v1));      // mask elem 1
+                CMPDI(x5, 0);
+                BGE(2*4);
+                LD(x4, fixedaddress+8, ed);
+                MTVSRDD(VSXREG(v0), x4, x3);
             }
             break;
 
         case 0x2E:
             INST_NAME("VMASKMOVPS Ex, Vx, Gx");
             nextop = F8;
-            GETEY_VYGY_xy(v0, v1, v2, 0);
-            d0 = fpu_get_scratch(dyn);
-            {
-                int d2_tmp = fpu_get_scratch(dyn);
-                XXSPLTIB(VSXREG(d2_tmp), 31);
-                VSRAW(VRREG(d0), VRREG(v1), VRREG(d2_tmp));    // mask from sign bits
+            if (MODREG) {
+                // Register-register: use bulk mask
+                GETEY_VYGY_xy(v0, v1, v2, 0);
+                d0 = fpu_get_scratch(dyn);
+                XXLXOR(VSXREG(d0), VSXREG(d0), VSXREG(d0));
+                VCMPGTSW(VRREG(d0), VRREG(d0), VRREG(v1));
                 VSEL(VRREG(v0), VRREG(v0), VRREG(v2), VRREG(d0));
                 PUTEYxy(v0);
+            } else {
+                // Memory: per-element conditional store for fault suppression
+                GETVYxy(v1, 0);
+                GETGYxy(v2, 0);
+                addr = geted(dyn, addr, ninst, nextop, &ed, x2, x1, &fixedaddress, rex, NULL, 0, 0);
+                MFVSRLD(x3, VSXREG(v2));     // data low dw (elems 0,1)
+                MFVSRD(x4, VSXREG(v2));      // data high dw (elems 2,3)
+                MFVSRLD(x5, VSXREG(v1));     // mask low dw
+                // Element 0
+                RLWINMd(x6, x5, 1, 31, 31);
+                BEQ(2*4);
+                STW(x3, fixedaddress, ed);
+                // Element 1
+                CMPDI(x5, 0);
+                BGE(3*4);
+                SRDI(x6, x3, 32);
+                STW(x6, fixedaddress+4, ed);
+                // Mask high dw
+                MFVSRD(x5, VSXREG(v1));
+                // Element 2
+                RLWINMd(x6, x5, 1, 31, 31);
+                BEQ(2*4);
+                STW(x4, fixedaddress+8, ed);
+                // Element 3
+                CMPDI(x5, 0);
+                BGE(3*4);
+                SRDI(x6, x4, 32);
+                STW(x6, fixedaddress+12, ed);
+                SMWRITE2();
             }
             break;
 
         case 0x2F:
             INST_NAME("VMASKMOVPD Ex, Vx, Gx");
             nextop = F8;
-            GETEY_VYGY_xy(v0, v1, v2, 0);
-            d0 = fpu_get_scratch(dyn);
-            {
-                int d2_tmp = fpu_get_scratch(dyn);
-                XXSPLTIB(VSXREG(d2_tmp), 63);
-                VSRAD(VRREG(d0), VRREG(v1), VRREG(d2_tmp));    // mask from sign bits
+            if (MODREG) {
+                // Register-register: use bulk mask
+                GETEY_VYGY_xy(v0, v1, v2, 0);
+                d0 = fpu_get_scratch(dyn);
+                XXLXOR(VSXREG(d0), VSXREG(d0), VSXREG(d0));
+                VCMPGTSD(VRREG(d0), VRREG(d0), VRREG(v1));
                 VSEL(VRREG(v0), VRREG(v0), VRREG(v2), VRREG(d0));
                 PUTEYxy(v0);
+            } else {
+                // Memory: per-element conditional store for fault suppression
+                GETVYxy(v1, 0);
+                GETGYxy(v2, 0);
+                addr = geted(dyn, addr, ninst, nextop, &ed, x2, x1, &fixedaddress, rex, NULL, 0, 0);
+                // 2 x 64-bit elements
+                MFVSRLD(x5, VSXREG(v1));     // mask elem 0
+                CMPDI(x5, 0);
+                BGE(3*4);
+                MFVSRLD(x3, VSXREG(v2));     // data elem 0
+                STD(x3, fixedaddress, ed);
+                MFVSRD(x5, VSXREG(v1));      // mask elem 1
+                CMPDI(x5, 0);
+                BGE(3*4);
+                MFVSRD(x3, VSXREG(v2));      // data elem 1
+                STD(x3, fixedaddress+8, ed);
+                SMWRITE2();
             }
             break;
 
@@ -2150,33 +2237,129 @@ uintptr_t dynarec64_AVX_66_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
         case 0x8C:
             INST_NAME("VPMASKMOVD/Q Gx, Vx, Ex");
             nextop = F8;
-            GETGY_empty_VYEY_xy(v0, v1, v2, 0);
-            d0 = fpu_get_scratch(dyn);
-            // Create mask from sign bits of Vx: all 1s where negative, all 0s otherwise
-            XXLXOR(VSXREG(d0), VSXREG(d0), VSXREG(d0));  // zero
-            if (rex.w) {
-                VCMPGTSD(VRREG(d0), VRREG(d0), VRREG(v1));  // d0[i] = (0 > v1[i]) ? -1 : 0
+            if (MODREG) {
+                // Register-register: no fault possible, use bulk mask
+                GETGY_empty_VYEY_xy(v0, v1, v2, 0);
+                d0 = fpu_get_scratch(dyn);
+                XXLXOR(VSXREG(d0), VSXREG(d0), VSXREG(d0));
+                if (rex.w)
+                    VCMPGTSD(VRREG(d0), VRREG(d0), VRREG(v1));
+                else
+                    VCMPGTSW(VRREG(d0), VRREG(d0), VRREG(v1));
+                VAND(VRREG(v0), VRREG(v2), VRREG(d0));
             } else {
-                VCMPGTSW(VRREG(d0), VRREG(d0), VRREG(v1));
+                // Memory: per-element conditional load for fault suppression
+                GETVYxy(v1, 0);
+                GETGYxy_empty(v0);
+                SMREAD();
+                addr = geted(dyn, addr, ninst, nextop, &ed, x2, x1, &fixedaddress, rex, NULL, 0, 0);
+                // x3 = low doubleword result, x4 = high doubleword result
+                LI(x3, 0);
+                LI(x4, 0);
+                if (rex.w) {
+                    // VPMASKMOVQ: 2 x 64-bit elements
+                    // Extract mask element 0 (low dw)
+                    MFVSRLD(x5, VSXREG(v1));
+                    CMPDI(x5, 0);
+                    BGE(2*4);              // skip if sign bit clear (mask[0] >= 0)
+                    LD(x3, fixedaddress, ed);
+                    // Extract mask element 1 (high dw)
+                    MFVSRD(x5, VSXREG(v1));
+                    CMPDI(x5, 0);
+                    BGE(2*4);
+                    LD(x4, fixedaddress+8, ed);
+                } else {
+                    // VPMASKMOVD: 4 x 32-bit elements
+                    // Extract mask low doubleword (elements 0,1)
+                    MFVSRLD(x5, VSXREG(v1));
+                    // Element 0: test low 32 bits sign (bit 31)
+                    RLWINMd(x6, x5, 1, 31, 31);  // extract bit 31 to bit 0, set CR0
+                    BEQ(2*4);              // skip if bit 31 was 0
+                    LWZ(x3, fixedaddress, ed);       // elem 0 → low 32 of x3
+                    // Element 1: test high 32 bits sign (bit 63 of the dw = sign of 64-bit value)
+                    CMPDI(x5, 0);
+                    BGE(3*4);              // skip if sign bit clear
+                    LWZ(x6, fixedaddress+4, ed);     // elem 1
+                    RLDIMI(x3, x6, 32, 0);           // insert elem1 into bits 32-63 of x3
+                    // Extract mask high doubleword (elements 2,3)
+                    MFVSRD(x5, VSXREG(v1));
+                    // Element 2: test low 32 bits sign (bit 31)
+                    RLWINMd(x6, x5, 1, 31, 31);
+                    BEQ(2*4);
+                    LWZ(x4, fixedaddress+8, ed);     // elem 2 → low 32 of x4
+                    // Element 3: test high 32 bits sign (bit 63)
+                    CMPDI(x5, 0);
+                    BGE(3*4);
+                    LWZ(x6, fixedaddress+12, ed);    // elem 3
+                    RLDIMI(x4, x6, 32, 0);           // insert elem3 into bits 32-63 of x4
+                }
+                // Build result vector: high dw = x4, low dw = x3
+                MTVSRDD(VSXREG(v0), x4, x3);
             }
-            // Select: where mask is all 1s, take from Ex (v2); else 0
-            VAND(VRREG(v0), VRREG(v2), VRREG(d0));
             break;
         case 0x8E:
             INST_NAME("VPMASKMOVD/Q Ex, Vx, Gx");
             nextop = F8;
-            GETEY_VYGY_xy(v0, v1, v2, 0);
-            d0 = fpu_get_scratch(dyn);
-            // Create mask from sign bits of Vx
-            XXLXOR(VSXREG(d0), VSXREG(d0), VSXREG(d0));
-            if (rex.w) {
-                VCMPGTSD(VRREG(d0), VRREG(d0), VRREG(v1));
+            if (MODREG) {
+                // Register-register: use bulk mask (no fault possible)
+                GETEY_VYGY_xy(v0, v1, v2, 0);
+                d0 = fpu_get_scratch(dyn);
+                XXLXOR(VSXREG(d0), VSXREG(d0), VSXREG(d0));
+                if (rex.w)
+                    VCMPGTSD(VRREG(d0), VRREG(d0), VRREG(v1));
+                else
+                    VCMPGTSW(VRREG(d0), VRREG(d0), VRREG(v1));
+                VSEL(VRREG(v0), VRREG(v0), VRREG(v2), VRREG(d0));
+                PUTEYxy(v0);
             } else {
-                VCMPGTSW(VRREG(d0), VRREG(d0), VRREG(v1));
+                // Memory: per-element conditional store for fault suppression
+                GETVYxy(v1, 0);
+                GETGYxy(v2, 0);
+                addr = geted(dyn, addr, ninst, nextop, &ed, x2, x1, &fixedaddress, rex, NULL, 0, 0);
+                if (rex.w) {
+                    // VPMASKMOVQ store: 2 x 64-bit elements
+                    // Extract mask element 0
+                    MFVSRLD(x5, VSXREG(v1));
+                    CMPDI(x5, 0);
+                    BGE(3*4);
+                    MFVSRLD(x3, VSXREG(v2));     // data elem 0
+                    STD(x3, fixedaddress, ed);
+                    // Extract mask element 1
+                    MFVSRD(x5, VSXREG(v1));
+                    CMPDI(x5, 0);
+                    BGE(3*4);
+                    MFVSRD(x3, VSXREG(v2));      // data elem 1
+                    STD(x3, fixedaddress+8, ed);
+                } else {
+                    // VPMASKMOVD store: 4 x 32-bit elements
+                    // Extract data doublewords
+                    MFVSRLD(x3, VSXREG(v2));     // data low dw (elems 0,1)
+                    MFVSRD(x4, VSXREG(v2));      // data high dw (elems 2,3)
+                    // Extract mask low dw (elems 0,1)
+                    MFVSRLD(x5, VSXREG(v1));
+                    // Element 0: test bit 31
+                    RLWINMd(x6, x5, 1, 31, 31);
+                    BEQ(2*4);
+                    STW(x3, fixedaddress, ed);
+                    // Element 1: test bit 63
+                    CMPDI(x5, 0);
+                    BGE(3*4);
+                    SRDI(x6, x3, 32);
+                    STW(x6, fixedaddress+4, ed);
+                    // Extract mask high dw (elems 2,3)
+                    MFVSRD(x5, VSXREG(v1));
+                    // Element 2: test bit 31
+                    RLWINMd(x6, x5, 1, 31, 31);
+                    BEQ(2*4);
+                    STW(x4, fixedaddress+8, ed);
+                    // Element 3: test bit 63
+                    CMPDI(x5, 0);
+                    BGE(3*4);
+                    SRDI(x6, x4, 32);
+                    STW(x6, fixedaddress+12, ed);
+                }
+                SMWRITE2();
             }
-            // Select: where mask bit set, take from Gx (v2); else keep Ex (v0)
-            VSEL(VRREG(v0), VRREG(v0), VRREG(v2), VRREG(d0));
-            PUTEYxy(v0);
             break;
 
         case 0xDB:
