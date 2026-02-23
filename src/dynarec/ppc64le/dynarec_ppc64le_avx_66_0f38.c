@@ -1493,7 +1493,7 @@ uintptr_t dynarec64_AVX_66_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
                     XXLOR(VSXREG(q0), VSXREG(v2), VSXREG(v2));
                 }
                 // d0 = d0*q0 + d1 → M-form: d0 = q0*d0 + d1
-                XSMADDMDP(VSXREG(d0), VSXREG(q0), VSXREG(d1));
+                XSMADDMSP(VSXREG(d0), VSXREG(q0), VSXREG(d1));
                 // Convert back to SP, insert into Gx
                 XSCVDPSPN(VSXREG(d0), VSXREG(d0));
                 VEXTRACTUW(VRREG(d0), VRREG(d0), 0);
@@ -1545,7 +1545,7 @@ uintptr_t dynarec64_AVX_66_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
                 } else {
                     XXLOR(VSXREG(q0), VSXREG(v2), VSXREG(v2));
                 }
-                XSMSUBMDP(VSXREG(d0), VSXREG(q0), VSXREG(d1));
+                XSMSUBMSP(VSXREG(d0), VSXREG(q0), VSXREG(d1));
                 XSCVDPSPN(VSXREG(d0), VSXREG(d0));
                 VEXTRACTUW(VRREG(d0), VRREG(d0), 0);
                 if (v0 != v1) XXLOR(VSXREG(v0), VSXREG(v1), VSXREG(v1));
@@ -1596,7 +1596,7 @@ uintptr_t dynarec64_AVX_66_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
                 } else {
                     XXLOR(VSXREG(q0), VSXREG(v2), VSXREG(v2));
                 }
-                XSNMSUBMDP(VSXREG(d0), VSXREG(q0), VSXREG(d1));
+                XSNMSUBMSP(VSXREG(d0), VSXREG(q0), VSXREG(d1));
                 XSCVDPSPN(VSXREG(d0), VSXREG(d0));
                 VEXTRACTUW(VRREG(d0), VRREG(d0), 0);
                 if (v0 != v1) XXLOR(VSXREG(v0), VSXREG(v1), VSXREG(v1));
@@ -1647,7 +1647,7 @@ uintptr_t dynarec64_AVX_66_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
                 } else {
                     XXLOR(VSXREG(q0), VSXREG(v2), VSXREG(v2));
                 }
-                XSNMADDMDP(VSXREG(d0), VSXREG(q0), VSXREG(d1));
+                XSNMADDMSP(VSXREG(d0), VSXREG(q0), VSXREG(d1));
                 XSCVDPSPN(VSXREG(d0), VSXREG(d0));
                 VEXTRACTUW(VRREG(d0), VRREG(d0), 0);
                 if (v0 != v1) XXLOR(VSXREG(v0), VSXREG(v1), VSXREG(v1));
@@ -1740,7 +1740,7 @@ uintptr_t dynarec64_AVX_66_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
                 } else {
                     XXLOR(VSXREG(q0), VSXREG(v2), VSXREG(v2));
                 }
-                XSMADDMDP(VSXREG(d0), VSXREG(d1), VSXREG(q0));
+                XSMADDMSP(VSXREG(d0), VSXREG(d1), VSXREG(q0));
                 XSCVDPSPN(VSXREG(d0), VSXREG(d0));
                 VEXTRACTUW(VRREG(d0), VRREG(d0), 0);
                 if (v0 != v1) XXLOR(VSXREG(v0), VSXREG(v1), VSXREG(v1));
@@ -1791,7 +1791,7 @@ uintptr_t dynarec64_AVX_66_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
                 } else {
                     XXLOR(VSXREG(q0), VSXREG(v2), VSXREG(v2));
                 }
-                XSMSUBMDP(VSXREG(d0), VSXREG(d1), VSXREG(q0));
+                XSMSUBMSP(VSXREG(d0), VSXREG(d1), VSXREG(q0));
                 XSCVDPSPN(VSXREG(d0), VSXREG(d0));
                 VEXTRACTUW(VRREG(d0), VRREG(d0), 0);
                 if (v0 != v1) XXLOR(VSXREG(v0), VSXREG(v1), VSXREG(v1));
@@ -1842,7 +1842,7 @@ uintptr_t dynarec64_AVX_66_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
                 } else {
                     XXLOR(VSXREG(q0), VSXREG(v2), VSXREG(v2));
                 }
-                XSNMSUBMDP(VSXREG(d0), VSXREG(d1), VSXREG(q0));
+                XSNMSUBMSP(VSXREG(d0), VSXREG(d1), VSXREG(q0));
                 XSCVDPSPN(VSXREG(d0), VSXREG(d0));
                 VEXTRACTUW(VRREG(d0), VRREG(d0), 0);
                 if (v0 != v1) XXLOR(VSXREG(v0), VSXREG(v1), VSXREG(v1));
@@ -1893,7 +1893,7 @@ uintptr_t dynarec64_AVX_66_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
                 } else {
                     XXLOR(VSXREG(q0), VSXREG(v2), VSXREG(v2));
                 }
-                XSNMADDMDP(VSXREG(d0), VSXREG(d1), VSXREG(q0));
+                XSNMADDMSP(VSXREG(d0), VSXREG(d1), VSXREG(q0));
                 XSCVDPSPN(VSXREG(d0), VSXREG(d0));
                 VEXTRACTUW(VRREG(d0), VRREG(d0), 0);
                 if (v0 != v1) XXLOR(VSXREG(v0), VSXREG(v1), VSXREG(v1));
@@ -1986,7 +1986,7 @@ uintptr_t dynarec64_AVX_66_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
                 } else {
                     XXLOR(VSXREG(q0), VSXREG(v2), VSXREG(v2));
                 }
-                XSMADDADP(VSXREG(d0), VSXREG(d1), VSXREG(q0));
+                XSMADDASP(VSXREG(d0), VSXREG(d1), VSXREG(q0));
                 XSCVDPSPN(VSXREG(d0), VSXREG(d0));
                 VEXTRACTUW(VRREG(d0), VRREG(d0), 0);
                 if (v0 != v1) XXLOR(VSXREG(v0), VSXREG(v1), VSXREG(v1));
@@ -2037,7 +2037,7 @@ uintptr_t dynarec64_AVX_66_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
                 } else {
                     XXLOR(VSXREG(q0), VSXREG(v2), VSXREG(v2));
                 }
-                XSMSUBADP(VSXREG(d0), VSXREG(d1), VSXREG(q0));
+                XSMSUBASP(VSXREG(d0), VSXREG(d1), VSXREG(q0));
                 XSCVDPSPN(VSXREG(d0), VSXREG(d0));
                 VEXTRACTUW(VRREG(d0), VRREG(d0), 0);
                 if (v0 != v1) XXLOR(VSXREG(v0), VSXREG(v1), VSXREG(v1));
@@ -2088,7 +2088,7 @@ uintptr_t dynarec64_AVX_66_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
                 } else {
                     XXLOR(VSXREG(q0), VSXREG(v2), VSXREG(v2));
                 }
-                XSNMSUBADP(VSXREG(d0), VSXREG(d1), VSXREG(q0));
+                XSNMSUBASP(VSXREG(d0), VSXREG(d1), VSXREG(q0));
                 XSCVDPSPN(VSXREG(d0), VSXREG(d0));
                 VEXTRACTUW(VRREG(d0), VRREG(d0), 0);
                 if (v0 != v1) XXLOR(VSXREG(v0), VSXREG(v1), VSXREG(v1));
@@ -2139,7 +2139,7 @@ uintptr_t dynarec64_AVX_66_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_
                 } else {
                     XXLOR(VSXREG(q0), VSXREG(v2), VSXREG(v2));
                 }
-                XSNMADDADP(VSXREG(d0), VSXREG(d1), VSXREG(q0));
+                XSNMADDASP(VSXREG(d0), VSXREG(d1), VSXREG(q0));
                 XSCVDPSPN(VSXREG(d0), VSXREG(d0));
                 VEXTRACTUW(VRREG(d0), VRREG(d0), 0);
                 if (v0 != v1) XXLOR(VSXREG(v0), VSXREG(v1), VSXREG(v1));

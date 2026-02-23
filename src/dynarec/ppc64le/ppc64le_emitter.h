@@ -1208,6 +1208,18 @@
 #define XSNMSUBADP(Xt, Xa, Xb)  EMIT(XX3_form_gen(60, Xt, Xa, Xb, 177))  // XT = -(XA*XT - XB)
 #define XSNMSUBMDP(Xt, Xa, Xb)  EMIT(XX3_form_gen(60, Xt, Xa, Xb, 185))  // XT = -(XA*XB - XT)
 
+// --- VSX Scalar Fused Multiply-Add, Single-Precision (XX3-form, opcode 60, ISA 2.07/POWER8+) ---
+// These perform FMA with single-precision rounding (one round to SP), avoiding double-rounding.
+// Operands are in DP format in VSX dw0 (use XSCVSPDPN to widen SP inputs first).
+#define XSMADDASP(Xt, Xa, Xb)   EMIT(XX3_form_gen(60, Xt, Xa, Xb, 1))    // XT = XA*XT + XB
+#define XSMADDMSP(Xt, Xa, Xb)   EMIT(XX3_form_gen(60, Xt, Xa, Xb, 9))    // XT = XA*XB + XT
+#define XSMSUBASP(Xt, Xa, Xb)   EMIT(XX3_form_gen(60, Xt, Xa, Xb, 17))   // XT = XA*XT - XB
+#define XSMSUBMSP(Xt, Xa, Xb)   EMIT(XX3_form_gen(60, Xt, Xa, Xb, 25))   // XT = XA*XB - XT
+#define XSNMADDASP(Xt, Xa, Xb)  EMIT(XX3_form_gen(60, Xt, Xa, Xb, 129))  // XT = -(XA*XT + XB)
+#define XSNMADDMSP(Xt, Xa, Xb)  EMIT(XX3_form_gen(60, Xt, Xa, Xb, 137))  // XT = -(XA*XB + XT)
+#define XSNMSUBASP(Xt, Xa, Xb)  EMIT(XX3_form_gen(60, Xt, Xa, Xb, 145))  // XT = -(XA*XT - XB)
+#define XSNMSUBMSP(Xt, Xa, Xb)  EMIT(XX3_form_gen(60, Xt, Xa, Xb, 153))  // XT = -(XA*XB - XT)
+
 // --- VSX Scalar FP Arithmetic (XX3-form, opcode 60) ---
 // Single-precision (ISA 2.07/POWER8+, XX3-form, full vs0-vs63 range)
 // XSADDSP — scalar add single-precision
