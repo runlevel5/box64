@@ -782,7 +782,11 @@ uintptr_t RunF0(x64emu_t *emu, rex_t rex, uintptr_t addr)
                     GETE8xw(0);
                     switch((nextop>>3)&7) {
                         case 1:
+                            #ifdef TEST_INTERPRETER
+                            if(rex.w && test->memaddr&0xf) {
+                            #else
                             if(rex.w && ((uintptr_t)ED)&0xf) {
+                            #endif
                                 EmitSignal(emu, X64_SIGSEGV, (void*)R_RIP, 0xbad0); // GPF
                             }
                             CHECK_FLAGS(emu);
