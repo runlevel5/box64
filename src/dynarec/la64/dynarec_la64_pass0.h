@@ -16,7 +16,7 @@
     } while (0)
 
 #define READFLAGS_FUSION(A, s1, s2, s3, s4, s5)                                                                \
-    if (BOX64ENV(dynarec_nativeflags) && ninst > 0) {                                                          \
+    if (BOX64ENV(dynarec_nativeflags) && !BOX64ENV(dynarec_test) && ninst > 0) {                               \
         int prev = ninst - 1;                                                                                  \
         while (prev && dyn->insts[prev].no_scratch_usage)                                                      \
             prev -= 1;                                                                                         \
