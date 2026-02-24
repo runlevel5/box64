@@ -69,6 +69,7 @@ if(LARCH64)
     set(ARM_DYNAREC OFF CACHE BOOL "")
     set(RV64_DYNAREC OFF CACHE BOOL "")
     set(LARCH64_DYNAREC ON CACHE BOOL "")
+    set(PPC64LE_DYNAREC OFF CACHE BOOL "")
     set(BAD_PKILL ON CACHE BOOL "")
     if(LARCH64_ABI_1)
         message(STATUS "Build for Loongarch64 ABI 1.0 system")
@@ -81,6 +82,7 @@ if(RV64)
     set(ARM_DYNAREC OFF CACHE BOOL "")
     set(RV64_DYNAREC ON CACHE BOOL "")
     set(LARCH64_DYNAREC OFF CACHE BOOL "")
+    set(PPC64LE_DYNAREC OFF CACHE BOOL "")
 endif()
 if(PPC64LE)
     set(LD80BITS OFF CACHE BOOL "")
@@ -88,6 +90,7 @@ if(PPC64LE)
     set(ARM_DYNAREC OFF CACHE BOOL "")
     set(RV64_DYNAREC OFF CACHE BOOL "")
     set(LARCH64_DYNAREC OFF CACHE BOOL "")
+    set(PPC64LE_DYNAREC ON CACHE BOOL "")
 endif()
 if(RK3399 OR RK3588 OR ODROIDN2 OR RPI3ARM64 OR RPI4ARM64 OR RPI5ARM64 OR RK3326 OR TEGRAX1 OR TEGRA_T194 OR TEGRA_T234 OR NVIDIA_GB10 OR PHYTIUM OR SD845 OR SD865 OR SD888 OR SD8G2 OR SDORYON1 OR SD8EG5 OR LX2160A OR M1 OR ARM64 OR ADLINK)
     set(LD80BITS OFF CACHE BOOL "")
@@ -95,6 +98,7 @@ if(RK3399 OR RK3588 OR ODROIDN2 OR RPI3ARM64 OR RPI4ARM64 OR RPI5ARM64 OR RK3326
     set(ARM_DYNAREC ON CACHE BOOL "")
     set(RV64_DYNAREC OFF CACHE BOOL "")
     set(LARCH64_DYNAREC OFF CACHE BOOL "")
+    set(PPC64LE_DYNAREC OFF CACHE BOOL "")
 endif()
 if(RK3399 OR ODROIDN2 OR RPI3ARM64 OR RPI4ARM64 OR RPI5ARM64)
     set(SAVE_MEM ON CACHE BOOL "")
@@ -122,6 +126,7 @@ option(NOALIGN "Set to ON if host device doesn't need re-align (i.e. i386)" ${NO
 option(ARM_DYNAREC "Set to ON to use ARM Dynamic Recompilation" ${ARM_DYNAREC})
 option(RV64_DYNAREC "Set to ON to use RISC-V Dynamic Recompilation" ${RV64_DYNAREC})
 option(LARCH64_DYNAREC "Set to ON to use LOONGARCH64 Dynamic Recompilation" ${LARCH64_DYNAREC})
+option(PPC64LE_DYNAREC "Set to ON to use PPC64LE Dynamic Recompilation" ${PPC64LE_DYNAREC})
 option(STATICBUILD "Set to ON to have a static build (Warning, not working)" ${STATICBUILD})
 option(NO_LIB_INSTALL "Set ON to not install a few x86_64 libs that are used by many program" ${NO_LIB_INSTALL})
 option(NO_CONF_INSTALL "Set ON to not install config files" ${NO_CONF_INSTALL})
@@ -251,6 +256,8 @@ elseif(RV64)
     set(ASMFLAGS  -pipe -march=rv64gc)
 elseif(PPC64LE)
     add_definitions(-DPPC64LE)
+    set(CFLAGS -pipe -mcpu=power9)
+    set(ASMFLAGS  -pipe -mcpu=power9)
 elseif(LX2160A)
     add_definitions(-DLX2160A)
     set(CFLAGS -pipe -march=armv8-a+crypto+crc -mcpu=cortex-a72+crypto)
@@ -347,6 +354,12 @@ elseif(LARCH64_DYNAREC)
     add_definitions(-DLA64)
     enable_language(ASM)
     include_directories("${BOX64_ROOT}/src/dynarec/la64")
+    set(DYNAREC ON)
+elseif(PPC64LE_DYNAREC)
+    add_definitions(-DDYNAREC)
+    add_definitions(-DPPC64LE)
+    enable_language(ASM)
+    include_directories("${BOX64_ROOT}/src/dynarec/ppc64le")
     set(DYNAREC ON)
 else()
     set(DYNAREC OFF)
@@ -1150,6 +1163,62 @@ if(LARCH64_DYNAREC)
     )
 endif()
 
+if(PPC64LE_DYNAREC)
+    set(DYNAREC_SRC
+        ${DYNAREC_SRC}
+
+        "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_functions.c"
+        "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_arch.c"
+        "${BOX64_ROOT}/src/dynarec/ppc64le/ppc64le_printer.c"
+        "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_jmpnext.c"
+        "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_consts.c"
+    )
+    set(DYNAREC_ASM
+        ${DYNAREC_ASM}
+        "${BOX64_ROOT}/src/dynarec/ppc64le/ppc64le_prolog.S"
+        "${BOX64_ROOT}/src/dynarec/ppc64le/ppc64le_epilog.S"
+        "${BOX64_ROOT}/src/dynarec/ppc64le/ppc64le_next.S"
+        "${BOX64_ROOT}/src/dynarec/ppc64le/ppc64le_lock.S"
+    )
+
+    set(DYNAREC_PASS
+    "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_helper.c"
+    "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_00.c"
+    "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_0f.c"
+    "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_f0.c"
+    "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_f20f.c"
+    "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_f30f.c"
+    "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_66.c"
+    "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_660f.c"
+    "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_66f0.c"
+    "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_66f20f.c"
+    "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_66f30f.c"
+    "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_d8.c"
+    "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_d9.c"
+    "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_da.c"
+    "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_db.c"
+    "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_dc.c"
+    "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_dd.c"
+    "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_de.c"
+    "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_df.c"
+    "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_avx.c"
+    "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_avx_0f.c"
+    "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_avx_0f38.c"
+    "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_avx_66_0f.c"
+    "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_avx_66_0f38.c"
+    "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_avx_66_0f3a.c"
+    "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_avx_f2_0f.c"
+    "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_avx_f2_0f38.c"
+    "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_avx_f2_0f3a.c"
+    "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_avx_f3_0f.c"
+    "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_avx_f3_0f38.c"
+    "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_emit_tests.c"
+    "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_emit_math.c"
+    "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_emit_logic.c"
+    "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_emit_shift.c"
+    )
+endif()
+
 
 if(GDBJIT)
 set(GDBJITREADER "${BOX64_ROOT}/gdbjit/reader.c")
@@ -1261,7 +1330,11 @@ else()
     endif()
 endif()
 if(DYNAREC)
-    target_link_libraries(${BOX64} dynarec)
+    # Use --whole-archive to ensure all object files from the static library are
+    # linked, even when multiple passes produce .o files with the same basename.
+    # Without this, the linker may only pull in the first archive member matching
+    # a given filename and miss symbols defined in later passes (e.g. dynarec64_003).
+    target_link_libraries(${BOX64} -Wl,--whole-archive dynarec -Wl,--no-whole-archive)
 endif()
 target_link_libraries(${BOX64} interpreter)
 
@@ -1291,8 +1364,12 @@ string(COMPARE EQUAL "${CMAKE_SYSTEM_PROCESSOR}" "i686"  _x86)
 string(COMPARE EQUAL "${CMAKE_SYSTEM_PROCESSOR}" "x86_64"  _x86_64)
 string(COMPARE EQUAL "${CMAKE_SYSTEM_PROCESSOR}" "aarch64"  _aarch64)
 string(COMPARE EQUAL "${CMAKE_SYSTEM_PROCESSOR}" "riscv64"  _riscv64)
+string(COMPARE EQUAL "${CMAKE_SYSTEM_PROCESSOR}" "ppc64le"  _ppc64le)
+if(NOT _ppc64le)
+  string(COMPARE EQUAL "${CMAKE_SYSTEM_PROCESSOR}" "powerpc64le"  _ppc64le)
+endif()
 
-if(_x86_64 OR _aarch64)
+if(_x86_64 OR _aarch64 OR _ppc64le)
   add_definitions(-DCONFIG_64BIT)
 endif()
 
@@ -1461,6 +1538,8 @@ if(_aarch64)
 	endif()
 elseif(_riscv64)
     set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "riscv64")
+elseif(_ppc64le)
+    set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "ppc64el")
 elseif(_x86_64)
     set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "x86_64")
 else()
