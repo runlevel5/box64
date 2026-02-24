@@ -96,45 +96,22 @@ EXPORT double my___powl_finite(double a, double b) __attribute__((alias("my___po
 #undef F1F
 #undef FINITE
 
-// x86-64
-// FE_TONEAREST     0x0
-// FE_DOWNWARD      0x400
-// FE_UPWARD        0x800
-// FE_TOWARDZERO    0xc00
-
-#if defined(__aarch64__)
-// AArch64
-// #define FE_TONEAREST  0x000000
-// #define FE_DOWNWARD   0x800000
-// #define FE_UPWARD     0x400000
-// #define FE_TOWARDZERO 0xc00000
-#define TO_NATIVE(round) ((round == 0x400 ? 0x800 : (round == 0x800 ? 0x400 : round)) << 12)
-#elif defined(__riscv)
-// RISC-V
-// #define FE_TONEAREST     0x0
-// #define FE_DOWNWARD      0x2
-// #define FE_UPWARD        0x3
-// #define FE_TOWARDZERO    0x1
-#define TO_NATIVE(round) ((round == 0xc00 ? 0x400 : (round == 0x0 ? round : round + 0x400)) >> 10)
-#elif defined(__loongarch64)
-// LOONGARCH
-// FE_TONEAREST     0x000
-// FE_DOWNWARD      0x300
-// FE_UPWARD        0x200
-// FE_TOWARDZERO    0x100
-#define TO_NATIVE(round) ((round == 0x400 ? 0xc00 : (round == 0xc00 ? 0x400 : round)) >> 2)
-#elif defined(__powerpc64__)
-// PPC
-// FE_TONEAREST     0x0
-// FE_DOWNWARD      0x3
-// FE_UPWARD        0x2
-// FE_TOWARDZERO    0x1
-#define TO_NATIVE(round) ((round == 0x400 ? 0xc00 : (round == 0xc00 ? 0x400 : round)) >> 10)
-#elif defined(__x86_64__)
-#define TO_NATIVE(round) round
-#else
-#error Unknown architecture!
-#endif
+#define X64_FE_TONEAREST     0x0
+#define X64_FE_DOWNWARD      0x400
+#define X64_FE_UPWARD        0x800
+#define X64_FE_TOWARDZERO    0xc00
+static int round_to_native(int round) {
+    switch(round) {
+        case X64_FE_TONEAREST: return FE_TONEAREST;
+        case X64_FE_DOWNWARD: return FE_DOWNWARD;
+        case X64_FE_UPWARD: return FE_UPWARD;
+        case X64_FE_TOWARDZERO: return FE_TOWARDZERO;
+        default: 
+            //should warn
+            return round;
+    }
+}
+#define TO_NATIVE(R) round_to_native(R)
 
 static int x86_to_native_excepts(int e) {
     int n = 0;
