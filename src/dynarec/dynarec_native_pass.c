@@ -76,7 +76,7 @@ uintptr_t native_pass(dynarec_native_t* dyn, uintptr_t addr, int alternate, int 
         #if STEP == 0
         if(cur_page != ((addr)&~(box64_pagesize-1))) {
             cur_page = (addr)&~(box64_pagesize-1);
-            uint32_t prot = getProtection(addr);
+            uint32_t prot = getProtection_fast(addr);
             if(!(prot&PROT_READ) || checkInHotPage(addr) || (addr>dyn->end)) {
                 dynarec_log(LOG_INFO, "Stopping dynablock because of protection, hotpage or mmap crossing at %p -> %p inst=%d\n", (void*)dyn->start, (void*)addr, ninst);
                 need_epilog = 1;
@@ -322,7 +322,7 @@ uintptr_t native_pass(dynarec_native_t* dyn, uintptr_t addr, int alternate, int 
         }
         #else
         // check if block need to be stopped, because it's a 00 00 opcode (unreadeable is already checked earlier)
-        if((ok>0) && !dyn->forward && (!(getProtection(addr+3)&PROT_READ) || !(*(uint32_t*)addr))) {
+        if((ok>0) && !dyn->forward && (!(getProtection_fast(addr+3)&PROT_READ) || !(*(uint32_t*)addr))) {
             if (dyn->need_dump) dynarec_log(LOG_NONE, "Stopping block at %p reason: %s\n", (void*)addr, "Next opcode is 00 00 00 00");
             ok = 0;
             need_epilog = 1;
@@ -353,7 +353,7 @@ uintptr_t native_pass(dynarec_native_t* dyn, uintptr_t addr, int alternate, int 
                 dyn->forward_ninst = 0;
             }
             // else just continue
-        } else if (!ok && !need_epilog && BOX64DRENV(dynarec_bigblock) && (getProtection(addr + 3) & ~PROT_READ))
+        } else if (!ok && !need_epilog && BOX64DRENV(dynarec_bigblock) && (getProtection_fast(addr + 3) & ~PROT_READ))
             if(*(uint32_t*)addr!=0) {   // check if need to continue (but is next 4 bytes are 0, stop)
                 uintptr_t next = get_closest_next(dyn, addr);
                 if(next && (
@@ -368,7 +368,7 @@ uintptr_t native_pass(dynarec_native_t* dyn, uintptr_t addr, int alternate, int 
                         reset_n = get_first_jump_addr(dyn, next);
                     }
                     if (dyn->need_dump) dynarec_log(LOG_NONE, "Extend block %p, %s%p -> %p (ninst=%d, jump from %d)\n", dyn, dyn->insts[ninst].x64.has_callret ? "(opt. call) " : "", (void*)addr, (void*)next, ninst + 1, dyn->insts[ninst].x64.has_callret ? ninst : reset_n);
-                } else if (next && (int)(next - addr) < BOX64ENV(dynarec_forward) && (getProtection(next) & PROT_READ) /*BOX64DRENV(dynarec_bigblock)>=stopblock*/) {
+                } else if (next && (int)(next - addr) < BOX64ENV(dynarec_forward) && (getProtection_fast(next) & PROT_READ) /*BOX64DRENV(dynarec_bigblock)>=stopblock*/) {
                     if (!((BOX64DRENV(dynarec_bigblock) < stopblock) && !isJumpTableDefault64((void*)next))) {
                         if(dyn->forward) {
                             if(next<dyn->forward_to)

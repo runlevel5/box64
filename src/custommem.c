@@ -59,12 +59,19 @@ static kh_lockaddress_t    *lockaddress = NULL;
 #ifdef USE_CUSTOM_MUTEX
 uint32_t            mutex_prot;
 uint32_t            mutex_blocks;
+#elif defined(PPC64LE)
+pthread_rwlock_t    rwlock_prot;
+pthread_mutex_t     mutex_blocks;
 #else
 pthread_mutex_t     mutex_prot;
 pthread_mutex_t     mutex_blocks;
 #endif
 #else
+#ifdef PPC64LE
+pthread_rwlock_t    rwlock_prot;
+#else
 pthread_mutex_t     mutex_prot;
+#endif
 pthread_mutex_t     mutex_blocks;
 #endif
 //#define TRACE_MEMSTAT
@@ -563,6 +570,7 @@ static uint32_t     defered_prot_prot = 0;
 static mem_flag_t   defered_prot_flags = MEM_ALLOCATED;
 static sigset_t     critical_prot = {0};
 static void setProtection_generic(uintptr_t addr, size_t sz, uint32_t prot, mem_flag_t flags);
+#ifdef USE_CUSTOM_MUTEX
 #define LOCK_PROT()         sigset_t old_sig = {0}; pthread_sigmask(SIG_BLOCK, &critical_prot, &old_sig); mutex_lock(&mutex_prot)
 #define LOCK_PROT_READ()    sigset_t old_sig = {0}; pthread_sigmask(SIG_BLOCK, &critical_prot, &old_sig); mutex_lock(&mutex_prot)
 #define LOCK_PROT_FAST()    mutex_lock(&mutex_prot)
@@ -578,6 +586,42 @@ static void setProtection_generic(uintptr_t addr, size_t sz, uint32_t prot, mem_
                             }
 #define UNLOCK_PROT_READ()  mutex_unlock(&mutex_prot); pthread_sigmask(SIG_SETMASK, &old_sig, NULL)
 #define UNLOCK_PROT_FAST()  mutex_unlock(&mutex_prot)
+#elif defined(PPC64LE)
+// PPC64LE: use rwlock for concurrent reader access (64KB pages cause heavy read contention)
+// Thread-local tracking for FAST read lock (needed for signal-handler unlock/relock)
+static __thread int prot_fast_locked = 0;
+#define LOCK_PROT()         sigset_t old_sig = {0}; pthread_sigmask(SIG_BLOCK, &critical_prot, &old_sig); pthread_rwlock_wrlock(&rwlock_prot)
+#define LOCK_PROT_READ()    sigset_t old_sig = {0}; pthread_sigmask(SIG_BLOCK, &critical_prot, &old_sig); pthread_rwlock_rdlock(&rwlock_prot)
+#define LOCK_PROT_FAST()    do { pthread_rwlock_rdlock(&rwlock_prot); prot_fast_locked = 1; } while(0)
+#define UNLOCK_PROT()       if(defered_prot_p) {                                \
+                                uintptr_t p = defered_prot_p; size_t sz = defered_prot_sz; uint32_t prot = defered_prot_prot; mem_flag_t f = defered_prot_flags;\
+                                defered_prot_p = 0;                             \
+                                pthread_sigmask(SIG_SETMASK, &old_sig, NULL);   \
+                                pthread_rwlock_unlock(&rwlock_prot);            \
+                                setProtection_generic(p, sz, prot, f);          \
+                            } else {                                            \
+                                pthread_sigmask(SIG_SETMASK, &old_sig, NULL);   \
+                                pthread_rwlock_unlock(&rwlock_prot);            \
+                            }
+#define UNLOCK_PROT_READ()  pthread_rwlock_unlock(&rwlock_prot); pthread_sigmask(SIG_SETMASK, &old_sig, NULL)
+#define UNLOCK_PROT_FAST()  do { prot_fast_locked = 0; pthread_rwlock_unlock(&rwlock_prot); } while(0)
+#else
+#define LOCK_PROT()         sigset_t old_sig = {0}; pthread_sigmask(SIG_BLOCK, &critical_prot, &old_sig); mutex_lock(&mutex_prot)
+#define LOCK_PROT_READ()    sigset_t old_sig = {0}; pthread_sigmask(SIG_BLOCK, &critical_prot, &old_sig); mutex_lock(&mutex_prot)
+#define LOCK_PROT_FAST()    mutex_lock(&mutex_prot)
+#define UNLOCK_PROT()       if(defered_prot_p) {                                \
+                                uintptr_t p = defered_prot_p; size_t sz = defered_prot_sz; uint32_t prot = defered_prot_prot; mem_flag_t f = defered_prot_flags;\
+                                defered_prot_p = 0;                             \
+                                pthread_sigmask(SIG_SETMASK, &old_sig, NULL);   \
+                                mutex_unlock(&mutex_prot);                      \
+                                setProtection_generic(p, sz, prot, f);          \
+                            } else {                                            \
+                                pthread_sigmask(SIG_SETMASK, &old_sig, NULL);   \
+                                mutex_unlock(&mutex_prot);                      \
+                            }
+#define UNLOCK_PROT_READ()  mutex_unlock(&mutex_prot); pthread_sigmask(SIG_SETMASK, &old_sig, NULL)
+#define UNLOCK_PROT_FAST()  mutex_unlock(&mutex_prot)
+#endif
 
 
 #ifdef TRACE_MEMSTAT
@@ -2451,6 +2495,28 @@ int isprotectedDB(uintptr_t addr, size_t size)
     return 1;
 }
 
+int isprotectedDB_fast(uintptr_t addr, size_t size)
+{
+    dynarec_log(LOG_DEBUG, "isprotectedDB_fast %p -> %p => ", (void*)addr, (void*)(addr+size-1));
+    addr &=~(box64_pagesize-1);
+    uintptr_t end = ALIGN(addr+size);
+    LOCK_PROT_FAST();
+    while (addr < end) {
+        uint32_t prot;
+        uintptr_t bend;
+        if (!rb_get_end(memprot, addr, &prot, &bend) || !(prot&PROT_DYN)) {
+            dynarec_log_prefix(0, LOG_DEBUG, "0\n");
+            UNLOCK_PROT_FAST();
+            return 0;
+        } else {
+            addr = bend;
+        }
+    }
+    UNLOCK_PROT_FAST();
+    dynarec_log_prefix(0, LOG_DEBUG, "1\n");
+    return 1;
+}
+
 typedef union hotpage_s {
     struct {
         uint64_t    addr:36;
@@ -2465,6 +2531,9 @@ typedef union hotpage_s {
 #define HOTPAGE_DIRTY 128
 #define HOTPAGE_DIRTY_ALT 1024
 static hotpage_t hotpage[N_HOTPAGE] = {0};
+#ifdef PPC64LE
+static volatile int hotpage_any_active = 0;    // fast early-out for isInHotPage on PPC64LE
+#endif
 void SetHotPage(int idx, uintptr_t page)
 {
     hotpage_t tmp = hotpage[idx];
@@ -2472,6 +2541,9 @@ void SetHotPage(int idx, uintptr_t page)
     tmp.cnt = BOX64ENV(dynarec_dirty)?(BOX64ENV(dynarec_hotpage_alt)?HOTPAGE_DIRTY_ALT:HOTPAGE_DIRTY):HOTPAGE_MARK;
     //TODO: use Atomics to update hotpage?
     native_lock_store_dd(hotpage+idx, tmp.x);
+    #ifdef PPC64LE
+    __atomic_store_n(&hotpage_any_active, 1, __ATOMIC_RELEASE);
+    #endif
 }
 int IdxHotPage(uintptr_t page)
 {
@@ -2571,11 +2643,24 @@ int isInHotPage(uintptr_t addr)
     if(addr>0x1000000000000LL) return 0;
     if(BOX64ENV(dynarec_nohotpage))
         return 0;
+    #ifdef PPC64LE
+    if(!__atomic_load_n(&hotpage_any_active, __ATOMIC_ACQUIRE))
+        return 0;
+    #endif
     uintptr_t page = addr>>12;
     int idx = IdxHotPage(page);
     if(BOX64ENV(dynarec_hotpage_alt)) {
-        if(idx==-1 || !hotpage[idx].cnt || (hotpage[idx].cnt==HOTPAGE_MAX))
+        if(idx==-1 || !hotpage[idx].cnt || (hotpage[idx].cnt==HOTPAGE_MAX)) {
+            #ifdef PPC64LE
+            // Check if any hotpage entries are still active; if not, clear the fast flag
+            int any = 0;
+            for(int i=0; i<N_HOTPAGE_ALT && !any; ++i)
+                if(hotpage[i].cnt && hotpage[i].cnt!=HOTPAGE_MAX) any = 1;
+            if(!any)
+                __atomic_store_n(&hotpage_any_active, 0, __ATOMIC_RELEASE);
+            #endif
             return 0;
+        }
         //TODO: do Atomic stuffs instead
         hotpage_t hp = hotpage[idx];
         --hp.cnt;
@@ -2586,6 +2671,9 @@ int isInHotPage(uintptr_t addr)
     } else {
         int ret = ((idx==-1) || !hotpage[idx].cnt)?0:1;
         // decrement all hotpage, it's a hotpage "tick"
+        #ifdef PPC64LE
+        int any_still_active = 0;
+        #endif
         for(int i=0; i<N_HOTPAGE; ++i) {
             int ok = 0;
             do {
@@ -2596,9 +2684,16 @@ int isInHotPage(uintptr_t addr)
                 } else {
                     --hp.cnt;
                     ok = native_lock_storeifref2(hotpage+i, (void*)hp.x, (void*)old.x)==(void*)old.x;
+                    #ifdef PPC64LE
+                    if(ok && hp.cnt) any_still_active = 1;
+                    #endif
                 }
             } while(!ok);
         }
+        #ifdef PPC64LE
+        if(!any_still_active)
+            __atomic_store_n(&hotpage_any_active, 0, __ATOMIC_RELEASE);
+        #endif
         return ret;
     }
 }
@@ -2960,15 +3055,51 @@ int isBlockFree(void* hint, size_t size)
     return 0;
 }
 
+#if defined(PPC64LE) && !defined(USE_CUSTOM_MUTEX)
+// Signal-handler helpers for rwlock_prot (called from sigtools.c)
+// Check if current thread holds the fast read lock, unlock if so, return 1
+int checkUnlockProtRwlock(void)
+{
+    if(prot_fast_locked) {
+        prot_fast_locked = 0;
+        pthread_rwlock_unlock(&rwlock_prot);
+        return 1;
+    }
+    return 0;
+}
+// Check if current thread holds the fast read lock (without unlocking)
+int checkNolockProtRwlock(void)
+{
+    return prot_fast_locked;
+}
+#endif
+
 void relockCustommemMutex(int locks)
 {
+    #ifdef USE_CUSTOM_MUTEX
     #define GO(A, B)                    \
         if(locks&(1<<B))                \
-            mutex_trylock(&A);          \
+            mutex_trylock(&A);
 
     GO(mutex_blocks, 0)
     GO(mutex_prot, 1) // See also signals.c
     #undef GO
+    #elif defined(PPC64LE)
+    if(locks&(1<<0))
+        mutex_trylock(&mutex_blocks);
+    if(locks&(1<<1)) {
+        pthread_rwlock_rdlock(&rwlock_prot);
+        prot_fast_locked = 1;
+    }
+    #else
+    #define GO(A, B)                    \
+        if(locks&(1<<B))                \
+            mutex_trylock(&A);
+
+    GO(mutex_blocks, 0)
+    GO(mutex_prot, 1) // See also signals.c
+    #undef GO
+    #endif
 }
 
 static void init_mutexes(void)
@@ -2981,9 +3112,13 @@ static void init_mutexes(void)
     pthread_mutexattr_init(&attr);
     pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_ERRORCHECK);
     pthread_mutex_init(&mutex_blocks, &attr);
-    pthread_mutex_init(&mutex_prot, &attr);
-
+    #ifdef PPC64LE
     pthread_mutexattr_destroy(&attr);
+    pthread_rwlock_init(&rwlock_prot, NULL);
+    #else
+    pthread_mutex_init(&mutex_prot, &attr);
+    pthread_mutexattr_destroy(&attr);
+    #endif
 #endif
 }
 
@@ -3234,7 +3369,11 @@ void fini_custommem_helper(box64context_t *ctx)
     last_block_index_map128 = -1;
     last_block_index_list = -1;
 #if !defined(USE_CUSTOM_MUTEX)
+    #ifdef PPC64LE
+    pthread_rwlock_destroy(&rwlock_prot);
+    #else
     pthread_mutex_destroy(&mutex_prot);
+    #endif
     pthread_mutex_destroy(&mutex_blocks);
 #endif
 }

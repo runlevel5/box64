@@ -134,8 +134,8 @@ extern uint32_t la64_crc(void* p, uint32_t len);
 #define ARCH_ADJUST(A, B, C, D) adjust_arch(A, B, C, D)
 #define STOP_NATIVE_FLAGS(A, B) {}
 #define ARCH_UNALIGNED(A, B) arch_unaligned(A, B)
-extern uint32_t ppc64le_crc(void* p, uint32_t len);
-#define ARCH_CRC(A, B)       return ppc64le_crc(A, B)
+extern uint32_t ppc64le_fast_hash(void* p, uint32_t len);
+#define ARCH_CRC(A, B)       return ppc64le_fast_hash(A, B)
 
 #define ARCH_NOP    0x60000000  /* ori 0,0,0 */
 #define ARCH_UDF    0x00000000  /* illegal instruction (all zeros) */

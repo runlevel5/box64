@@ -253,7 +253,7 @@ static dynablock_t* internalDBGetBlock(x64emu_t* emu, uintptr_t addr, uintptr_t 
         return NULL;
     dynablock_t* block = getDB(addr);
     if(block || !create) {
-        if(block && getNeedTest(addr) && (getProtection(addr)&req_prot)!=req_prot)
+        if(block && getNeedTest(addr) && (getProtection_fast(addr)&req_prot)!=req_prot)
             block = NULL;
         return block;
     }
@@ -404,9 +404,11 @@ dynablock_t* DBGetBlock(x64emu_t* emu, uintptr_t addr, int create, int is32bits)
             } else {
                 dynarec_log(LOG_DEBUG, "Validating block %p from %p:%p (hash:%X, always_test:%d) for %p\n", db, db->x64_addr, db->x64_addr+db->x64_size-1, db->hash, db->always_test, (void*)addr);
                 if(db->always_test) {
-                    if(db->always_test==2)
+                    if(db->always_test==2) {
                         db->always_test = 0;
-                    protectDB((uintptr_t)db->x64_addr, db->x64_size);
+                        protectDB((uintptr_t)db->x64_addr, db->x64_size);
+                    }
+                    // always_test==1 (NEVERCLEAN): protectDB is a no-op, skip it
                 } else {
                     #ifdef ARCH_NOP
                     if(db->callret_size) {
