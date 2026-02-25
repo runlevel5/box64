@@ -2746,100 +2746,43 @@ EXPORT int32_t my_execvpe(x64emu_t* emu, const char* path, char* const argv[], c
 
 EXPORT int32_t my_execl(x64emu_t* emu, const char* path)
 {
-    int self = isProcSelf(path, "exe");
-    int x64 = FileIsX64ELF(path);
-    int x86 = my_context->box86path?FileIsX86ELF(path):0;
-    int script = (my_context->bashpath && FileIsShell(path))?1:0;
-    printf_log(LOG_DEBUG, "execl(\"%s\", ...), IsX86=%d, self=%d\n", path, x64, self);
     // count argv...
-    int i=0;
-    while(getVargN(emu, i+1)) ++i;
-    int toadd = script?2:((x64||self)?1:0);
-    char** newargv = (char**)box_calloc(i+toadd+1, sizeof(char*));
-    int j=0;
-    if ((x64 || x86 || script || self))
-        newargv[j++] = x86?emu->context->box86path:emu->context->box64path;
-    if(script) newargv[j++] = emu->context->bashpath;
-    for (int k=0; k<i; ++k)
-        newargv[j++] = getVargN(emu, k+1);
-    if(self) newargv[1] = emu->context->fullpath;
-    printf_log(LOG_DEBUG, " => execl(\"%s\", %p [\"%s\", \"%s\"...:%d])\n", newargv[0], newargv, newargv[1], i?newargv[2]:"", i);
-    int ret = 0;
-    if (!(x64 || x86 || script || self)) {
-        ret = execv(path, newargv);
-    } else {
-        ret = execv(newargv[0], newargv);
-    }
-    box_free(newargv);
-    return ret;
+    int cnt=0;
+    while(getVargN(emu, cnt+1)) ++cnt;
+    // create the arg list and use execv
+    char* argv[cnt+1];
+    memset(argv, 0, sizeof(argv));
+    for(int i=0; i<cnt; ++i)
+        argv[i] = getVargN(emu, cnt+1);
+    return my_execv(emu, path, argv);
 }
 
 EXPORT int32_t my_execle(x64emu_t* emu, const char* path)
 {
-    int self = isProcSelf(path, "exe");
-    int x64 = FileIsX64ELF(path);
-    int x86 = my_context->box86path?FileIsX86ELF(path):0;
-    int script = (my_context->bashpath && FileIsShell(path))?1:0;
-    printf_log(LOG_DEBUG, "execle(\"%s\", ...), IsX86=%d, self=%d\n", path, x64, self);
-    // hack to update the environ var if needed
     // count argv...
-    int i=0;
-    while(getVargN(emu, i+1)) ++i;
-    int toadd = script?2:((x64||self)?1:0);
-    char** newargv = (char**)box_calloc(i+toadd+1, sizeof(char*));
-    char** envp = (char**)getVargN(emu, i+2);
-    if(envp == my_context->envv && environ) {
-        envp = environ;
-    }
-    int j=0;
-    if ((x64 || x86 || script || self))
-        newargv[j++] = x86?emu->context->box86path:emu->context->box64path;
-    if(script) newargv[j++] = emu->context->bashpath;
-    for (int k=0; k<i; ++k)
-        newargv[j++] = getVargN(emu, k+1);
-    if(self) newargv[1] = emu->context->fullpath;
-    printf_log(LOG_DEBUG, " => execle(\"%s\", %p [\"%s\", \"%s\"...:%d], %p)\n", newargv[0], newargv, newargv[1], i?newargv[2]:"", i, envp);
-    int ret = execve(newargv[0], newargv, envp);
-    box_free(newargv);
-    return ret;
+    int cnt=0;
+    while(getVargN(emu, cnt+1)) ++cnt;
+    // get envp
+    char** envp = getVargN(emu, cnt+2);
+    // create the arg list and use execve
+    char* argv[cnt+1];
+    memset(argv, 0, sizeof(argv));
+    for(int i=0; i<cnt; ++i)
+        argv[i] = getVargN(emu, cnt+1);
+    return my_execve(emu, path, argv, envp);
 }
 
 EXPORT int32_t my_execlp(x64emu_t* emu, const char* path)
 {
-    // need to use BOX64_PATH / PATH here...
-    char* fullpath = ResolveFileSoft(path, &my_context->box64_path);
-    // use fullpath...
-    int self = isProcSelf(fullpath, "exe");
-    int x64 = FileIsX64ELF(fullpath);
-    int x86 = my_context->box86path?FileIsX86ELF(fullpath):0;
-    int script = (my_context->bashpath && FileIsShell(fullpath))?1:0;
-    printf_log(LOG_DEBUG, "execlp(\"%s\", ...), IsX86=%d / fullpath=\"%s\"\n", path, x64, fullpath);
     // count argv...
-    int i=0;
-    while(getVargN(emu, i+1)) ++i;
-    int toadd = script?2:((x64||self)?1:0);
-    char** newargv = (char**)box_calloc(i+toadd+1, sizeof(char*));
-    int j=0;
-    if ((x64 || x86 || script || self))
-        newargv[j++] = x86?emu->context->box86path:emu->context->box64path;
-    if(script) newargv[j++] = emu->context->bashpath;
-    for (int k=0; k<i; ++k)
-        newargv[j++] = getVargN(emu, k+1);
-    if(self) newargv[1] = emu->context->fullpath;
-    if(script) newargv[2] = fullpath;
-    printf_log(LOG_DEBUG, " => execlp(\"%s\", %p [\"%s\", \"%s\"...:%d])\n", newargv[0], newargv, newargv[1], i?newargv[2]:"", i);
-    char** envv = NULL;
-    if(my_environ!=my_context->envv) envv = my_environ;
-    if(my__environ!=my_context->envv) envv = my__environ;
-    if(my___environ!=my_context->envv) envv = my___environ;
-    int ret;
-    if(envv)
-        ret = execvpe(newargv[0], newargv, envv);
-    else
-        ret = execvp(newargv[0], newargv);
-    box_free(newargv);
-    box_free(fullpath);
-    return ret;
+    int cnt=0;
+    while(getVargN(emu, cnt+1)) ++cnt;
+    // create the arg list and use execv
+    char* argv[cnt+1];
+    memset(argv, 0, sizeof(argv));
+    for(int i=0; i<cnt; ++i)
+        argv[i] = getVargN(emu, cnt+1);
+    return my_execvp(emu, path, argv);
 }
 
 EXPORT int32_t my_posix_spawn(x64emu_t* emu, pid_t* pid, const char* fullpath,
