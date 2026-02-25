@@ -353,6 +353,7 @@
 #() lFpp
 #() LFEL
 #() LFEp
+#() LFiL
 #() LFUU
 #() LFUp
 #() LFLi
@@ -816,6 +817,7 @@
 #() LFuui
 #() LFlpl
 #() LFLii
+#() LFLip
 #() LFLLl
 #() LFLLL
 #() LFLpu
@@ -887,6 +889,7 @@
 #() pFlpi
 #() pFLiu
 #() pFLup
+#() pFLLL
 #() pFLLp
 #() pFLpi
 #() pFLpp
@@ -1562,6 +1565,7 @@
 #() pFlfff
 #() pFLiip
 #() pFLLup
+#() pFLLLL
 #() pFLLpp
 #() pFLppp
 #() pFpiii
@@ -1601,6 +1605,7 @@
 #() pFpLip
 #() pFpLuu
 #() pFpLup
+#() pFpLLL
 #() pFpLLp
 #() pFpLpi
 #() pFpLpl
@@ -4067,6 +4072,8 @@
 #() iFEpuvvppp -> iFEpuppp
 wrappedalure:
 wrappedalut:
+wrappedandroidshmem:
+wrappedandroidsupport:
 wrappedanl:
 wrappedatk:
 - vFp:
@@ -5178,6 +5185,7 @@ wrappedgtkx112:
 - pFpipppppppi:
   - gtk_toolbar_insert_element
 wrappedharfbuzzsubset:
+wrappediconv:
 wrappedicui18n64:
 wrappedicui18n66:
 wrappedicui18n67:
@@ -6021,6 +6029,11 @@ wrappedlibnettle8:
   - nettle_ccm_decrypt_message
 wrappedlibnuma:
 wrappedlibogg:
+wrappedlibomp:
+- vFppuu:
+  - GOMP_parallel
+- vFppplliupi:
+  - GOMP_task
 wrappedlibpanel:
 wrappedlibpci:
 wrappedlibpcre:
@@ -7072,6 +7085,7 @@ wrappedtcmallocminimal:
 - pFpLiiil:
   - mmap
   - mmap64
+wrappedtermuxexec:
 wrappedudev0:
 wrappedudev1:
 - vFpp:
