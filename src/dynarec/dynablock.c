@@ -358,6 +358,15 @@ dynablock_t* DBGetBlock(x64emu_t* emu, uintptr_t addr, int create, int is32bits)
     if(db && db->done && db->block && getNeedTest(addr)) {
         //if (db->always_test) SchedYield(); // just calm down...
         uint32_t hash = X31_hash_code(db->x64_addr, db->x64_size);
+#ifdef PPC64LE
+        // Fast path: on PPC64LE with 64KB pages, most blocks are always_test==1
+        // (NEVERCLEAN). When the hash matches and we're not in a hot page, the
+        // locked section is a no-op — skip the mutex entirely.
+        if(hash==db->hash && db->always_test==1 && !is_inhotpage) {
+            // Block is still valid, no lock needed
+            return db;
+        }
+#endif
         mutex_lock(&my_context->mutex_dyndump)?1:0;
         if(hash!=db->hash) {
             if(is_inhotpage && db->previous) {
