@@ -395,6 +395,12 @@ ppc64le_lock_get_dd:
 // The hash is used purely for equality-based change detection
 // (not hash table distribution), so cryptographic quality is not needed.
 //
+// Note: vpmsumd (carryless multiply) was also tried with 2 vector
+// accumulators and optimized finalization, but measured ~17% of CPU
+// vs ~16.4% for this XOR-rotate approach.  The ~7-cycle vpmsumd
+// latency and vector-to-GPR extraction cost outweigh its better
+// mixing on the small block sizes typical of dynarec code blocks.
+//
 // Registers:
 //   r3  = address (input), then return value
 //   r4  = length in bytes (input)
