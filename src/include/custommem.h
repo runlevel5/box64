@@ -50,6 +50,7 @@ int cleanDBFromAddressRange(uintptr_t addr, size_t size, int destroy);
 
 dynablock_t* getDB(uintptr_t idx);
 int getNeedTest(uintptr_t idx);
+dynablock_t* getDB_getNeedTest(uintptr_t idx, int* need_test);
 int addJumpTableIfDefault64(void* addr, void* jmp); // return 1 if write was succesfull
 int setJumpTableIfRef64(void* addr, void* jmp, void* ref); // return 1 if write was succesfull
 void setJumpTableDefault64(void* addr);

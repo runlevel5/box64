@@ -2236,6 +2236,26 @@ int getNeedTest(uintptr_t addr)
     return db?((ret!=(uintptr_t)db->block)?1:0):0;
 }
 
+dynablock_t* getDB_getNeedTest(uintptr_t addr, int* need_test)
+{
+    uintptr_t idx3, idx2, idx1, idx0;
+    #ifdef JMPTABL_SHIFT4
+    uintptr_t idx4 = (((uintptr_t)addr)>>JMPTABL_START4)&JMPTABLE_MASK4;
+    #endif
+    idx3 = ((addr)>>JMPTABL_START3)&JMPTABLE_MASK3;
+    idx2 = ((addr)>>JMPTABL_START2)&JMPTABLE_MASK2;
+    idx1 = ((addr)>>JMPTABL_START1)&JMPTABLE_MASK1;
+    idx0 = ((addr)                )&JMPTABLE_MASK0;
+    #ifdef JMPTABL_SHIFT4
+    uintptr_t ret = (uintptr_t)box64_jmptbl4[idx4][idx3][idx2][idx1][idx0];
+    #else
+    uintptr_t ret = (uintptr_t)box64_jmptbl3[idx3][idx2][idx1][idx0];
+    #endif
+    dynablock_t* db = *(dynablock_t**)(ret - sizeof(void*));
+    *need_test = db?((ret!=(uintptr_t)db->block)?1:0):0;
+    return db;
+}
+
 uintptr_t getJumpAddress64(uintptr_t addr)
 {
     uintptr_t idx3, idx2, idx1, idx0;
