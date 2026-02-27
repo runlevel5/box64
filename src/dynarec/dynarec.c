@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <errno.h>
 
 #include "os.h"
@@ -106,6 +107,21 @@ void* LinkNext(x64emu_t* emu, uintptr_t addr, void* x2, uintptr_t* x3)
         }
     }
     //dynablock_t *father = block->father?block->father:block;
+    #ifdef PPC64LE
+    // Populate per-thread block dispatch cache for assembly fast-path in ppc64le_next.S
+    {
+        uint64_t global_gen = __atomic_load_n(&block_cache_generation, __ATOMIC_ACQUIRE);
+        if(emu->block_cache_gen != global_gen) {
+            // Generation mismatch: blocks were invalidated, flush entire cache
+            memset(emu->block_cache, 0, sizeof(emu->block_cache));
+            emu->block_cache_gen = global_gen;
+        }
+        // Store this mapping: old_addr -> jblock
+        unsigned idx = ((uintptr_t)old_addr >> 1) & (BLOCK_CACHE_SIZE - 1);
+        emu->block_cache[idx].x86_addr = old_addr;
+        emu->block_cache[idx].native_addr = jblock;
+    }
+    #endif
     return jblock;
 }
 #endif

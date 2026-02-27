@@ -1923,6 +1923,10 @@ int cleanDBFromAddressRange(uintptr_t addr, size_t size, int destroy)
                 MarkRangeDynablock(db, addr, size);
         }
     }
+    #ifdef PPC64LE
+    if(ret)
+        __atomic_add_fetch(&block_cache_generation, 1, __ATOMIC_RELEASE);
+    #endif
     return ret;
 }
 
@@ -2541,6 +2545,10 @@ typedef union hotpage_s {
 #define HOTPAGE_DIRTY 128
 #define HOTPAGE_DIRTY_ALT 1024
 static hotpage_t hotpage[N_HOTPAGE] = {0};
+#ifdef PPC64LE
+static volatile int hotpage_any_active = 0;    // fast early-out for isInHotPage on PPC64LE
+volatile uint64_t block_cache_generation = 1;  // bumped on block invalidation, for dispatch cache
+#endif
 void SetHotPage(int idx, uintptr_t page)
 {
     hotpage_t tmp = hotpage[idx];
