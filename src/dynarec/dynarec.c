@@ -107,7 +107,7 @@ void* LinkNext(x64emu_t* emu, uintptr_t addr, void* x2, uintptr_t* x3)
         }
     }
     //dynablock_t *father = block->father?block->father:block;
-    #ifdef PPC64LE
+    #if defined(PPC64LE) && defined(BLOCK_CACHE_BITS)
     // Populate per-thread block dispatch cache for assembly fast-path in ppc64le_next.S
     {
         uint64_t global_gen = __atomic_load_n(&block_cache_generation, __ATOMIC_ACQUIRE);

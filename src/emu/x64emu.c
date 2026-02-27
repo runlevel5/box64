@@ -21,6 +21,19 @@
 #include "x64trace.h"
 #endif
 #include "custommem.h"
+
+// Compile-time verification that assembly hardcoded offsets match the actual struct layout.
+// ppc64le_next.S uses EMU_BLOCK_CACHE=0x1E80 as the base, then computes gen/ptr offsets
+// from BLOCK_CACHE_BITS. If the struct changes, these asserts will catch the mismatch.
+#if defined(PPC64LE) && defined(BLOCK_CACHE_BITS)
+#include <stddef.h>
+_Static_assert(offsetof(x64emu_t, block_cache) == 0x1E80,
+    "block_cache offset changed: update EMU_BLOCK_CACHE in ppc64le_next.S");
+_Static_assert(offsetof(x64emu_t, block_cache_gen) == 0x1E80 + ((1 << BLOCK_CACHE_BITS) * 16),
+    "block_cache_gen offset mismatch: check BLOCK_CACHE_BITS computation in ppc64le_next.S");
+_Static_assert(offsetof(x64emu_t, block_cache_gen_ptr) == 0x1E80 + ((1 << BLOCK_CACHE_BITS) * 16) + 8,
+    "block_cache_gen_ptr offset mismatch: check BLOCK_CACHE_BITS computation in ppc64le_next.S");
+#endif
 // for the applyFlushTo0
 #ifdef __x86_64__
 #include <immintrin.h>
@@ -90,7 +103,7 @@ static void internalX64Setup(x64emu_t* emu, box64context_t *context, uintptr_t s
     emu->mxcsr.x32 = 0x1f80;
     // want some new jmpbuf for error recovery
     emu->flags.need_jmpbuf = 1;
-    #ifdef PPC64LE
+    #if defined(PPC64LE) && defined(BLOCK_CACHE_BITS)
     // Initialize block dispatch cache pointer for assembly fast-path
     emu->block_cache_gen_ptr = &block_cache_generation;
     #endif
