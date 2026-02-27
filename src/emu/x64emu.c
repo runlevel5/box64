@@ -109,7 +109,7 @@ static void internalX64Setup(x64emu_t* emu, box64context_t *context, uintptr_t s
     emu->mxcsr.x32 = 0x1f80;
     // want some new jmpbuf for error recovery
     emu->flags.need_jmpbuf = 1;
-    #ifdef PPC64LE
+    #if defined(PPC64LE) && defined(BLOCK_CACHE_BITS)
     // Initialize block dispatch cache pointer for assembly fast-path
     emu->block_cache_gen_ptr = &block_cache_generation;
     #endif
