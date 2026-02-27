@@ -15,8 +15,8 @@
 // x64emu_t struct offsets for block dispatch cache (PPC64LE + BOX32)
 // These must match the struct layout in x64emu_private.h
 #define EMU_BLOCK_CACHE         0x1E80  // offsetof(x64emu_t, block_cache)
-#define EMU_BLOCK_CACHE_GEN     0x2E80  // offsetof(x64emu_t, block_cache_gen)
-#define EMU_BLOCK_CACHE_GEN_PTR 0x2E88  // offsetof(x64emu_t, block_cache_gen_ptr)
+#define EMU_BLOCK_CACHE_GEN     0x3E80  // offsetof(x64emu_t, block_cache_gen)
+#define EMU_BLOCK_CACHE_GEN_PTR 0x3E88  // offsetof(x64emu_t, block_cache_gen_ptr)
 
 .text
 .align 4
@@ -38,10 +38,10 @@ ppc64le_next:
     cmpd    12, 11                               // local == global?
     bne     .Lcache_miss                         // stale generation -> slow path
 
-    // Compute cache index: (RIP >> 1) & 0xFF, then *16 for 16-byte entries
-    // rldicl r11, r9, 63, 56  =>  r11 = rotl64(r9, 63) & mask(56..63)
-    //   = (r9 >> 1) & 0xFF
-    rldicl  11, RIP, 63, 56
+    // Compute cache index: (RIP >> 1) & 0x1FF, then *16 for 16-byte entries
+    // rldicl r11, r9, 63, 55  =>  r11 = rotl64(r9, 63) & mask(55..63)
+    //   = (r9 >> 1) & 0x1FF
+    rldicl  11, RIP, 63, 55
     sldi    11, 11, 4                            // r11 = index * 16 (entry offset)
     addi    12, Emu, EMU_BLOCK_CACHE             // r12 = &emu->block_cache[0]
     add     11, 11, 12                           // r11 = &emu->block_cache[index]
