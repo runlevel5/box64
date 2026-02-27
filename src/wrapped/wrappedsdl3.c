@@ -49,11 +49,12 @@ EXPORT void* my3_SDL_GL_GetProcAddress(x64emu_t* emu, void* name)
 void* my_vkGetInstanceProcAddr(x64emu_t* emu, void* device, void* name);
 EXPORT void* my3_SDL_Vulkan_GetVkGetInstanceProcAddr(x64emu_t* emu)
 {
+    void* procaddr = my->SDL_Vulkan_GetVkGetInstanceProcAddr();
     if(!emu->context->vkprocaddress)
-        emu->context->vkprocaddress = (vkprocaddess_t)my->SDL_Vulkan_GetVkGetInstanceProcAddr();
+        emu->context->vkprocaddress = (vkprocaddess_t)procaddr;
 
-    if(emu->context->vkprocaddress)
-        return (void*)AddCheckBridge2(my_lib->w.bridge, pFEpp, my_vkGetInstanceProcAddr, my->SDL_Vulkan_GetVkGetInstanceProcAddr, 0, "vkGetInstanceProcAddr");
+    if(procaddr)
+        return (void*)AddCheckBridge2(my_lib->w.bridge, pFEpp, my_vkGetInstanceProcAddr, procaddr, 0, "vkGetInstanceProcAddr");
     return NULL;
 }
 
