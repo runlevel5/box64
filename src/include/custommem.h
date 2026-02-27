@@ -152,6 +152,9 @@ void getLockAddressRange(uintptr_t start, size_t size, uintptr_t addrs[]);   // 
 void CheckHotPage(uintptr_t addr, uint32_t prot);
 int isInHotPage(uintptr_t addr);
 int checkInHotPage(uintptr_t addr);
+#ifdef PPC64LE
+extern volatile uint64_t block_cache_generation;    // bumped on block invalidation, for dispatch cache
+#endif
 #endif
 
 // this will simulate an x86_64 version of the function (no tracking will done, but tracking will be used)
