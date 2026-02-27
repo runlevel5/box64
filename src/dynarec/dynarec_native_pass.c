@@ -163,9 +163,6 @@ uintptr_t native_pass(dynarec_native_t* dyn, uintptr_t addr, int alternate, int 
         if (is_opcode_volatile && !dyn->insts[ninst].lock)
             DMB_ISHST();
         #endif
-        if((dyn->insts[ninst].x64.need_before&~X_PEND) && !ninst) {
-            READFLAGS(dyn->insts[ninst].x64.need_before&~X_PEND);
-        }
         if (BOX64DRENV(dynarec_dump) && (!BOX64ENV(dynarec_dump_range_end) || (ip >= BOX64ENV(dynarec_dump_range_start) && ip < BOX64ENV(dynarec_dump_range_end)))) {
             dyn->need_dump = BOX64DRENV(dynarec_dump);
         }

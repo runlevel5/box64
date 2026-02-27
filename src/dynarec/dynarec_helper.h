@@ -207,6 +207,11 @@
 #define SMDMB() DMB_ISH()
 #endif
 
+#define AREFLAGSNEEDED()    \
+    if((dyn->insts[ninst].x64.need_before&~X_PEND) && (!ninst || dyn->insts[ninst-1].x64.has_callret)) {    \
+        READFLAGS(dyn->insts[ninst].x64.need_before&~X_PEND);                                               \
+    }
+
 int is_addr_unaligned(uintptr_t addr);
 int is_addr_autosmc(uintptr_t addr);
 

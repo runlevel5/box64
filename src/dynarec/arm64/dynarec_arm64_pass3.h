@@ -18,11 +18,12 @@
     } while (0)
 #define ENDPREFIX   dyn->insts[ninst].size2 = 0
 #define NEW_INST        \
-    if(ninst) {                                                  \
+    if(ninst) {                                                                                             \
         if(dyn->insts[ninst].address!=(uintptr_t)dyn->block-(uintptr_t)dyn->native_start) dyn->abort = 1;   \
         addInst(dyn->instsize, &dyn->insts_size, dyn->insts[ninst-1].x64.size, dyn->insts[ninst-1].size/4); \
-        dyn->insts[ninst].ymm0_pass3 = dyn->ymm_zero;   \
-    }
+        dyn->insts[ninst].ymm0_pass3 = dyn->ymm_zero;                                                       \
+    }                                                                                                       \
+    AREFLAGSNEEDED()
 #define INST_EPILOG
 #define INST_NAME(name) inst_name_pass3(dyn, ninst, name, rex)
 #define TABLE64(A, V)  do {                                                                 \
