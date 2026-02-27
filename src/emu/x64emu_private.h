@@ -157,8 +157,8 @@ typedef struct x64emu_s {
     // This cache short-circuits that: on cache hit in ppc64le_next.S, we branch
     // directly to the cached native address (~12 insns).
     // Invalidated via generation counter bumped on cleanDBFromAddressRange/unprotectDB.
-    #define BLOCK_CACHE_BITS   8
-    #define BLOCK_CACHE_SIZE   (1 << BLOCK_CACHE_BITS)   // 256 entries
+    #define BLOCK_CACHE_BITS   9
+    #define BLOCK_CACHE_SIZE   (1 << BLOCK_CACHE_BITS)   // 512 entries
     struct {
         uintptr_t   x86_addr;       // x86 address (key)
         void*       native_addr;    // native block address (value)
