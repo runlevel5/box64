@@ -31,6 +31,27 @@
 #ifndef PROT_READ
 #define PROT_READ 0x1
 #endif
+
+// Fail-close guard for page-boundary decode hazards:
+// if we cannot read a full x86 max instruction window, stop block build early.
+static int dynarec_can_read_window(uintptr_t addr, uintptr_t size)
+{
+    if(!size)
+        return 1;
+    uintptr_t end = addr + size - 1;
+    if(end < addr)
+        return 0;
+
+    uintptr_t cur = addr;
+    while(1) {
+        if(!(getProtection(cur) & PROT_READ))
+            return 0;
+        uintptr_t page_end = (cur & ~(box64_pagesize - 1)) + box64_pagesize - 1;
+        if(end <= page_end)
+            return 1;
+        cur = page_end + 1;
+    }
+}
 #endif
 
 uintptr_t native_pass(dynarec_native_t* dyn, uintptr_t addr, int alternate, int is32bits, int inst_max)
@@ -74,16 +95,22 @@ uintptr_t native_pass(dynarec_native_t* dyn, uintptr_t addr, int alternate, int 
     #endif
     while(ok) {
         #if STEP == 0
+        int stop_for_guard = 0;
         if(cur_page != ((addr)&~(box64_pagesize-1))) {
             cur_page = (addr)&~(box64_pagesize-1);
             uint32_t prot = getProtection(addr);
-            if(!(prot&PROT_READ) || checkInHotPage(addr) || (addr>dyn->end)) {
-                dynarec_log(LOG_INFO, "Stopping dynablock because of protection, hotpage or mmap crossing at %p -> %p inst=%d\n", (void*)dyn->start, (void*)addr, ninst);
-                need_epilog = 1;
-                break;
+            if(!(prot&PROT_READ) || checkInHotPage(addr) || (addr>dyn->end) || !dynarec_can_read_window(addr, 15)) {
+                stop_for_guard = 1;
             }
             if(prot&PROT_NEVERCLEAN)
                 dyn->always_test = 1;
+        } else if(!dynarec_can_read_window(addr, 15)) {
+            stop_for_guard = 1;
+        }
+        if(stop_for_guard) {
+            dynarec_log(LOG_INFO, "Stopping dynablock because of protection/hotpage/mmap/decode-window at %p -> %p inst=%d\n", (void*)dyn->start, (void*)addr, ninst);
+            need_epilog = 1;
+            break;
         }
         // This test is here to prevent things like TABLE64 to be out of range
         // native_size is not exact at this point, but it should be larger, not smaller, and not by a huge margin anyway
