@@ -125,6 +125,7 @@ void unprotectDB(uintptr_t addr, size_t size, int mark);    // if mark==0, the b
 void neverprotectDB(uintptr_t addr, size_t size, int mark);
 void unneverprotectDB(uintptr_t addr, size_t size);
 int isprotectedDB(uintptr_t addr, size_t size);
+int isprotectedDB_fast(uintptr_t addr, size_t size);   // no signal masking, use when signals already blocked
 #endif
 void* find32bitBlock(size_t size);
 void* find31bitBlockNearHint(void* hint, size_t size, uintptr_t mask);
