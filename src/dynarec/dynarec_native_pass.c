@@ -76,6 +76,7 @@ uintptr_t native_pass(dynarec_native_t* dyn, uintptr_t addr, int alternate, int 
     dyn->forward_size = 0;
     dyn->forward_ninst = 0;
     dyn->ymm_zero = 0;
+    dyn->is_file_mapped = IsAddrElfOrFileMapped(addr);
     int dynarec_dirty = BOX64ENV(dynarec_dirty);
     #if STEP == 0
     memset(&dyn->insts[ninst], 0, sizeof(instruction_native_t));
@@ -87,7 +88,7 @@ uintptr_t native_pass(dynarec_native_t* dyn, uintptr_t addr, int alternate, int 
     ARCH_INIT();
     int reset_n = -1; // -1 no reset; -2 reset to 0; else reset to the state of reset_n
     dyn->last_ip = (alternate || (dyn->insts && dyn->insts[0].pred_sz))?0:ip;  // RIP is always set at start of block unless there is a predecessor!
-    int stopblock = 2 + !IsAddrElfOrFileMapped(addr);                          // if block is in elf memory or file mapped memory, it can be extended with BOX64DRENV(dynarec_bigblock)==2, else it needs 3
+    int stopblock = 2 + !dyn->is_file_mapped;                          // if block is in elf memory or file mapped memory, it can be extended with BOX64DRENV(dynarec_bigblock)==2, else it needs 3
     // ok, go now
     INIT;
     #if STEP == 0

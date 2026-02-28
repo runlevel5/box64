@@ -232,6 +232,7 @@ static void applyCustomRules()
         } else if (!strcasecmp(box64env.profile, "default")) {
         } else if (!strcasecmp(box64env.profile, "fast")) {
             SET_BOX64ENV_IF_EMPTY(dynarec_callret, 1);
+            SET_BOX64ENV_IF_EMPTY(dynarec_sep, 1);
             SET_BOX64ENV_IF_EMPTY(dynarec_bigblock, 3);
             SET_BOX64ENV_IF_EMPTY(dynarec_safeflags, 0);
             SET_BOX64ENV_IF_EMPTY(dynarec_strongmem, 1);
@@ -239,6 +240,7 @@ static void applyCustomRules()
             SET_BOX64ENV_IF_EMPTY(dynarec_forward, 1024);
         } else if (!strcasecmp(box64env.profile, "fastest")) {
             SET_BOX64ENV_IF_EMPTY(dynarec_callret, 1);
+            SET_BOX64ENV_IF_EMPTY(dynarec_sep, 2);
             SET_BOX64ENV_IF_EMPTY(dynarec_bigblock, 3);
             SET_BOX64ENV_IF_EMPTY(dynarec_safeflags, 0);
             SET_BOX64ENV_IF_EMPTY(dynarec_strongmem, 0);
@@ -1481,6 +1483,18 @@ int IsAddrFileMapped(uintptr_t addr, const char** filename, uintptr_t* start)
         return 1;
     }
     return 0;
+}
+
+int IsAddrFileMappedNoMemFD(uintptr_t addr)
+{
+    const char* filename = NULL;
+    if(!IsAddrFileMapped(addr, &filename, NULL))
+        return 0;
+    if(!filename)
+        return 0;
+    if(strstr(filename, "/memfd:")==filename)
+        return 0;
+    return 1;
 }
 
 size_t SizeFileMapped(uintptr_t addr)

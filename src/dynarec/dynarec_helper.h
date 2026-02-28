@@ -212,6 +212,10 @@
         READFLAGS(dyn->insts[ninst].x64.need_before&~X_PEND);                                               \
     }
 
+// Insert a Secondary Entry Point if it's asked, but only on block that are from file mapped memory (so some binary file)
+//  and that are not flagged as always_test (as this could slow down a bit, and the block is unsafe), unless SEP level 2 is asked
+#define ISSEP() (BOX64DRENV(dynarec_sep) && ((dyn->is_file_mapped && !dyn->always_test) || BOX64DRENV(dynarec_sep)>1))
+
 int is_addr_unaligned(uintptr_t addr);
 int is_addr_autosmc(uintptr_t addr);
 
