@@ -244,17 +244,19 @@ void dynablock_leave_runtime(dynablock_t* db)
     return NULL if block is not found / cannot be created. 
     Don't create if create==0
 */
-static dynablock_t* internalDBGetBlock(x64emu_t* emu, uintptr_t addr, uintptr_t filladdr, int create, int need_lock, int is32bits, int is_new)
+static dynablock_t* internalDBGetBlock(x64emu_t* emu, uintptr_t addr, uintptr_t filladdr, int create, int need_lock, int is32bits, int is_new, int* out_need_test)
 {
     if (hasAlternate((void*)filladdr))
         return NULL;
     const uint32_t req_prot = (box64_pagesize==4096)?(PROT_EXEC|PROT_READ):PROT_READ;
     if(BOX64ENV(nodynarec_delay) && (addr>=BOX64ENV(nodynarec_start)) && (addr<BOX64ENV(nodynarec_end)))
         return NULL;
-    dynablock_t* block = getDB(addr);
+    int need_test = 0;
+    dynablock_t* block = getDB_getNeedTest(addr, &need_test);
     if(block || !create) {
-        if(block && getNeedTest(addr) && (getProtection_fast(addr)&req_prot)!=req_prot)
+        if(block && need_test && (getProtection_fast(addr)&req_prot)!=req_prot)
             block = NULL;
+        if(out_need_test) *out_need_test = need_test;
         return block;
     }
 
@@ -284,10 +286,11 @@ static dynablock_t* internalDBGetBlock(x64emu_t* emu, uintptr_t addr, uintptr_t 
                 return NULL;
             }
         }
-        block = getDB(addr);    // just in case
+        block = getDB_getNeedTest(addr, &need_test);    // just in case
         if(block) {
-            if(block && getNeedTest(addr) && (getProtection_fast(addr)&req_prot)!=req_prot)
+            if(block && need_test && (getProtection_fast(addr)&req_prot)!=req_prot)
                 block = NULL;
+            if(out_need_test) *out_need_test = need_test;
             mutex_unlock(&my_context->mutex_dyndump);
             pthread_sigmask(SIG_SETMASK, &old_sig, NULL);
             return block;
@@ -346,6 +349,10 @@ static dynablock_t* internalDBGetBlock(x64emu_t* emu, uintptr_t addr, uintptr_t 
 
     dynarec_log(LOG_DEBUG, "%04d| --- DynaRec Block %p created @%p:%p (%p, 0x%x bytes)\n", GetTID(), block, (void*)addr, (void*)(addr+((block)?block->x64_size:1)-1), (block)?block->block:0, (block)?block->size:0);
 
+    // For newly created/obtained blocks, derive need_test from block state
+    // to avoid another jump table traversal.
+    if(out_need_test)
+        *out_need_test = block ? (block->always_test || block->dirty) : 0;
     return block;
 }
 
@@ -354,10 +361,20 @@ dynablock_t* DBGetBlock(x64emu_t* emu, uintptr_t addr, int create, int is32bits)
     int is_inhotpage = isInHotPage(addr);
     if(is_inhotpage && !BOX64ENV(dynarec_dirty))
         return NULL;
-    dynablock_t *db = internalDBGetBlock(emu, addr, addr, create, 1, is32bits, 1);
-    if(db && db->done && db->block && getNeedTest(addr)) {
+    int need_test = 0;
+    dynablock_t *db = internalDBGetBlock(emu, addr, addr, create, 1, is32bits, 1, &need_test);
+    if(db && db->done && db->block && need_test) {
         //if (db->always_test) SchedYield(); // just calm down...
         uint32_t hash = X31_hash_code(db->x64_addr, db->x64_size);
+#ifdef PPC64LE
+        // Fast path: on PPC64LE with 64KB pages, most blocks are always_test==1
+        // (NEVERCLEAN). When the hash matches and we're not in a hot page, the
+        // locked section is a no-op — skip the mutex entirely.
+        if(hash==db->hash && db->always_test==1 && !is_inhotpage) {
+            // Block is still valid, no lock needed
+            return db;
+        }
+#endif
         mutex_lock(&my_context->mutex_dyndump)?1:0;
         if(hash!=db->hash) {
             if(is_inhotpage && db->previous) {
@@ -390,7 +407,7 @@ dynablock_t* DBGetBlock(x64emu_t* emu, uintptr_t addr, int create, int is32bits)
             // Free db, it's now invalid!
             dynablock_t* old = InvalidDynablock(db, 0);
             // start again... (will create a new block)
-            db = internalDBGetBlock(emu, addr, addr, create, 0, is32bits, 0);
+            db = internalDBGetBlock(emu, addr, addr, create, 0, is32bits, 0, NULL);
             if(db) {
                 if(db->previous)
                     FreeInvalidDynablock(db->previous, 0);
@@ -442,7 +459,7 @@ dynablock_t* DBAlternateBlock(x64emu_t* emu, uintptr_t addr, uintptr_t filladdr,
 {
     dynarec_log(LOG_DEBUG, "Creating AlternateBlock at %p for %p%s\n", (void*)addr, (void*)filladdr, is32bits?" 32bits":"");
     int create = 1;
-    dynablock_t *db = internalDBGetBlock(emu, addr, filladdr, create, 1, is32bits, 1);
+    dynablock_t *db = internalDBGetBlock(emu, addr, filladdr, create, 1, is32bits, 1, NULL);
     if(db && db->done && db->block && (db->dirty || getNeedTest(filladdr))) {
         if (db->always_test) SchedYield(); // just calm down...
         mutex_lock(&my_context->mutex_dyndump);
@@ -453,7 +470,7 @@ dynablock_t* DBAlternateBlock(x64emu_t* emu, uintptr_t addr, uintptr_t filladdr,
             // Free db, it's now invalid!
             dynablock_t* old = InvalidDynablock(db, 0);
             // start again... (will create a new block)
-            db = internalDBGetBlock(emu, addr, filladdr, create, 0, is32bits, 0);
+            db = internalDBGetBlock(emu, addr, filladdr, create, 0, is32bits, 0, NULL);
             if(db) {
                 if(db->previous)
                     FreeInvalidDynablock(db->previous, 0);

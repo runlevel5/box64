@@ -149,7 +149,23 @@ typedef struct x64emu_s {
     const int*  toupper;
     void*       res_state_32;  //32bits version of res_state
     void*       res_state_64;
-    #endif
+     #endif
+     #if defined(PPC64LE) && defined(BLOCK_CACHE_BITS)
+     // Per-thread block dispatch cache for NEVERCLEAN blocks on 64KB page systems.
+     // On PPC64LE with 64KB pages, blocks can't be write-protected (NEVERCLEAN),
+     // so every block transition goes through the full validation chain (~160 insns).
+     // This cache short-circuits that: on cache hit in ppc64le_next.S, we branch
+     // directly to the cached native address (~12 insns).
+     // Invalidated via generation counter bumped on cleanDBFromAddressRange/unprotectDB.
+     // Cache size is configurable via cmake -DBLOCK_CACHE=64|128|256|512 (default 512).
+     #define BLOCK_CACHE_SIZE   (1 << BLOCK_CACHE_BITS)
+     struct {
+         uintptr_t   x86_addr;       // x86 address (key)
+         void*       native_addr;    // native block address (value)
+     } block_cache[BLOCK_CACHE_SIZE];
+     uint64_t    block_cache_gen;     // local generation snapshot
+     volatile uint64_t *block_cache_gen_ptr;  // pointer to global block_cache_generation
+     #endif
 } x64emu_t;
 
 #define EMUTYPE_NONE    0

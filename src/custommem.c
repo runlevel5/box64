@@ -61,6 +61,7 @@ uint32_t            mutex_prot;
 uint32_t            mutex_blocks;
 #elif defined(PPC64LE)
 pthread_rwlock_t    rwlock_prot;
+static volatile uint64_t memprot_gen = 0;  // generation counter for lock-free getProtection_fast
 pthread_mutex_t     mutex_blocks;
 #else
 pthread_mutex_t     mutex_prot;
@@ -69,6 +70,7 @@ pthread_mutex_t     mutex_blocks;
 #else
 #ifdef PPC64LE
 pthread_rwlock_t    rwlock_prot;
+static volatile uint64_t memprot_gen = 0;  // generation counter for lock-free getProtection_fast
 #else
 pthread_mutex_t     mutex_prot;
 #endif
@@ -590,19 +592,32 @@ static void setProtection_generic(uintptr_t addr, size_t sz, uint32_t prot, mem_
 // PPC64LE: use rwlock for concurrent reader access (64KB pages cause heavy read contention)
 // Thread-local tracking for FAST read lock (needed for signal-handler unlock/relock)
 static __thread int prot_fast_locked = 0;
+// Per-thread cache for getProtection_fast to avoid rwlock on the hot path
+#define PROT_CACHE_SHIFT 12
+#define PROT_CACHE_SIZE  (1 << PROT_CACHE_SHIFT)  // 4096 entries
+#define PROT_CACHE_MASK  (PROT_CACHE_SIZE - 1)
+typedef struct {
+    uintptr_t addr;
+    uint32_t  val;
+} prot_cache_entry_t;
+static __thread prot_cache_entry_t prot_cache[PROT_CACHE_SIZE] = {{0}};
+static __thread uint64_t prot_cache_gen = (uint64_t)-1;  // force miss on first use
 #define LOCK_PROT()         sigset_t old_sig = {0}; pthread_sigmask(SIG_BLOCK, &critical_prot, &old_sig); pthread_rwlock_wrlock(&rwlock_prot)
 #define LOCK_PROT_READ()    sigset_t old_sig = {0}; pthread_sigmask(SIG_BLOCK, &critical_prot, &old_sig); pthread_rwlock_rdlock(&rwlock_prot)
 #define LOCK_PROT_FAST()    do { pthread_rwlock_rdlock(&rwlock_prot); prot_fast_locked = 1; } while(0)
-#define UNLOCK_PROT()       if(defered_prot_p) {                                \
-                                uintptr_t p = defered_prot_p; size_t sz = defered_prot_sz; uint32_t prot = defered_prot_prot; mem_flag_t f = defered_prot_flags;\
-                                defered_prot_p = 0;                             \
-                                pthread_sigmask(SIG_SETMASK, &old_sig, NULL);   \
-                                pthread_rwlock_unlock(&rwlock_prot);            \
-                                setProtection_generic(p, sz, prot, f);          \
-                            } else {                                            \
-                                pthread_sigmask(SIG_SETMASK, &old_sig, NULL);   \
-                                pthread_rwlock_unlock(&rwlock_prot);            \
-                            }
+#define UNLOCK_PROT()       do {                                                \
+                                __atomic_fetch_add(&memprot_gen, 1, __ATOMIC_RELEASE); \
+                                if(defered_prot_p) {                            \
+                                    uintptr_t p = defered_prot_p; size_t sz = defered_prot_sz; uint32_t prot = defered_prot_prot; mem_flag_t f = defered_prot_flags;\
+                                    defered_prot_p = 0;                         \
+                                    pthread_sigmask(SIG_SETMASK, &old_sig, NULL);\
+                                    pthread_rwlock_unlock(&rwlock_prot);         \
+                                    setProtection_generic(p, sz, prot, f);       \
+                                } else {                                        \
+                                    pthread_sigmask(SIG_SETMASK, &old_sig, NULL);\
+                                    pthread_rwlock_unlock(&rwlock_prot);         \
+                                }                                               \
+                            } while(0)
 #define UNLOCK_PROT_READ()  pthread_rwlock_unlock(&rwlock_prot); pthread_sigmask(SIG_SETMASK, &old_sig, NULL)
 #define UNLOCK_PROT_FAST()  do { prot_fast_locked = 0; pthread_rwlock_unlock(&rwlock_prot); } while(0)
 #else
@@ -1908,6 +1923,10 @@ int cleanDBFromAddressRange(uintptr_t addr, size_t size, int destroy)
                 MarkRangeDynablock(db, addr, size);
         }
     }
+    #if defined(PPC64LE) && defined(BLOCK_CACHE_BITS)
+    if(ret)
+        __atomic_add_fetch(&block_cache_generation, 1, __ATOMIC_RELEASE);
+    #endif
     return ret;
 }
 
@@ -2219,6 +2238,26 @@ int getNeedTest(uintptr_t addr)
     #endif
     dynablock_t* db = *(dynablock_t**)(ret - sizeof(void*));
     return db?((ret!=(uintptr_t)db->block)?1:0):0;
+}
+
+dynablock_t* getDB_getNeedTest(uintptr_t addr, int* need_test)
+{
+    uintptr_t idx3, idx2, idx1, idx0;
+    #ifdef JMPTABL_SHIFT4
+    uintptr_t idx4 = (((uintptr_t)addr)>>JMPTABL_START4)&JMPTABLE_MASK4;
+    #endif
+    idx3 = ((addr)>>JMPTABL_START3)&JMPTABLE_MASK3;
+    idx2 = ((addr)>>JMPTABL_START2)&JMPTABLE_MASK2;
+    idx1 = ((addr)>>JMPTABL_START1)&JMPTABLE_MASK1;
+    idx0 = ((addr)                )&JMPTABLE_MASK0;
+    #ifdef JMPTABL_SHIFT4
+    uintptr_t ret = (uintptr_t)box64_jmptbl4[idx4][idx3][idx2][idx1][idx0];
+    #else
+    uintptr_t ret = (uintptr_t)box64_jmptbl3[idx3][idx2][idx1][idx0];
+    #endif
+    dynablock_t* db = *(dynablock_t**)(ret - sizeof(void*));
+    *need_test = db?((ret!=(uintptr_t)db->block)?1:0):0;
+    return db;
 }
 
 uintptr_t getJumpAddress64(uintptr_t addr)
@@ -2533,6 +2572,9 @@ typedef union hotpage_s {
 static hotpage_t hotpage[N_HOTPAGE] = {0};
 #ifdef PPC64LE
 static volatile int hotpage_any_active = 0;    // fast early-out for isInHotPage on PPC64LE
+#endif
+#if defined(PPC64LE) && defined(BLOCK_CACHE_BITS)
+volatile uint64_t block_cache_generation = 1;  // bumped on block invalidation, for dispatch cache
 #endif
 void SetHotPage(int idx, uintptr_t page)
 {
@@ -2914,10 +2956,30 @@ uint32_t getProtection(uintptr_t addr)
 
 uint32_t getProtection_fast(uintptr_t addr)
 {
+#ifdef PPC64LE
+    // Fast path: check per-thread cache using generation counter.
+    // The memprot tree maps page-aligned ranges, so cache by page number
+    // (addr>>12) rather than byte address to maximize hit rate.
+    uint64_t gen = __atomic_load_n(&memprot_gen, __ATOMIC_ACQUIRE);
+    uintptr_t page = addr >> 12;
+    unsigned idx = (unsigned)(page ^ (page >> PROT_CACHE_SHIFT)) & PROT_CACHE_MASK;
+    if(prot_cache_gen == gen && prot_cache[idx].addr == page)
+        return prot_cache[idx].val;
+    // Cache miss or generation changed: take the lock and re-read
+    LOCK_PROT_FAST();
+    uint32_t ret = rb_get(memprot, addr);
+    uint64_t gen2 = __atomic_load_n(&memprot_gen, __ATOMIC_ACQUIRE);
+    UNLOCK_PROT_FAST();
+    prot_cache_gen = gen2;
+    prot_cache[idx].addr = page;
+    prot_cache[idx].val = ret;
+    return ret;
+#else
     LOCK_PROT_FAST();
     uint32_t ret = rb_get(memprot, addr);
     UNLOCK_PROT_FAST();
     return ret;
+#endif
 }
 
 int getMmapped(uintptr_t addr)

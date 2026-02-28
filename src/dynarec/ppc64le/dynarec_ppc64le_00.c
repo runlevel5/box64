@@ -2547,6 +2547,7 @@ uintptr_t dynarec64_00(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                     x87_stackcount(dyn, ninst, x1);
                     x87_forget(dyn, ninst, x3, x4, 0);
                     sse_purge07cache(dyn, ninst, x3);
+                    SMEND();
                     // Partially support isSimpleWrapper
                     tmp = isSimpleWrapper(*(wrapper_t*)(addr));
                     if (isRetX87Wrapper(*(wrapper_t*)(addr)))
@@ -2554,7 +2555,7 @@ uintptr_t dynarec64_00(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                         x87_purgecache(dyn, ninst, 0, x3, x1, x4);
                     if (tmp < 0 || (tmp & 15) > 1)
                         tmp = 0; // TODO: removed when FP is in place
-                    if ((BOX64ENV(log) < 2 && !BOX64ENV(rolling_log)) && tmp) {
+                    if ((BOX64ENV(log) < 2 && !BOX64ENV(rolling_log) && !BOX64ENV(dynarec_test)) && tmp) {
                         call_n(dyn, ninst, (void*)(addr + 8), tmp);
                         SMWRITE2();
                         addr += 8 + 8;
@@ -3217,20 +3218,21 @@ uintptr_t dynarec64_00(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                         }
                     }
                     PUSH1(x2);
-                    MESSAGE(LOG_DUMP, "Native Call to %s (retn=%d)\n", GetNativeName(GetNativeFnc(dyn->insts[ninst].natcall - 1), 1), dyn->insts[ninst].retn);
                     // calling a native function
+                    SMEND();
                     sse_purge07cache(dyn, ninst, x3);
-                    if ((BOX64ENV(log) < 2 && !BOX64ENV(rolling_log)) && dyn->insts[ninst].natcall) {
+                    if ((BOX64ENV(log) < 2 && !BOX64ENV(rolling_log) && !BOX64ENV(dynarec_test)) && dyn->insts[ninst].natcall) {
                         // Partially support isSimpleWrapper
                         tmp = isSimpleWrapper(*(wrapper_t*)(dyn->insts[ninst].natcall + 2));
                     } else
                         tmp = 0;
                     if (tmp < 0 || (tmp & 15) > 1)
                         tmp = 0; // TODO: removed when FP is in place
+                    MESSAGE(LOG_DUMP, "Native Call to %s (retn=%d, simpleWrapper=%d)\n", GetNativeName(GetNativeFnc(dyn->insts[ninst].natcall - 1), 1), dyn->insts[ninst].retn, tmp);
                     if (dyn->insts[ninst].natcall && isRetX87Wrapper(*(wrapper_t*)(dyn->insts[ninst].natcall + 2)))
                         // return value will be on the stack, so the stack depth needs to be updated
                         x87_purgecache(dyn, ninst, 0, x3, x1, x4);
-                    if ((BOX64ENV(log) < 2 && !BOX64ENV(rolling_log)) && dyn->insts[ninst].natcall && tmp) {
+                    if ((BOX64ENV(log) < 2 && !BOX64ENV(rolling_log) && !BOX64ENV(dynarec_test)) && dyn->insts[ninst].natcall && tmp) {
                         call_n(dyn, ninst, (void*)(dyn->insts[ninst].natcall + 2 + 8), tmp);
                         SMWRITE2();
                         POP1(xRIP); // pop the return address
