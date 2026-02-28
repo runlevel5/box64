@@ -303,6 +303,8 @@ x64emu_t* getEmuSignal(x64emu_t* emu, ucontext_t* p, dynablock_t* db)
 }
 #endif
 
+
+
 #ifdef BOX32
 int my_sigactionhandler_oldcode_32(x64emu_t* emu, int32_t sig, int simple, siginfo_t* info, void * ucntx, int* old_code, void* cur_db);
 #endif
@@ -559,7 +561,7 @@ int my_sigactionhandler_oldcode_64(x64emu_t* emu, int32_t sig, int simple, sigin
             if(Locks & is_dyndump_locked)
                 CancelBlock64(1);
             #endif
-            #ifdef RV64
+            #if defined(RV64) || defined(PPC64LE)
             emu->xSPSave = emu->old_savedsp;
             #endif
             #ifdef DYNAREC
@@ -882,6 +884,9 @@ void my_box64signalhandler(int32_t sig, siginfo_t* info, void * ucntx)
                         emu->test.clean = 0;
                         // use "3" to regen a dynablock at current pc (else it will first do an interp run)
                         dynablock_leave_runtime(db);
+                        #if defined(RV64) || defined(PPC64LE)
+                        emu->xSPSave = emu->old_savedsp;
+                        #endif
                         #ifdef ANDROID
                         siglongjmp(*(JUMPBUFF*)emu->jmpbuf, 3);
                         #else
@@ -954,6 +959,9 @@ void my_box64signalhandler(int32_t sig, siginfo_t* info, void * ucntx)
                 emu->test.clean = 0;
                 // will restore unblocked Signal flags too
                 dynablock_leave_runtime(db);
+                #if defined(RV64) || defined(PPC64LE)
+                emu->xSPSave = emu->old_savedsp;
+                #endif
                 #ifdef ANDROID
                 siglongjmp(*(JUMPBUFF*)emu->jmpbuf, 2);
                 #else

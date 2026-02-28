@@ -807,12 +807,12 @@ dynablock_t* FillBlock64(uintptr_t addr, int alternate, int is32bits, int inst_m
     if(insts_rsize/sizeof(instsize_t)<helper.insts_size) {
         printf_log(LOG_NONE, "Warning, insts_size difference in block between pass2 (%zu) and pass3 (%zu), allocated: %zu\n", oldinstsize, helper.insts_size, insts_rsize/sizeof(instsize_t));
     }
-    if(!is_inhotpage && !isprotectedDB(addr, end-addr)) {
+    if(!is_inhotpage && !isprotectedDB_fast(addr, end-addr)) {
         dynarec_log(LOG_INFO, "Warning, block unprotected while being processed %p:%ld, marking as need_test\n", block->x64_addr, block->x64_size);
         block->dirty = 1;
         //protectDB(addr, end-addr);
     }
-    if(getProtection(addr)&PROT_NEVERCLEAN) {
+    if(getProtection_fast(addr)&PROT_NEVERCLEAN) {
         block->always_test = 1;
     }
     else if(is_inhotpage)
