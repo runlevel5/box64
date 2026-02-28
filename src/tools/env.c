@@ -326,6 +326,8 @@ static void freeEnv(box64env_t* env)
 #define ENV_ARCH "rv64"
 #elif defined(LA64)
 #define ENV_ARCH "la64"
+#elif defined(PPC64LE)
+#define ENV_ARCH "ppc64le"
 #elif defined(X86_64)
 #define ENV_ARCH "x86_64"
 #else
@@ -901,6 +903,8 @@ done:
 #define ARCH_VERSION SET_VERSION(0, 0, 4)
 #elif defined(LA64)
 #define ARCH_VERSION SET_VERSION(0, 0, 5)
+#elif defined(PPC64LE)
+#define ARCH_VERSION SET_VERSION(0, 0, 1)
 #else
 #error meh!
 #endif

@@ -44,7 +44,7 @@ uintptr_t native_pass(dynarec_native_t* dyn, uintptr_t addr, int alternate, int 
     int rep = 0;    // 0 none, 1=F2 prefix, 2=F3 prefix
     int need_epilog = 1;
     // Clean up (because there are multiple passes)
-    #if defined(ARM64) || defined(LA64)
+    #if defined(ARM64) || defined(LA64) || defined(PPC64LE)
     dyn->f = status_unk;
     #else
     dyn->f.pending = 0;
@@ -76,7 +76,7 @@ uintptr_t native_pass(dynarec_native_t* dyn, uintptr_t addr, int alternate, int 
         #if STEP == 0
         if(cur_page != ((addr)&~(box64_pagesize-1))) {
             cur_page = (addr)&~(box64_pagesize-1);
-            uint32_t prot = getProtection(addr);
+            uint32_t prot = getProtection_fast(addr);
             if(!(prot&PROT_READ) || checkInHotPage(addr) || (addr>dyn->end)) {
                 dynarec_log(LOG_INFO, "Stopping dynablock because of protection, hotpage or mmap crossing at %p -> %p inst=%d\n", (void*)dyn->start, (void*)addr, ninst);
                 need_epilog = 1;
@@ -111,7 +111,7 @@ uintptr_t native_pass(dynarec_native_t* dyn, uintptr_t addr, int alternate, int 
             dyn->last_ip = 0;
             if(reset_n==-2) {
                 MESSAGE(LOG_DEBUG, "Reset Caches to zero\n");
-                #if defined(ARM64) || defined(LA64)
+                #if defined(ARM64) || defined(LA64) || defined(PPC64LE)
                 dyn->f = status_unk;
                 #else
                 dyn->f.dfnone = 0;
@@ -128,7 +128,7 @@ uintptr_t native_pass(dynarec_native_t* dyn, uintptr_t addr, int alternate, int 
                 }
                 if(dyn->insts[ninst].x64.barrier&BARRIER_FLAGS) {
                     MESSAGE(LOG_DEBUG, "Apply Barrier Flags\n");
-                    #if defined(ARM64) || defined(LA64)
+                    #if defined(ARM64) || defined(LA64) || defined(PPC64LE)
                     dyn->f = status_unk;
                     #else
                     dyn->f.dfnone = 0;
@@ -252,7 +252,7 @@ uintptr_t native_pass(dynarec_native_t* dyn, uintptr_t addr, int alternate, int 
         #if STEP > 0
         if(dyn->insts[ninst].x64.has_next && dyn->insts[next].x64.barrier) {
             if(dyn->insts[next].x64.barrier&BARRIER_FLOAT) {
-                #if defined (RV64) || defined(LA64)
+                #if defined (RV64) || defined(LA64) || defined(PPC64LE)
                 uint8_t tmp1, tmp2, tmp3;
                 if(dyn->insts[next].nat_flags_fusion) get_free_scratch(dyn, next, &tmp1, &tmp2, &tmp3, x1, x2, x3, x4, x5);
                 else { tmp1=x1; tmp2=x2; tmp3=x3; }
@@ -262,7 +262,7 @@ uintptr_t native_pass(dynarec_native_t* dyn, uintptr_t addr, int alternate, int 
                 #endif
             }
             if(dyn->insts[next].x64.barrier&BARRIER_FLAGS) {
-                #if defined(ARM64) || defined(LA64)
+                #if defined(ARM64) || defined(LA64) || defined(PPC64LE)
                 dyn->f = status_unk;
                 #else
                 dyn->f.pending = 0;
@@ -288,7 +288,7 @@ uintptr_t native_pass(dynarec_native_t* dyn, uintptr_t addr, int alternate, int 
             // we use the 1st predecessor here
             if((ninst+1)<dyn->size && !dyn->insts[ninst+1].x64.alive) {
                 // reset fpu value...
-                #if defined(ARM64) || defined(LA64)
+                #if defined(ARM64) || defined(LA64) || defined(PPC64LE)
                 dyn->f = status_unk;
                 #else
                 dyn->f.dfnone = 0;
@@ -319,7 +319,7 @@ uintptr_t native_pass(dynarec_native_t* dyn, uintptr_t addr, int alternate, int 
         }
         #else
         // check if block need to be stopped, because it's a 00 00 opcode (unreadeable is already checked earlier)
-        if((ok>0) && !dyn->forward && (!(getProtection(addr+3)&PROT_READ) || !(*(uint32_t*)addr))) {
+        if((ok>0) && !dyn->forward && (!(getProtection_fast(addr+3)&PROT_READ) || !(*(uint32_t*)addr))) {
             if (dyn->need_dump) dynarec_log(LOG_NONE, "Stopping block at %p reason: %s\n", (void*)addr, "Next opcode is 00 00 00 00");
             ok = 0;
             need_epilog = 1;
@@ -350,7 +350,7 @@ uintptr_t native_pass(dynarec_native_t* dyn, uintptr_t addr, int alternate, int 
                 dyn->forward_ninst = 0;
             }
             // else just continue
-        } else if (!ok && !need_epilog && BOX64DRENV(dynarec_bigblock) && (getProtection(addr + 3) & ~PROT_READ))
+        } else if (!ok && !need_epilog && BOX64DRENV(dynarec_bigblock) && (getProtection_fast(addr + 3) & ~PROT_READ))
             if(*(uint32_t*)addr!=0) {   // check if need to continue (but is next 4 bytes are 0, stop)
                 uintptr_t next = get_closest_next(dyn, addr);
                 if(next && (
@@ -365,7 +365,7 @@ uintptr_t native_pass(dynarec_native_t* dyn, uintptr_t addr, int alternate, int 
                         reset_n = get_first_jump_addr(dyn, next);
                     }
                     if (dyn->need_dump) dynarec_log(LOG_NONE, "Extend block %p, %s%p -> %p (ninst=%d, jump from %d)\n", dyn, dyn->insts[ninst].x64.has_callret ? "(opt. call) " : "", (void*)addr, (void*)next, ninst + 1, dyn->insts[ninst].x64.has_callret ? ninst : reset_n);
-                } else if (next && (int)(next - addr) < BOX64ENV(dynarec_forward) && (getProtection(next) & PROT_READ) /*BOX64DRENV(dynarec_bigblock)>=stopblock*/) {
+                } else if (next && (int)(next - addr) < BOX64ENV(dynarec_forward) && (getProtection_fast(next) & PROT_READ) /*BOX64DRENV(dynarec_bigblock)>=stopblock*/) {
                     if (!((BOX64DRENV(dynarec_bigblock) < stopblock) && !isJumpTableDefault64((void*)next))) {
                         if(dyn->forward) {
                             if(next<dyn->forward_to)
@@ -442,7 +442,7 @@ uintptr_t native_pass(dynarec_native_t* dyn, uintptr_t addr, int alternate, int 
             #endif
             ++ninst;
             NOTEST(x3);
-            #if defined (RV64) || defined(LA64)
+            #if defined (RV64) || defined(LA64) || defined(PPC64LE)
             fpu_purgecache(dyn, ninst, 0, x1, x2, x3);
             #else
             fpu_purgecache(dyn, ninst, 0, x1, x2, x3, 0);
@@ -453,7 +453,7 @@ uintptr_t native_pass(dynarec_native_t* dyn, uintptr_t addr, int alternate, int 
     }
     if(need_epilog) {
         NOTEST(x3);
-        #if defined (RV64) || defined(LA64)
+        #if defined (RV64) || defined(LA64) || defined(PPC64LE)
         fpu_purgecache(dyn, ninst, 0, x1, x2, x3);
         #else
         fpu_purgecache(dyn, ninst, 0, x1, x2, x3, 0);
