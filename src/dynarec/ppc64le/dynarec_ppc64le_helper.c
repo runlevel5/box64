@@ -713,6 +713,8 @@ void call_n(dynarec_ppc64le_t* dyn, int ninst, void* fnc, int w)
 {
     MAYUSE(fnc);
     CHECK_DFNONE(1);
+    RESTORE_EFLAGS(x3);
+    STD(xFlags, offsetof(x64emu_t, eflags), xEmu);
     fpu_pushcache(dyn, ninst, x3, 1);
     // Save x86 regs that the native function might modify via re-entrant emulation.
     // On PPC64LE, x86 regs are in callee-saved r14-r29, so the native function preserves
@@ -720,6 +722,13 @@ void call_n(dynarec_ppc64le_t* dyn, int ninst, void* fnc, int w)
     STD(xRSP, offsetof(x64emu_t, regs[_SP]), xEmu);
     STD(xRBP, offsetof(x64emu_t, regs[_BP]), xEmu);
     STD(xRBX, offsetof(x64emu_t, regs[_BX]), xEmu);
+    // Allocate stack frame for the native call.
+    // PPC64LE ELFv2 ABI: the callee saves LR at caller's SP+16 and may save
+    // the TOC pointer at caller's SP+24. We must provide a valid frame.
+    // We save r2 (TOC) at SP+24 because the callee is an external function
+    // that will set its own TOC. After return, we restore r2.
+    ADDI(xSP, xSP, -32); // 32-byte minimum frame (16-byte aligned)
+    STD(2, 24, xSP);     // save TOC pointer (r2) at SP+24
     // prepare regs for native call: copy x86 argument registers to PPC64LE ABI registers.
     // On PPC64LE, x86 regs are in callee-saved r14-r29, while ABI args are in r3-r8.
     // No overlap, so order doesn't matter.
@@ -748,16 +757,22 @@ void call_n(dynarec_ppc64le_t* dyn, int ninst, void* fnc, int w)
     MR(12, x7);
     MTCTR(x7);
     BCTRL();
+    // Restore TOC pointer (r2) — the callee may have changed it
+    LD(2, 24, xSP);
     // put return value in x64 regs
     if (w > 0) {
         MV(xRAX, A0);
         MV(xRDX, A1);
     }
+    // Deallocate stack frame
+    ADDI(xSP, xSP, 32);
     // all done, restore all regs
     LD(xRSP, offsetof(x64emu_t, regs[_SP]), xEmu);
     LD(xRBP, offsetof(x64emu_t, regs[_BP]), xEmu);
     LD(xRBX, offsetof(x64emu_t, regs[_BX]), xEmu);
     fpu_popcache(dyn, ninst, x3, 1);
+    LD(xFlags, offsetof(x64emu_t, eflags), xEmu);
+    SPILL_EFLAGS();
     NATIVE_RESTORE_X87PC();
     // SET_NODF();
 }
