@@ -11,7 +11,8 @@
 #define NEW_INST                                \
         dyn->insts[ninst].f_entry = dyn->f;     \
         dyn->v.combined1 = dyn->v.combined2 = 0;\
-        dyn->v.swapped = 0; dyn->v.barrier = 0
+        dyn->v.swapped = 0; dyn->v.barrier = 0; \
+        AREFLAGSNEEDED()
 
 #define INST_EPILOG                             \
         dyn->insts[ninst].v = dyn->v;           \
