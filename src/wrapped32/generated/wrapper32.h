@@ -371,6 +371,7 @@ void lFiL_32(x64emu_t *emu, uintptr_t fnc);
 void lFui_32(x64emu_t *emu, uintptr_t fnc);
 void lFll_32(x64emu_t *emu, uintptr_t fnc);
 void lEpi_32(x64emu_t *emu, uintptr_t fnc);
+void lFpi_32(x64emu_t *emu, uintptr_t fnc);
 void lFpu_32(x64emu_t *emu, uintptr_t fnc);
 void lFpl_32(x64emu_t *emu, uintptr_t fnc);
 void lFpL_32(x64emu_t *emu, uintptr_t fnc);
