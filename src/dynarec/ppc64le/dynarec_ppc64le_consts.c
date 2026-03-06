@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include <string.h>
 
 #include "dynarec_ppc64le_consts.h"
 #include "debug.h"
@@ -20,6 +21,14 @@
 #include "x64test.h"
 #include "dynarec/dynarec_next.h"
 #include "random.h"
+
+static const int8_t mask_shift8[] = { -7, -6, -5, -4, -3, -2, -1, 0 };
+static const int8_t mask_string8[] = { 7, 6, 5, 4, 3, 2, 1, 0 };
+static const int8_t mask_string16[] = { 15, 14, 13, 12, 11, 10, 9, 8 };
+static const float addsubps[4] = {-1.f, 1.f, -1.f, 1.f};
+static const double addsubpd[2] = {-1., 1.};
+static const float subaddps[4] = {1.f, -1.f, 1.f, -1.f};
+static const double subaddpd[2] = {1., -1.};
 
 
 #ifndef HAVE_TRACE
@@ -122,6 +131,13 @@ uintptr_t getConst(ppc64le_consts_t which)
         case const_jmptbl48: return getJumpTable48();
         case const_jmptbl64: return getJumpTable64();
         case const_context: return (uintptr_t)my_context;
+        case const_8b_m7_m6_m5_m4_m3_m2_m1_0: return (uintptr_t)&mask_shift8;
+        case const_8b_7_6_5_4_3_2_1_0: return (uintptr_t)&mask_string8;
+        case const_8b_15_14_13_12_11_10_9_8: return (uintptr_t)&mask_string16;
+        case const_4f_m1_1_m1_1: return (uintptr_t)&addsubps;
+        case const_4f_1_m1_1_m1: return (uintptr_t)&subaddps;
+        case const_2d_m1_1: return (uintptr_t)&addsubpd;
+        case const_2d_1_m1: return (uintptr_t)&subaddpd;
 
         case const_last: dynarec_log(LOG_NONE, "Warning, const last used\n");
             return 0;
