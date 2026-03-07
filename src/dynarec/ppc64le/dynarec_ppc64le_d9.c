@@ -234,7 +234,7 @@ uintptr_t dynarec64_D9(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 MESSAGE(LOG_DUMP, "Need Optimization\n");
                 x87_forget(dyn, ninst, x1, x2, 0);
                 s0 = x87_stackcount(dyn, ninst, x3);
-                CALL(const_direct_f2xm1, -1, 0, 0);
+                CALL(const_native_f2xm1, -1, 0, 0);
                 x87_unstackcount(dyn, ninst, x3, s0);
                 break;
             case 0xF1:
@@ -243,7 +243,7 @@ uintptr_t dynarec64_D9(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 x87_forget(dyn, ninst, x1, x2, 0);
                 x87_forget(dyn, ninst, x1, x2, 1);
                 s0 = x87_stackcount(dyn, ninst, x3);
-                CALL(const_direct_fyl2x, -1, 0, 0);
+                CALL(const_native_fyl2x, -1, 0, 0);
                 x87_unstackcount(dyn, ninst, x3, s0);
                 X87_POP_OR_FAIL(dyn, ninst, x3);
                 break;
@@ -253,7 +253,7 @@ uintptr_t dynarec64_D9(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 x87_forget(dyn, ninst, x1, x2, 0);
                 s0 = x87_stackcount(dyn, ninst, x3);
                 if (!BOX64ENV(dynarec_fastround)) u8 = x87_setround(dyn, ninst, x1, x2);
-                CALL_(const_direct_ftan, -1, BOX64ENV(dynarec_fastround) ? 0 : u8, 0, 0);
+                CALL_(const_native_ftan, -1, BOX64ENV(dynarec_fastround) ? 0 : u8, 0, 0);
                 if (!BOX64ENV(dynarec_fastround)) x87_restoreround(dyn, ninst, u8);
                 x87_unstackcount(dyn, ninst, x3, s0);
                 X87_PUSH_OR_FAIL(v1, dyn, ninst, x1, VMX_CACHE_ST_F);
@@ -268,7 +268,7 @@ uintptr_t dynarec64_D9(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 x87_forget(dyn, ninst, x1, x2, 1);
                 s0 = x87_stackcount(dyn, ninst, x3);
                 if (!BOX64ENV(dynarec_fastround)) u8 = x87_setround(dyn, ninst, x1, x2);
-                CALL_(const_direct_fpatan, -1, BOX64ENV(dynarec_fastround) ? 0 : u8, 0, 0);
+                CALL_(const_native_fpatan, -1, BOX64ENV(dynarec_fastround) ? 0 : u8, 0, 0);
                 if (!BOX64ENV(dynarec_fastround)) x87_restoreround(dyn, ninst, u8);
                 x87_unstackcount(dyn, ninst, x3, s0);
                 X87_POP_OR_FAIL(dyn, ninst, x3);
@@ -320,7 +320,7 @@ uintptr_t dynarec64_D9(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 x87_forget(dyn, ninst, x1, x2, 0);
                 x87_forget(dyn, ninst, x1, x2, 1);
                 s0 = x87_stackcount(dyn, ninst, x3);
-                CALL(const_direct_fyl2xp1, -1, 0, 0);
+                CALL(const_native_fyl2xp1, -1, 0, 0);
                 x87_unstackcount(dyn, ninst, x3, s0);
                 X87_POP_OR_FAIL(dyn, ninst, x3);
                 break;
@@ -391,7 +391,7 @@ uintptr_t dynarec64_D9(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 x87_forget(dyn, ninst, x1, x2, 1);
                 s0 = x87_stackcount(dyn, ninst, x3);
                 if (!BOX64ENV(dynarec_fastround)) u8 = x87_setround(dyn, ninst, x1, x2);
-                CALL_(const_direct_fscale, -1, BOX64ENV(dynarec_fastround) ? 0 : u8, 0, 0);
+                CALL_(const_native_fscale, -1, BOX64ENV(dynarec_fastround) ? 0 : u8, 0, 0);
                 if (!BOX64ENV(dynarec_fastround)) x87_restoreround(dyn, ninst, u8);
                 x87_unstackcount(dyn, ninst, x3, s0);
                 break;
@@ -401,7 +401,7 @@ uintptr_t dynarec64_D9(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 x87_forget(dyn, ninst, x1, x2, 0);
                 s0 = x87_stackcount(dyn, ninst, x3);
                 if (!BOX64ENV(dynarec_fastround)) u8 = x87_setround(dyn, ninst, x1, x2);
-                CALL_(const_direct_fsin, -1, BOX64ENV(dynarec_fastround) ? 0 : u8, 0, 0);
+                CALL_(const_native_fsin, -1, BOX64ENV(dynarec_fastround) ? 0 : u8, 0, 0);
                 if (!BOX64ENV(dynarec_fastround)) x87_restoreround(dyn, ninst, u8);
                 x87_unstackcount(dyn, ninst, x3, s0);
                 break;
@@ -411,7 +411,7 @@ uintptr_t dynarec64_D9(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 x87_forget(dyn, ninst, x1, x2, 0);
                 s0 = x87_stackcount(dyn, ninst, x3);
                 if (!BOX64ENV(dynarec_fastround)) u8 = x87_setround(dyn, ninst, x1, x2);
-                CALL_(const_direct_fcos, -1, BOX64ENV(dynarec_fastround) ? 0 : u8, 0, 0);
+                CALL_(const_native_fcos, -1, BOX64ENV(dynarec_fastround) ? 0 : u8, 0, 0);
                 if (!BOX64ENV(dynarec_fastround)) x87_restoreround(dyn, ninst, u8);
                 x87_unstackcount(dyn, ninst, x3, s0);
                 break;
