@@ -186,13 +186,11 @@ uintptr_t dynarec64_D9(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             case 0xE8:
                 INST_NAME("FLD1");
                 X87_PUSH_OR_FAIL(v1, dyn, ninst, x1, VMX_CACHE_ST_F);
-                if (ST_IS_F(0)) {
-                    MOV32w(x1, 0x3f800000);
-                    MTVSRWZ(VSXREG_X87(v1), x1);
-                } else {
-                    MOV64x(x1, 0x3FF0000000000000);
-                    MTVSRD(VSXREG_X87(v1), x1);
-                }
+                // Always load the double representation of 1.0 into the FPR.
+                // PPC64LE FPRs always hold doubles; using MTVSRWZ with the float
+                // bit pattern 0x3f800000 produces a denormal that underflows to 0.
+                MOV64x(x1, 0x3FF0000000000000);
+                MTVSRD(VSXREG_X87(v1), x1);
                 break;
             case 0xE9:
                 INST_NAME("FLDL2T");
@@ -259,13 +257,9 @@ uintptr_t dynarec64_D9(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 if (!BOX64ENV(dynarec_fastround)) x87_restoreround(dyn, ninst, u8);
                 x87_unstackcount(dyn, ninst, x3, s0);
                 X87_PUSH_OR_FAIL(v1, dyn, ninst, x1, VMX_CACHE_ST_F);
-                if (ST_IS_F(0)) {
-                    MOV32w(x1, 0x3f800000);
-                    MTVSRWZ(VSXREG_X87(v1), x1);
-                } else {
-                    MOV64x(x1, 0x3FF0000000000000);
-                    MTVSRD(VSXREG_X87(v1), x1);
-                }
+                // Always load double 1.0, same fix as FLD1 above
+                MOV64x(x1, 0x3FF0000000000000);
+                MTVSRD(VSXREG_X87(v1), x1);
                 break;
             case 0xF3:
                 INST_NAME("FPATAN");
