@@ -644,26 +644,27 @@ uintptr_t dynarec64_AVX_F2_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t 
             LI(x4, 1);
             SLDI(x4, x4, 31);  // x4 = 0x00000000_80000000
             MTVSRDD(VSXREG(d0), x4, x4);
-            // XOR Ex with sign mask to flip sign of even float lanes
-            XXLXOR(VSXREG(d1), VSXREG(v2), VSXREG(d0));
-            // Add: Vx + modified_Ex gives sub for even, add for odd
+            // XOR Ex with sign mask to flip sign of even float lanes.
+            // NaN care: XOR must NOT flip sign of NaN inputs, since x86 SUB propagates
+            // input NaN sign unchanged. Only apply sign flip to non-NaN lanes of Ex.
             if (!BOX64ENV(dynarec_fastnan)) {
                 q0 = fpu_get_scratch(dyn);
-                XVCMPEQSP(VSXREG(d0), VSXREG(v1), VSXREG(v1));  // d0 = -1 where Vx NOT NaN
+                // Mask sign flip to non-NaN lanes: XOR only where Ex is ordered
                 XVCMPEQSP(VSXREG(q0), VSXREG(v2), VSXREG(v2));  // q0 = -1 where Ex NOT NaN
-                XXLAND(VSXREG(d0), VSXREG(d0), VSXREG(q0));      // d0 = both ordered mask
+                XXLAND(VSXREG(d0), VSXREG(d0), VSXREG(q0));      // zero sign flip for NaN lanes
+                XVCMPEQSP(VSXREG(d1), VSXREG(v1), VSXREG(v1));  // d1 = -1 where Vx NOT NaN
+                XXLAND(VSXREG(d1), VSXREG(d1), VSXREG(q0));      // d1 = both ordered mask
             }
-            XVADDSP(VSXREG(v0), VSXREG(v1), VSXREG(d1));
+            XXLXOR(VSXREG(d0), VSXREG(v2), VSXREG(d0));
+            // Add: Vx + modified_Ex gives sub for even, add for odd
+            XVADDSP(VSXREG(v0), VSXREG(v1), VSXREG(d0));
             if (!BOX64ENV(dynarec_fastnan)) {
-                // Fix 1: newly generated NaNs (both inputs ordered, result NaN) — set sign bit
-                XVCMPEQSP(VSXREG(d1), VSXREG(v0), VSXREG(v0));  // d1 = -1 where result NOT NaN
-                XXLANDC(VSXREG(d1), VSXREG(d0), VSXREG(d1));     // both-ordered AND result-NaN
-                XXSPLTIB(VSXREG(d0), 31);
-                VSLW(VRREG(d1), VRREG(d1), VRREG(d0));
-                XXLOR(VSXREG(v0), VSXREG(v0), VSXREG(d1));      // OR sign bit
-                // Note: no fixup needed for Ex NaN in subtraction lanes. The XOR
-                // sign flip before ADD correctly emulates x86 SUB's NaN sign
-                // negation behavior (x86 SUB flips NaN sign, PPC SUB does not).
+                // Newly generated NaNs (both inputs ordered, result NaN) — set sign bit
+                XVCMPEQSP(VSXREG(d0), VSXREG(v0), VSXREG(v0));  // d0 = -1 where result NOT NaN
+                XXLANDC(VSXREG(d0), VSXREG(d1), VSXREG(d0));     // both-ordered AND result-NaN
+                XXSPLTIB(VSXREG(d1), 31);
+                VSLW(VRREG(d0), VRREG(d0), VRREG(d1));
+                XXLOR(VSXREG(v0), VSXREG(v0), VSXREG(d0));      // OR sign bit
             }
             break;
 
