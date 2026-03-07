@@ -42,10 +42,13 @@ void emit_cmp8(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3, int s4
     }
 
     // It's a cmp, we can't store the result back to s1.
-    SUB(s6, s1, s2);
-    ANDId(s6, s6, 0xff);
     IFX_PENDOR0 {
+        SUB(s6, s1, s2);
+        ANDId(s6, s6, 0xff);
         STB(s6, offsetof(x64emu_t, res), xEmu);
+    } else IFX(X_ALL) {
+        SUB(s6, s1, s2);
+        ANDId(s6, s6, 0xff);
     }
     IFX(X_SF) {
         SRDI(s3, s6, 7);
@@ -135,12 +138,13 @@ void emit_cmp16(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3, int s
     }
 
     // It's a cmp, we can't store the result back to s1.
-    SUB(s6, s1, s2);
-    IFX(X_ALL) {
-        BF_EXTRACT(s6, s6, 15, 0);
-    }
     IFX_PENDOR0 {
+        SUB(s6, s1, s2);
+        BF_EXTRACT(s6, s6, 15, 0);
         STH(s6, offsetof(x64emu_t, res), xEmu);
+    } else IFX(X_ALL) {
+        SUB(s6, s1, s2);
+        BF_EXTRACT(s6, s6, 15, 0);
     }
     IFX(X_SF) {
         SRDI(s3, s6, 15);
@@ -230,9 +234,11 @@ void emit_cmp32(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, int s1, int s2, in
     }
 
     // It's a cmp, we can't store the result back to s1.
-    SUBxw(s6, s1, s2);
     IFX_PENDOR0 {
+        SUBxw(s6, s1, s2);
         SDxw(s6, xEmu, offsetof(x64emu_t, res));
+    } else IFX(X_ALL) {
+        SUBxw(s6, s1, s2);
     }
     IFX(X_SF) {
         // Check sign bit (bit 31 for 32-bit, bit 63 for 64-bit)
@@ -242,8 +248,10 @@ void emit_cmp32(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, int s1, int s2, in
         BEQ(8);
         ORI(xFlags, xFlags, 1 << F_SF);
     }
-    if (!rex.w) {
-        ZEROUP(s6);
+    IFX(X_SF | X_AF | X_CF | X_OF | X_ZF | X_PF) {
+        if (!rex.w) {
+            ZEROUP(s6);
+        }
     }
     CALC_SUB_FLAGS(s5, s2, s6, s3, s4, rex.w?64:32);
     IFX(X_ZF) {

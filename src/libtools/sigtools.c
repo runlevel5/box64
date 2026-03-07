@@ -505,6 +505,12 @@ int sigbus_specialcases(siginfo_t* info, void * ucntx, void* pc, void* _fpsimd, 
 #ifdef USE_CUSTOM_MUTEX
 extern uint32_t mutex_prot;
 extern uint32_t mutex_blocks;
+#elif defined(PPC64LE)
+extern pthread_rwlock_t rwlock_prot;
+extern pthread_mutex_t mutex_blocks;
+// Defined in custommem.c — check/unlock/relock the prot rwlock via thread-local tracking
+extern int checkUnlockProtRwlock(void);
+extern int checkNolockProtRwlock(void);
 #else
 extern pthread_mutex_t mutex_prot;
 extern pthread_mutex_t mutex_blocks;
@@ -531,7 +537,20 @@ int unlockMutex()
     #endif
 
     GO(mutex_blocks, 0)
+    #ifdef USE_CUSTOM_MUTEX
     GO(mutex_prot, 1)
+    #elif defined(PPC64LE)
+    #undef GO
+    i = checkUnlockProtRwlock();
+    if(i) { ret |= (1 << 1); }
+    #define GO(A, B)          \
+    i = checkUnlockMutex(&A); \
+    if (i) {                  \
+        ret |= (1 << B);      \
+    }
+    #else
+    GO(mutex_prot, 1)
+    #endif
 
     GO(my_context->mutex_trace, 7)
     GO(my_context->mutex_dyndump, 8)
@@ -566,7 +585,20 @@ int checkMutex(uint32_t mask)
     #endif
 
     GO(mutex_blocks, 0)
+    #ifdef USE_CUSTOM_MUTEX
     GO(mutex_prot, 1)
+    #elif defined(PPC64LE)
+    #undef GO
+    i = (mask&(1<<1))?checkNolockProtRwlock():0;
+    if(i) { ret |= (1 << 1); }
+    #define GO(A, B)                            \
+    i = (mask&(1<<B))?checkNolockMutex(&A):0;   \
+    if (i) {                                    \
+        ret |= (1 << B);                        \
+    }
+    #else
+    GO(mutex_prot, 1)
+    #endif
 
     GO(my_context->mutex_trace, 7)
     GO(my_context->mutex_dyndump, 8)
