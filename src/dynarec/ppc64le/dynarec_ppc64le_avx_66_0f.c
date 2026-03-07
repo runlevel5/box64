@@ -1258,22 +1258,24 @@ uintptr_t dynarec64_AVX_66_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t 
             nextop = F8;
             GETGY_empty_VYEY_xy(v0, v1, v2, 0);
             // VADDSUBPD: dst[63:0] = Vx[63:0] - Ex[63:0], dst[127:64] = Vx[127:64] + Ex[127:64]
-            // Use XOR-then-ADD: flip sign of x86 low lane (sub lane) in Ex, then add.
-            // This correctly handles NaN: x86 SUB flips NaN sign bit, and
-            // the XOR-then-ADD trick replicates this. PPC SUB does NOT flip NaN sign.
+            // Use XOR-then-ADD: flip sign of sub-lane in Ex, then add both lanes.
+            // NaN care: XOR must NOT flip sign of NaN inputs, since x86 SUB propagates
+            // input NaN sign unchanged. Only apply sign flip to non-NaN lanes of Ex.
             q0 = fpu_get_scratch(dyn);
             // Sign mask: dw0=0 (x86 high = add, no flip), dw1=0x8000000000000000 (x86 low = sub, flip)
             LI(x4, 1);
             SLDI(x4, x4, 63);  // x4 = 0x8000000000000000
             MTVSRDD(VSXREG(q0), xZR, x4);
-            XXLXOR(VSXREG(q0), VSXREG(v2), VSXREG(q0));
             if (!BOX64ENV(dynarec_fastnan)) {
                 d0 = fpu_get_scratch(dyn);
                 d1 = fpu_get_scratch(dyn);
-                XVCMPEQDP(VSXREG(d0), VSXREG(v1), VSXREG(v1));  // d0 = -1 where Vx NOT NaN
+                // Mask sign flip to non-NaN lanes: XOR only where Ex is ordered
                 XVCMPEQDP(VSXREG(d1), VSXREG(v2), VSXREG(v2));  // d1 = -1 where Ex NOT NaN
+                XXLAND(VSXREG(q0), VSXREG(q0), VSXREG(d1));      // zero sign flip for NaN lanes
+                XVCMPEQDP(VSXREG(d0), VSXREG(v1), VSXREG(v1));  // d0 = -1 where Vx NOT NaN
                 XXLAND(VSXREG(d0), VSXREG(d0), VSXREG(d1));      // d0 = both ordered mask
             }
+            XXLXOR(VSXREG(q0), VSXREG(v2), VSXREG(q0));
             XVADDDP(VSXREG(v0), VSXREG(v1), VSXREG(q0));
             if (!BOX64ENV(dynarec_fastnan)) {
                 // Newly generated NaNs (both inputs ordered, result NaN) — set sign bit
