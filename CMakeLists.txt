@@ -1745,6 +1745,13 @@ add_test(Boundary ${CMAKE_COMMAND} -D TEST_PROGRAM=${CMAKE_BINARY_DIR}/${BOX64}
     -D TEST_REFERENCE=${CMAKE_SOURCE_DIR}/tests/ref33.txt
     -P ${CMAKE_SOURCE_DIR}/runTest.cmake )
 
+add_test(nan_signbit ${CMAKE_COMMAND} -D TEST_PROGRAM=${CMAKE_BINARY_DIR}/${BOX64}
+    -D TEST_ARGS=${CMAKE_SOURCE_DIR}/tests/test34 -D TEST_OUTPUT=tmpfile34.txt
+    -D TEST_REFERENCE=${CMAKE_SOURCE_DIR}/tests/ref34.txt
+    -P ${CMAKE_SOURCE_DIR}/runTest.cmake )
+
+set_tests_properties(nan_signbit PROPERTIES ENVIRONMENT "BOX64_DYNAREC_FASTNAN=0")
+
 #if(NOT CI)
 #    add_test(AppImage ${CMAKE_COMMAND} -D TEST_PROGRAM=${CMAKE_BINARY_DIR}/${BOX64}
 #        -D TEST_ARGS=${CMAKE_SOURCE_DIR}/tests/test01-x64.AppImage -D TEST_OUTPUT=tmpfileAppImage.txt
@@ -2057,4 +2064,14 @@ if(BOX32)
             -D TEST_ARGS=${CMAKE_SOURCE_DIR}/tests32/test23 -D TEST_OUTPUT=tmpfile32_23.txt
             -D TEST_REFERENCE=${CMAKE_SOURCE_DIR}/tests32/ref23.txt
             -P ${CMAKE_SOURCE_DIR}/runTest.cmake )
+
+    add_test(NAME gs_segment_32bits COMMAND ${CMAKE_COMMAND} -D TEST_PROGRAM=${CMAKE_BINARY_DIR}/${BOX64}
+        -D TEST_ARGS=${CMAKE_SOURCE_DIR}/tests32/test27 -D TEST_OUTPUT=tmpfile32_27.txt
+        -D TEST_REFERENCE=${CMAKE_SOURCE_DIR}/tests32/ref27.txt
+        -P ${CMAKE_SOURCE_DIR}/runTest.cmake )
+
+    add_test(NAME x87_fld1_32bits COMMAND ${CMAKE_COMMAND} -D TEST_PROGRAM=${CMAKE_BINARY_DIR}/${BOX64}
+        -D TEST_ARGS=${CMAKE_SOURCE_DIR}/tests32/test28 -D TEST_OUTPUT=tmpfile32_28.txt
+        -D TEST_REFERENCE=${CMAKE_SOURCE_DIR}/tests32/ref28.txt
+        -P ${CMAKE_SOURCE_DIR}/runTest.cmake )
 endif()
