@@ -261,11 +261,14 @@
             ADDI(rd, rj, imm);           \
     } while (0)
 
-// ADDxREGy: add, zero-extending rk to 32-bit first if needed (for seg+reg in 32-bit mode)
+// ADDxREGy: add, sign-extending rk from 32-bit first if needed (for seg+offset in 32-bit mode)
+// Sign-extension (not zero-extension) is needed so that large 32-bit offsets
+// (like 0xFFFFFFF0) wrap correctly when added to the 64-bit segment base,
+// matching ARM64's ADDx_SXTW and RV64's ADDIW idioms.
 #define ADDxREGy(rd, rj, rk, s1)        \
     do {                                 \
         if (rex.is32bits || rex.is67) {  \
-            ZEROUP2(s1, rk);             \
+            SEXT_W(s1, rk);              \
             ADD(rd, rj, s1);             \
         } else                           \
             ADD(rd, rj, rk);             \
