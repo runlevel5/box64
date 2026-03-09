@@ -19,8 +19,12 @@
 // The gen/ptr fields follow the cache array, so their offsets depend on size.
 // Verified at compile time by _Static_assert in x64emu.c.
 #define BLOCK_CACHE_SIZE            (1 << BLOCK_CACHE_BITS)
-#ifdef BOX32
+#if defined(BOX32) && defined(HAVE_TRACE)
+#define EMU_BLOCK_CACHE             0x2108
+#elif defined(BOX32)
 #define EMU_BLOCK_CACHE             0x1E80
+#elif defined(HAVE_TRACE)
+#define EMU_BLOCK_CACHE             0x11C0
 #else
 #define EMU_BLOCK_CACHE             0x0F38
 #endif

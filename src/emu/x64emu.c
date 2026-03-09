@@ -28,8 +28,12 @@
 // The base offset differs with BOX32 due to extra fields in x64emu_t.
 #if defined(PPC64LE) && defined(BLOCK_CACHE_BITS)
 #include <stddef.h>
-#ifdef BOX32
+#if defined(BOX32) && defined(HAVE_TRACE)
+#define _EMU_BLOCK_CACHE_BASE 0x2108
+#elif defined(BOX32)
 #define _EMU_BLOCK_CACHE_BASE 0x1E80
+#elif defined(HAVE_TRACE)
+#define _EMU_BLOCK_CACHE_BASE 0x11C0
 #else
 #define _EMU_BLOCK_CACHE_BASE 0x0F38
 #endif
