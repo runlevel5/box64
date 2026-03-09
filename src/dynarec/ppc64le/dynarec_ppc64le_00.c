@@ -771,13 +771,8 @@ uintptr_t dynarec64_00(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 LWA(x1, 0, x3);
                 PUSH1z(x1);
             } else {
-                if (!i64) {
-                    LI(x3, 0);
-                    PUSH1z(x3);
-                } else {
-                    MOV64z(x3, i64);
-                    PUSH1z(x3);
-                }
+                MOV64z(x3, i64);
+                PUSH1z(x3);
                 SMWRITE();
             }
             break;
@@ -833,13 +828,8 @@ uintptr_t dynarec64_00(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
         case 0x6A:
             INST_NAME("PUSH Ib");
             i64 = F8S;
-            if (!i64) {
-                LI(x3, 0);
-                PUSH1z(x3);
-            } else {
-                MOV64z(x3, i64);
-                PUSH1z(x3);
-            }
+            MOV64z(x3, i64);
+            PUSH1z(x3);
             SMWRITE();
             break;
         case 0x6B:
@@ -2424,15 +2414,9 @@ uintptr_t dynarec64_00(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 SCRATCH_USAGE(0);
                 addr = geted(dyn, addr, ninst, nextop, &wback, x2, x1, &fixedaddress, rex, &lock, DS_DISP, 1);
                 u8 = F8;
-                if (u8) {
-                    SCRATCH_USAGE(1);
-                    LI(x3, u8);
-                    ed = x3;
-                } else {
-                    SCRATCH_USAGE(1);
-                    LI(x3, 0);
-                    ed = x3;
-                }
+                SCRATCH_USAGE(1);
+                LI(x3, u8);
+                ed = x3;
                 STB(ed, fixedaddress, wback);
                 SMWRITELOCK(lock);
             }
@@ -2448,15 +2432,9 @@ uintptr_t dynarec64_00(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             } else { // mem <= i32
                 addr = geted(dyn, addr, ninst, nextop, &wback, x2, x1, &fixedaddress, rex, &lock, DS_DISP, 4);
                 i64 = F32S;
-                if (i64) {
-                    SCRATCH_USAGE(1);
-                    MOV64x(x3, i64);
-                    ed = x3;
-                } else {
-                    SCRATCH_USAGE(1);
-                    LI(x3, 0);
-                    ed = x3;
-                }
+                SCRATCH_USAGE(1);
+                MOV64xw(x3, i64);
+                ed = x3;
                 SDxw(ed, wback, fixedaddress);
                 SMWRITELOCK(lock);
             }
