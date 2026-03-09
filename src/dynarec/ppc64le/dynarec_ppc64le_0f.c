@@ -485,6 +485,29 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                         MTVSRDD(VSXREG(v0), xZR, x6);
                     }
                     break;
+                case 0x04:
+                    INST_NAME("PMADDUBSW Gm, Em");
+                    nextop = F8;
+                    GETGM(v0);
+                    GETEM(v1, 0);
+                    d0 = fpu_get_scratch(dyn);
+                    d1 = fpu_get_scratch(dyn);
+                    // Result[i] = sat_s16(Gm_u8[2i]*Em_s8[2i] + Gm_u8[2i+1]*Em_s8[2i+1])
+                    {
+                        int d2 = fpu_get_scratch(dyn);
+                        XXLXOR(VSXREG(d2), VSXREG(d2), VSXREG(d2));
+                        // Gm unsigned bytes → halfwords
+                        VMRGLB(VRREG(d0), VRREG(d2), VRREG(v0));
+                        // Em signed bytes → halfwords
+                        VUPKLSB(VRREG(d1), VRREG(v1));
+                        // Multiply even/odd halfwords → words, add pairs with signed saturation
+                        VMULESH(VRREG(d2), VRREG(d0), VRREG(d1));
+                        VMULOSH(VRREG(d0), VRREG(d0), VRREG(d1));
+                        VADDSWS(VRREG(d0), VRREG(d2), VRREG(d0));
+                        // Pack words → saturated signed halfwords
+                        VPKSWSS(VRREG(v0), VRREG(d0), VRREG(d0));
+                    }
+                    break;
                 case 0xF0:
                     INST_NAME("MOVBE Gd, Ed");
                     nextop = F8;
