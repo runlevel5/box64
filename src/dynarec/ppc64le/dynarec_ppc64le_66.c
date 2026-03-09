@@ -73,12 +73,8 @@ uintptr_t dynarec64_66(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_FUSION);
             i32 = F16;
             BF_EXTRACT(x1, xRAX, 15, 0);
-            if (i32) {
-                MOV32w(x2, i32);
-                emit_add16(dyn, ninst, x1, x2, x3, x4, x5);
-            } else {
-                emit_add16(dyn, ninst, x1, xZR, x3, x4, x5);
-            }
+            MOV32w(x2, i32);
+            emit_add16(dyn, ninst, x1, x2, x3, x4, x5);
             BF_INSERT(xRAX, x1, 15, 0);
             break;
         case 0x09:
@@ -215,12 +211,8 @@ uintptr_t dynarec64_66(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_FUSION);
             i32 = F16;
             BF_EXTRACT(x1, xRAX, 15, 0);
-            if (i32) {
-                MOV32w(x2, i32);
-                emit_sub16(dyn, ninst, x1, x2, x3, x4, x5);
-            } else {
-                emit_sub16(dyn, ninst, x1, xZR, x3, x4, x5);
-            }
+            MOV32w(x2, i32);
+            emit_sub16(dyn, ninst, x1, x2, x3, x4, x5);
             BF_INSERT(xRAX, x1, 15, 0);
             break;
         case 0x31:
@@ -277,13 +269,8 @@ uintptr_t dynarec64_66(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
         case 0x68:
             INST_NAME("PUSH Iw");
             i32 = F16;
-            if (i32) {
-                MOV32w(x3, i32);
-                PUSH1_16(x3);
-            } else {
-                LI(x3, 0);
-                PUSH1_16(x3);
-            }
+            MOV32w(x3, i32);
+            PUSH1_16(x3);
             break;
         case 0x69:
             INST_NAME("IMUL Gw, Ew, Iw");
@@ -304,13 +291,8 @@ uintptr_t dynarec64_66(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
         case 0x6A:
             INST_NAME("PUSH Ib");
             i32 = F8S;
-            if (i32) {
-                MOV64z(x3, (uint16_t)i32);
-                PUSH1_16(x3);
-            } else {
-                LI(x3, 0);
-                PUSH1_16(x3);
-            }
+            MOV64z(x3, (uint16_t)i32);
+            PUSH1_16(x3);
             break;
         case 0x6B:
             INST_NAME("IMUL Gw, Ew, Ib");
