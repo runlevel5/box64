@@ -2571,6 +2571,7 @@ uintptr_t dynarec64_00(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                         LWZ(x1, offsetof(x64emu_t, quit), xEmu);
                         CBZ_NEXT(x1);
                         MARK;
+                        LOAD_XEMU_REM();
                         jump_to_epilog_fast(dyn, 0, xRIP, ninst);
                     }
                 }
@@ -3257,6 +3258,7 @@ uintptr_t dynarec64_00(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                         LWZ(x1, offsetof(x64emu_t, quit), xEmu);
                         CBZ_NEXT(x1);
                         MARK;
+                        LOAD_XEMU_REM();
                         jump_to_epilog_fast(dyn, 0, xRIP, ninst);
                         dyn->last_ip = addr;
                     }
