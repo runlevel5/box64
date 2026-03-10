@@ -3300,19 +3300,28 @@ EXPORT void* box_mmap(void *addr, size_t length, int prot, int flags, int fd, ss
     // On ppc64le with 64KB pages, static binaries may expect 4KB memory allocation granularity
     // If a small allocation is requested, round up to ensure adjacent pages are available
     size_t actual_length = length;
+    int actual_prot = prot;
     if(box64_pagesize > 4096 && length < box64_pagesize) {
         // For small allocations on large-page systems, allocate the full page
         // to ensure the program can access adjacent 4KB regions as expected
         if(flags & MAP_ANONYMOUS) {  // any anonymous allocation
             actual_length = box64_pagesize;
-            printf_dump(LOG_INFO, "PPC64LE: Rounding up mmap from 0x%zx to 0x%zx bytes for static binary compatibility\n", length, actual_length);
+            // If the original request was PROT_NONE, the static binary might expect
+            // to access the next 4KB region. Map as accessible and mprotect later if needed.
+            if(prot == PROT_NONE) {
+                actual_prot = PROT_READ|PROT_WRITE;
+                printf_dump(LOG_INFO, "PPC64LE: Mapping 0x%zx bytes as RW instead of NONE for static binary compatibility\n", actual_length);
+            } else {
+                printf_dump(LOG_INFO, "PPC64LE: Rounding up mmap from 0x%zx to 0x%zx bytes for static binary compatibility\n", length, actual_length);
+            }
         }
     }
     #else
     size_t actual_length = length;
+    int actual_prot = prot;
     #endif
 
-    void* ret = InternalMmap(addr, actual_length, prot, new_flags, fd, offset);
+    void* ret = InternalMmap(addr, actual_length, actual_prot, new_flags, fd, offset);
 #if !defined(NOALIGN)
     if((ret!=MAP_FAILED) && (flags&MAP_32BIT) &&
       (((uintptr_t)ret>0xffffffffLL) || ((box64_wine) && ((uintptr_t)ret&0xffff) && (ret!=addr)))) {
