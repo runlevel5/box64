@@ -17434,7 +17434,6 @@ int isSimpleWrapper(wrapper_t fun) {
 	if (fun == &iFiuuUpU) return 113;
 	if (fun == &iFiuuppp) return 113;
 	if (fun == &iFiuUuUu) return 689;
-	if (fun == &iFilpppp) return 17;
 	if (fun == &iFiLpppi) return 529;
 	if (fun == &iFipipip) return 337;
 	if (fun == &iFipippp) return 81;

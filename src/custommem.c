@@ -2558,6 +2558,9 @@ void SetHotPage(int idx, uintptr_t page)
     tmp.cnt = BOX64ENV(dynarec_dirty)?(BOX64ENV(dynarec_hotpage_alt)?HOTPAGE_DIRTY_ALT:HOTPAGE_DIRTY):HOTPAGE_MARK;
     //TODO: use Atomics to update hotpage?
     native_lock_store_dd(hotpage+idx, tmp.x);
+#ifdef PPC64LE
+    hotpage_any_active = 1;  // Mark that we have active hotpages
+#endif
 }
 int IdxHotPage(uintptr_t page)
 {
@@ -2569,6 +2572,16 @@ int IdxHotPage(uintptr_t page)
 void CancelHotPage(uintptr_t page)
 {
     unneverprotectDB(page<<12, box64_pagesize);
+#ifdef PPC64LE
+    // Check if any hotpages are still active
+    hotpage_any_active = 0;
+    for(int i=0; i<N_HOTPAGE; ++i) {
+        if(hotpage[i].cnt && hotpage[i].cnt != HOTPAGE_MAX) {
+            hotpage_any_active = 1;
+            break;
+        }
+    }
+#endif
 }
 int IdxOldestHotPage(uintptr_t page)
 {
@@ -2657,6 +2670,10 @@ int isInHotPage(uintptr_t addr)
     if(addr>0x1000000000000LL) return 0;
     if(BOX64ENV(dynarec_nohotpage))
         return 0;
+#ifdef PPC64LE
+    // Fast early-out: if no hotpages are active, skip expensive lookup
+    if(!hotpage_any_active) return 0;
+#endif
     uintptr_t page = addr>>12;
     int idx = IdxHotPage(page);
     if(BOX64ENV(dynarec_hotpage_alt)) {
@@ -2672,6 +2689,9 @@ int isInHotPage(uintptr_t addr)
     } else {
         int ret = ((idx==-1) || !hotpage[idx].cnt)?0:1;
         // decrement all hotpage, it's a hotpage "tick"
+#ifdef PPC64LE
+        int any_active = 0;  // Track if any remain active after decrement
+#endif
         for(int i=0; i<N_HOTPAGE; ++i) {
             int ok = 0;
             do {
@@ -2682,9 +2702,15 @@ int isInHotPage(uintptr_t addr)
                 } else {
                     --hp.cnt;
                     ok = native_lock_storeifref2(hotpage+i, (void*)hp.x, (void*)old.x)==(void*)old.x;
+#ifdef PPC64LE
+                    if(hp.cnt > 0) any_active = 1;  // Still has active hotpages
+#endif
                 }
             } while(!ok);
         }
+#ifdef PPC64LE
+        hotpage_any_active = any_active;  // Update global flag efficiently
+#endif
         return ret;
     }
 }
