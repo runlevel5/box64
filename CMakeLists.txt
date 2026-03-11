@@ -471,7 +471,13 @@ if(NOT STATICBUILD)
         "${BOX64_ROOT}/src/steam.c"
         "${BOX64_ROOT}/src/libtools/sdl1rwops.c"
         "${BOX64_ROOT}/src/libtools/sdl2rwops.c"
-        "${BOX64_ROOT}/src/tools/gtkclass.c"
+        "${BOX64_ROOT}/src/tools/gtk/gtk_core.c"
+        "${BOX64_ROOT}/src/tools/gtk/gtk_base.c"
+        "${BOX64_ROOT}/src/tools/gtk/gtk_widgets.c"
+        "${BOX64_ROOT}/src/tools/gtk/gtk_multimedia.c"
+        "${BOX64_ROOT}/src/tools/gtk/gtk_accessibility.c"
+        "${BOX64_ROOT}/src/tools/gtk/gtk_application.c"
+        "${BOX64_ROOT}/src/tools/gtk/gtk_gstreamer_stubs.c"
         "${BOX64_ROOT}/src/librarian/globalsymbols.c"
         )
 endif()
