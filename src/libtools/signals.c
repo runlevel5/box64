@@ -12,6 +12,7 @@
 #include <setjmp.h>
 #include <sys/mman.h>
 #include <pthread.h>
+#include <time.h>
 #ifndef ANDROID
 #include <execinfo.h>
 #endif
@@ -68,6 +69,13 @@ x64_stack_t* sigstack_getstack() {
 // This ensures signals can be delivered even when the emulated program overflows its stack.
 static pthread_key_t native_altstack_key;
 static pthread_once_t native_altstack_key_once = PTHREAD_ONCE_INIT;
+
+// Unity signal storm prevention for SIGXCPU profiler ping-pong issue
+#define UNITY_SIGNAL_THROTTLE_WINDOW_MS 50  // 50ms window for signal throttling
+#define UNITY_SIGNAL_THROTTLE_MAX_COUNT 5   // Max 5 signals per window
+static pthread_mutex_t unity_signal_throttle_mutex = PTHREAD_MUTEX_INITIALIZER;
+static struct timespec last_sigxcpu_time = {0, 0};
+static int sigxcpu_count_in_window = 0;
 
 static void native_altstack_destroy(void* p) {
     if(p) {
@@ -743,6 +751,12 @@ extern int box64_exit_code;
 void my_box64signalhandler(int32_t sig, siginfo_t* info, void * ucntx)
 {
     sig = signal_to_x64(sig);
+    
+    // Unity signal throttling: drop signal if it returned -1
+    if (sig == -1) {
+        return;  // Silently drop the signal to break ping-pong
+    }
+    
     // sig==X64_SIGSEGV || sig==X64_SIGBUS || sig==X64_SIGILL || sig==X64_SIGABRT here!
     int log_minimum = (BOX64ENV(showsegv))?LOG_NONE:((((sig==X64_SIGSEGV) || (sig==X64_SIGILL)) && my_context->is_sigaction[sig])?LOG_DEBUG:LOG_INFO);
     if(signal_jmpbuf_active) {
@@ -1300,6 +1314,12 @@ dynarec_log(/*LOG_DEBUG*/LOG_INFO, "%04d|Repeated SIGSEGV with Access error on %
 void my_sigactionhandler(int32_t sig, siginfo_t* info, void * ucntx)
 {
     sig = signal_to_x64(sig);
+    
+    // Unity signal throttling: drop signal if it returned -1
+    if (sig == -1) {
+        return;  // Silently drop the signal to break ping-pong
+    }
+    
     void* pc = NULL;
     #ifdef DYNAREC
     ucontext_t *p = (ucontext_t *)ucntx;
@@ -1763,8 +1783,52 @@ void fini_signal_helper()
 }
 
 #ifdef NEED_SIG_CONV
+// Unity signal storm detection and prevention for SIGXCPU profiler ping-pong
+static int should_throttle_unity_signal(int sig)
+{
+    // Only throttle SIGXCPU when Unity is detected
+    if (sig != SIGXCPU || !BOX64ENV(unity)) {
+        return 0;
+    }
+    
+    pthread_mutex_lock(&unity_signal_throttle_mutex);
+    
+    struct timespec current_time;
+    clock_gettime(CLOCK_MONOTONIC, &current_time);
+    
+    // Calculate time difference in milliseconds
+    long time_diff_ms = (current_time.tv_sec - last_sigxcpu_time.tv_sec) * 1000 +
+                        (current_time.tv_nsec - last_sigxcpu_time.tv_nsec) / 1000000;
+    
+    // Reset counter if outside of throttle window
+    if (time_diff_ms > UNITY_SIGNAL_THROTTLE_WINDOW_MS) {
+        sigxcpu_count_in_window = 0;
+        last_sigxcpu_time = current_time;
+    }
+    
+    sigxcpu_count_in_window++;
+    
+    // Check if we should throttle
+    int should_throttle = (sigxcpu_count_in_window > UNITY_SIGNAL_THROTTLE_MAX_COUNT);
+    
+    pthread_mutex_unlock(&unity_signal_throttle_mutex);
+    
+    if (should_throttle) {
+        printf_log(LOG_DEBUG, "Unity: Throttling SIGXCPU signal (count: %d in %ldms window)\n", 
+                   sigxcpu_count_in_window, time_diff_ms);
+    }
+    
+    return should_throttle;
+}
+
 int signal_to_x64(int sig)
 {
+    // Unity signal storm prevention - drop SIGXCPU signals that are coming too fast
+    if (should_throttle_unity_signal(sig)) {
+        // Return a harmless signal that will be ignored to break the ping-pong
+        return -1;  // Special value to indicate signal should be dropped
+    }
+    
     #define GO(A) case A: return X64_##A;
     switch(sig) {
         SUPER_SIGNAL

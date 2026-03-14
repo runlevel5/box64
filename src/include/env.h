@@ -67,6 +67,7 @@ extern char* ftrace_name;
     INTEGER(BOX64_DYNAREC_LOG, dynarec_log, 0, 0, 3, 1)                       \
     INTEGER(BOX64_DYNAREC_MISSING, dynarec_missing, 0, 0, 2, 1)               \
     BOOLEAN(BOX64_DYNAREC_NATIVEFLAGS, dynarec_nativeflags, 1, 1)             \
+    INTEGER(BOX64_DYNAREC_NEVERCLEAN_VALIDATE, dynarec_neverclean_validate, 64, 0, 65536, 0) \
     STRING(BOX64_DYNAREC_NOHOSTEXT, dynarec_nohostext, 0)                     \
     INTEGER(BOX64_DYNAREC_PAUSE, dynarec_pause, 0, 0, 3, 1)                   \
     BOOLEAN(BOX64_DYNAREC_PERFMAP, dynarec_perf_map, 0, 0)                    \
@@ -96,6 +97,7 @@ extern char* ftrace_name;
     BOOLEAN(BOX64_EXIT, exit, 0, 0)                                           \
     BOOLEAN(BOX64_FIX_64BIT_INODES, fix_64bit_inodes, 0, 0)                   \
     BOOLEAN(BOX64_FORCE_LD_PRELOAD, force_ld_preload, 0, 0)                   \
+    BOOLEAN(BOX64_GL_NOERROR, gl_noerror, 0, 0)                               \
     BOOLEAN(BOX64_IGNOREINT3, ignoreint3, 0, 0)                               \
     STRING(BOX64_INSERT_ARGS, insert_args, 0)                                 \
     BOOLEAN(BOX64_INPROCESSGPU, inprocessgpu, 0, 0)                           \
