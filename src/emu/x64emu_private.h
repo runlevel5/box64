@@ -165,6 +165,7 @@ typedef struct x64emu_s {
      } block_cache[BLOCK_CACHE_SIZE];
      uint64_t    block_cache_gen;     // local generation snapshot
      volatile uint64_t *block_cache_gen_ptr;  // pointer to global block_cache_generation
+     uint64_t    block_cache_validate_countdown;  // counts down on cache hits; 0 = force revalidation
      #endif
 } x64emu_t;
 

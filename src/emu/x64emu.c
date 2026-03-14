@@ -43,6 +43,8 @@ _Static_assert(offsetof(x64emu_t, block_cache_gen) == _EMU_BLOCK_CACHE_BASE + ((
     "block_cache_gen offset mismatch: check BLOCK_CACHE_BITS computation in ppc64le_next.S");
 _Static_assert(offsetof(x64emu_t, block_cache_gen_ptr) == _EMU_BLOCK_CACHE_BASE + ((1 << BLOCK_CACHE_BITS) * 16) + 8,
     "block_cache_gen_ptr offset mismatch: check BLOCK_CACHE_BITS computation in ppc64le_next.S");
+_Static_assert(offsetof(x64emu_t, block_cache_validate_countdown) == _EMU_BLOCK_CACHE_BASE + ((1 << BLOCK_CACHE_BITS) * 16) + 16,
+    "block_cache_validate_countdown offset mismatch: check EMU_BLOCK_CACHE_COUNTDOWN in ppc64le_next.S");
 #endif
 // for the applyFlushTo0
 #ifdef __x86_64__
@@ -116,6 +118,8 @@ static void internalX64Setup(x64emu_t* emu, box64context_t *context, uintptr_t s
     #if defined(PPC64LE) && defined(BLOCK_CACHE_BITS)
     // Initialize block dispatch cache pointer for assembly fast-path
     emu->block_cache_gen_ptr = &block_cache_generation;
+    // Initialize validation countdown (0 = first slow-path hit will set it)
+    emu->block_cache_validate_countdown = 0;
     #endif
 }
 
