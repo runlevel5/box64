@@ -1,16 +1,10 @@
 #ifndef __DYNABLOCK_H_
 #define __DYNABLOCK_H_
-#include <stdint.h>
-#include <stddef.h>
 
 typedef struct x64emu_s x64emu_t;
 typedef struct dynablock_s dynablock_t;
 
 uint32_t X31_hash_code(void* addr, int len);
-
-// Hash cache management functions for performance optimization
-void hash_cache_invalidate_range(void* start_addr, void* end_addr);
-void hash_cache_get_stats(uint64_t* hits, uint64_t* misses, double* hit_rate);
 
 void FreeDynablock(dynablock_t* db, int need_lock, int need_remove);
 void MarkDynablock(dynablock_t* db);

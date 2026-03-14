@@ -2,7 +2,6 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <signal.h>
-#include <pthread.h>
 
 #include "os.h"
 #include "debug.h"
@@ -27,114 +26,16 @@
 #include "khash.h"
 #include "rbtree.h"
 
-// Hash computation cache for performance optimization
-#define HASH_CACHE_SIZE 256
-#define HASH_CACHE_MASK (HASH_CACHE_SIZE - 1)
-
-typedef struct {
-    void* addr;
-    int len;
-    uint32_t hash;
-    uint64_t timestamp;  // For LRU replacement
-} hash_cache_entry_t;
-
-static hash_cache_entry_t hash_cache[HASH_CACHE_SIZE];
-static uint64_t hash_cache_clock = 0;
-static pthread_mutex_t hash_cache_mutex = PTHREAD_MUTEX_INITIALIZER;
-
-// Statistics for monitoring cache effectiveness
-static uint64_t hash_cache_hits = 0;
-static uint64_t hash_cache_misses = 0;
-
-static inline uint32_t hash_cache_index(void* addr, int len) {
-    // Simple hash function for cache index
-    uintptr_t a = (uintptr_t)addr;
-    return ((a >> 4) ^ (a >> 12) ^ len) & HASH_CACHE_MASK;
-}
-
-// Invalidate hash cache entries for a memory range
-void hash_cache_invalidate_range(void* start_addr, void* end_addr) {
-    pthread_mutex_lock(&hash_cache_mutex);
-    
-    uintptr_t start = (uintptr_t)start_addr;
-    uintptr_t end = (uintptr_t)end_addr;
-    
-    // Check all cache entries for overlap with the invalidated range
-    for (int i = 0; i < HASH_CACHE_SIZE; i++) {
-        hash_cache_entry_t* entry = &hash_cache[i];
-        if (entry->addr) {
-            uintptr_t entry_start = (uintptr_t)entry->addr;
-            uintptr_t entry_end = entry_start + entry->len;
-            
-            // Check if cache entry overlaps with invalidated range
-            if (entry_start < end && entry_end > start) {
-                // Invalidate this cache entry
-                entry->addr = NULL;
-                entry->len = 0;
-                entry->hash = 0;
-                entry->timestamp = 0;
-            }
-        }
-    }
-    
-    pthread_mutex_unlock(&hash_cache_mutex);
-}
-
-// Function to get cache statistics (for debugging)
-void hash_cache_get_stats(uint64_t* hits, uint64_t* misses, double* hit_rate) {
-    pthread_mutex_lock(&hash_cache_mutex);
-    *hits = hash_cache_hits;
-    *misses = hash_cache_misses;
-    uint64_t total = *hits + *misses;
-    *hit_rate = total > 0 ? ((double)*hits / total) * 100.0 : 0.0;
-    pthread_mutex_unlock(&hash_cache_mutex);
-}
-
 uint32_t X31_hash_code(void* addr, int len)
 {
     if(!len) return 0;
-    
-    // Check cache first for performance optimization
-    uint32_t cache_idx = hash_cache_index(addr, len);
-    
-    pthread_mutex_lock(&hash_cache_mutex);
-    
-    // Check if we have a cache hit
-    hash_cache_entry_t* entry = &hash_cache[cache_idx];
-    if (entry->addr == addr && entry->len == len) {
-        // Cache hit! Update timestamp and return cached hash
-        entry->timestamp = ++hash_cache_clock;
-        uint32_t cached_hash = entry->hash;
-        hash_cache_hits++;
-        pthread_mutex_unlock(&hash_cache_mutex);
-        return cached_hash;
-    }
-    
-    // Cache miss - need to compute hash
-    hash_cache_misses++;
-    pthread_mutex_unlock(&hash_cache_mutex);
-    
-    uint32_t computed_hash;
     #ifdef ARCH_CRC
     ARCH_CRC(addr, len);
     #endif
-    
-    // Software fallback hash computation
     uint8_t* p = (uint8_t*)addr;
     int32_t h = *p;
     for (--len, ++p; len; --len, ++p) h = (h << 5) - h + (int32_t)*p;
-    computed_hash = (uint32_t)h;
-    
-    // Cache the computed hash
-    pthread_mutex_lock(&hash_cache_mutex);
-    entry = &hash_cache[cache_idx];
-    entry->addr = addr;
-    entry->len = len;
-    entry->hash = computed_hash;
-    entry->timestamp = ++hash_cache_clock;
-    pthread_mutex_unlock(&hash_cache_mutex);
-    
-    return computed_hash;
+    return (uint32_t)h;
 }
 
 dynablock_t* InvalidDynablock(dynablock_t* db, int need_lock)
@@ -143,10 +44,6 @@ dynablock_t* InvalidDynablock(dynablock_t* db, int need_lock)
         if(db->gone)
             return NULL; // already in the process of deletion!
         dynarec_log(LOG_DEBUG, "InvalidDynablock(%p), db->block=%p x64=%p:%p already gone=%d\n", db, db->block, db->x64_addr, db->x64_addr+db->x64_size-1, db->gone);
-        
-        // Invalidate hash cache entries for this block's memory range
-        hash_cache_invalidate_range(db->x64_addr, (void*)((uintptr_t)db->x64_addr + db->x64_size));
-        
         // remove jumptable without waiting
         setJumpTableDefault64(db->x64_addr);
         for(int i=0; i<db->sep_size; ++i)
