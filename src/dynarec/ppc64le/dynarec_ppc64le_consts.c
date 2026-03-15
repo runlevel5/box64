@@ -22,6 +22,8 @@
 #include "dynarec/dynarec_next.h"
 #include "random.h"
 
+void* create_updateflags();
+
 static const int8_t mask_shift8[] = { -7, -6, -5, -4, -3, -2, -1, 0 };
 static const int8_t mask_string8[] = { 7, 6, 5, 4, 3, 2, 1, 0 };
 static const int8_t mask_string16[] = { 15, 14, 13, 12, 11, 10, 9, 8 };
@@ -122,6 +124,7 @@ uintptr_t getConst(ppc64le_consts_t which)
         case const_fpu_fbld: return (uintptr_t)fpu_fbld;
         case const_fpu_fbst: return (uintptr_t)fpu_fbst;
         case const_updateflags: return (uintptr_t)UpdateFlags;
+        case const_updateflags_ppc64le: return (uintptr_t)create_updateflags();
         case const_sse42_compare_string_explicit_len: return (uintptr_t)sse42_compare_string_explicit_len;
         case const_sse42_compare_string_implicit_len: return (uintptr_t)sse42_compare_string_implicit_len;
         case const_x64test_step: return (uintptr_t)x64test_step;

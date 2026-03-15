@@ -86,6 +86,7 @@ typedef enum ppc64le_consts_s {
     const_fpu_fbld,
     const_fpu_fbst,
     const_updateflags,
+    const_updateflags_ppc64le,
     const_sse42_compare_string_explicit_len,
     const_sse42_compare_string_implicit_len,
     const_x64test_step,
