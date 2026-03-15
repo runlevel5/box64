@@ -1184,6 +1184,7 @@ if(PPC64LE_DYNAREC)
         "${BOX64_ROOT}/src/dynarec/ppc64le/ppc64le_printer.c"
         "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_jmpnext.c"
         "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_consts.c"
+        "${BOX64_ROOT}/src/dynarec/ppc64le/updateflags_ppc64le.c"
     )
     set(DYNAREC_ASM
         ${DYNAREC_ASM}
@@ -1228,6 +1229,7 @@ if(PPC64LE_DYNAREC)
     "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_emit_math.c"
     "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_emit_logic.c"
     "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_emit_shift.c"
+    "${BOX64_ROOT}/src/dynarec/ppc64le/updateflags_ppc64le_pass.c"
       )
 endif()
 
