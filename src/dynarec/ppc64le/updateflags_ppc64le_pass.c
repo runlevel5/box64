@@ -433,6 +433,141 @@ SETMARK(d_neg64);
     MTLR(x7);
     BLR();
 
+    // ====================================================================
+    // Batch 3: Logic handlers (d_and, d_or, d_xor)
+    // All logic ops load only 'res' from emu. The second operand is a
+    // constant mask: all-ones for AND, zero for OR and XOR.
+    // ====================================================================
+
+    // === d_and8 ===
+SETMARK(d_and8);
+    LBZ(x1, offsetof(x64emu_t, res), xEmu);
+    LI(x3, 0);
+    STW(x3, offsetof(x64emu_t, df), xEmu);
+    MOV32w(x2, 0xff);
+    emit_and8(dyn, ninst, x1, x2, x3, x4);
+    MTLR(x7);
+    BLR();
+
+    // === d_and16 ===
+SETMARK(d_and16);
+    LHZ(x1, offsetof(x64emu_t, res), xEmu);
+    LI(x3, 0);
+    STW(x3, offsetof(x64emu_t, df), xEmu);
+    MOV32w(x2, 0xffff);
+    emit_and16(dyn, ninst, x1, x2, x3, x4);
+    MTLR(x7);
+    BLR();
+
+    // === d_and32 ===
+SETMARK(d_and32);
+    LWZ(x1, offsetof(x64emu_t, res), xEmu);
+    LI(x3, 0);
+    STW(x3, offsetof(x64emu_t, df), xEmu);
+    MOV32w(x2, 0xffffffff);
+    rex.w = 0;
+    emit_and32(dyn, ninst, rex, x1, x2, x3, x4);
+    MTLR(x7);
+    BLR();
+
+    // === d_and64 ===
+SETMARK(d_and64);
+    LD(x1, offsetof(x64emu_t, res), xEmu);
+    LI(x3, 0);
+    STW(x3, offsetof(x64emu_t, df), xEmu);
+    MOV64x(x2, 0xffffffffffffffffULL);
+    rex.w = 1;
+    emit_and32(dyn, ninst, rex, x1, x2, x3, x4);
+    rex.w = 0;
+    MTLR(x7);
+    BLR();
+
+    // === d_or8 ===
+SETMARK(d_or8);
+    LBZ(x1, offsetof(x64emu_t, res), xEmu);
+    LI(x3, 0);
+    STW(x3, offsetof(x64emu_t, df), xEmu);
+    LI(x2, 0);
+    emit_or8(dyn, ninst, x1, x2, x3, x4);
+    MTLR(x7);
+    BLR();
+
+    // === d_or16 ===
+SETMARK(d_or16);
+    LHZ(x1, offsetof(x64emu_t, res), xEmu);
+    LI(x3, 0);
+    STW(x3, offsetof(x64emu_t, df), xEmu);
+    LI(x2, 0);
+    emit_or16(dyn, ninst, x1, x2, x3, x4);
+    MTLR(x7);
+    BLR();
+
+    // === d_or32 ===
+SETMARK(d_or32);
+    LWZ(x1, offsetof(x64emu_t, res), xEmu);
+    LI(x3, 0);
+    STW(x3, offsetof(x64emu_t, df), xEmu);
+    LI(x2, 0);
+    rex.w = 0;
+    emit_or32(dyn, ninst, rex, x1, x2, x3, x4);
+    MTLR(x7);
+    BLR();
+
+    // === d_or64 ===
+SETMARK(d_or64);
+    LD(x1, offsetof(x64emu_t, res), xEmu);
+    LI(x3, 0);
+    STW(x3, offsetof(x64emu_t, df), xEmu);
+    LI(x2, 0);
+    rex.w = 1;
+    emit_or32(dyn, ninst, rex, x1, x2, x3, x4);
+    rex.w = 0;
+    MTLR(x7);
+    BLR();
+
+    // === d_xor8 ===
+SETMARK(d_xor8);
+    LBZ(x1, offsetof(x64emu_t, res), xEmu);
+    LI(x3, 0);
+    STW(x3, offsetof(x64emu_t, df), xEmu);
+    LI(x2, 0);
+    emit_xor8(dyn, ninst, x1, x2, x3, x4);
+    MTLR(x7);
+    BLR();
+
+    // === d_xor16 ===
+SETMARK(d_xor16);
+    LHZ(x1, offsetof(x64emu_t, res), xEmu);
+    LI(x3, 0);
+    STW(x3, offsetof(x64emu_t, df), xEmu);
+    LI(x2, 0);
+    emit_xor16(dyn, ninst, x1, x2, x3, x4, x5);
+    MTLR(x7);
+    BLR();
+
+    // === d_xor32 ===
+SETMARK(d_xor32);
+    LWZ(x1, offsetof(x64emu_t, res), xEmu);
+    LI(x3, 0);
+    STW(x3, offsetof(x64emu_t, df), xEmu);
+    LI(x2, 0);
+    rex.w = 0;
+    emit_xor32(dyn, ninst, rex, x1, x2, x3, x4);
+    MTLR(x7);
+    BLR();
+
+    // === d_xor64 ===
+SETMARK(d_xor64);
+    LD(x1, offsetof(x64emu_t, res), xEmu);
+    LI(x3, 0);
+    STW(x3, offsetof(x64emu_t, df), xEmu);
+    LI(x2, 0);
+    rex.w = 1;
+    emit_xor32(dyn, ninst, rex, x1, x2, x3, x4);
+    rex.w = 0;
+    MTLR(x7);
+    BLR();
+
     // === Fallback handler: call C UpdateFlags() for all other df types ===
     // All unimplemented df types branch here.
     // emu->df is still set to the original df value (not cleared in prologue).
@@ -447,18 +582,10 @@ SETMARK(d_neg64);
     // 6. Restore LR and stack, return
 
     // Mark all unimplemented df types to jump to the fallback
-SETMARK(d_and8);
-SETMARK(d_and16);
-SETMARK(d_and32);
-SETMARK(d_and64);
 SETMARK(d_imul8);
 SETMARK(d_imul16);
 SETMARK(d_imul32);
 SETMARK(d_imul64);
-SETMARK(d_or8);
-SETMARK(d_or16);
-SETMARK(d_or32);
-SETMARK(d_or64);
 SETMARK(d_mul8);
 SETMARK(d_mul16);
 SETMARK(d_mul32);
@@ -475,10 +602,6 @@ SETMARK(d_sar8);
 SETMARK(d_sar16);
 SETMARK(d_sar32);
 SETMARK(d_sar64);
-SETMARK(d_xor8);
-SETMARK(d_xor16);
-SETMARK(d_xor32);
-SETMARK(d_xor64);
 SETMARK(d_adc8);
 SETMARK(d_adc8b);
 SETMARK(d_adc16);
