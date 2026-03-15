@@ -568,6 +568,142 @@ SETMARK(d_xor64);
     MTLR(x7);
     BLR();
 
+    // ====================================================================
+    // Batch 4: Shift handlers (d_shl, d_shr, d_sar)
+    // All shift ops load op1 and op2 (shift count).
+    // SAR 8/16 loads op1 sign-extended.
+    // ====================================================================
+
+    // === d_shl8 ===
+SETMARK(d_shl8);
+    LBZ(x1, offsetof(x64emu_t, op1), xEmu);
+    LBZ(x2, offsetof(x64emu_t, op2), xEmu);
+    LI(x3, 0);
+    STW(x3, offsetof(x64emu_t, df), xEmu);
+    emit_shl8(dyn, ninst, x1, x2, x3, x4, x5);
+    MTLR(x7);
+    BLR();
+
+    // === d_shl16 ===
+SETMARK(d_shl16);
+    LHZ(x1, offsetof(x64emu_t, op1), xEmu);
+    LHZ(x2, offsetof(x64emu_t, op2), xEmu);
+    LI(x3, 0);
+    STW(x3, offsetof(x64emu_t, df), xEmu);
+    emit_shl16(dyn, ninst, x1, x2, x3, x4, x5);
+    MTLR(x7);
+    BLR();
+
+    // === d_shl32 ===
+SETMARK(d_shl32);
+    LWZ(x1, offsetof(x64emu_t, op1), xEmu);
+    LWZ(x2, offsetof(x64emu_t, op2), xEmu);
+    LI(x3, 0);
+    STW(x3, offsetof(x64emu_t, df), xEmu);
+    rex.w = 0;
+    emit_shl32(dyn, ninst, rex, x1, x2, x3, x4, x5);
+    MTLR(x7);
+    BLR();
+
+    // === d_shl64 ===
+SETMARK(d_shl64);
+    LD(x1, offsetof(x64emu_t, op1), xEmu);
+    LD(x2, offsetof(x64emu_t, op2), xEmu);
+    LI(x3, 0);
+    STW(x3, offsetof(x64emu_t, df), xEmu);
+    rex.w = 1;
+    emit_shl32(dyn, ninst, rex, x1, x2, x3, x4, x5);
+    rex.w = 0;
+    MTLR(x7);
+    BLR();
+
+    // === d_shr8 ===
+SETMARK(d_shr8);
+    LBZ(x1, offsetof(x64emu_t, op1), xEmu);
+    LBZ(x2, offsetof(x64emu_t, op2), xEmu);
+    LI(x3, 0);
+    STW(x3, offsetof(x64emu_t, df), xEmu);
+    emit_shr8(dyn, ninst, x1, x2, x3, x4, x5);
+    MTLR(x7);
+    BLR();
+
+    // === d_shr16 ===
+SETMARK(d_shr16);
+    LHZ(x1, offsetof(x64emu_t, op1), xEmu);
+    LHZ(x2, offsetof(x64emu_t, op2), xEmu);
+    LI(x3, 0);
+    STW(x3, offsetof(x64emu_t, df), xEmu);
+    emit_shr16(dyn, ninst, x1, x2, x3, x4, x5);
+    MTLR(x7);
+    BLR();
+
+    // === d_shr32 ===
+SETMARK(d_shr32);
+    LWZ(x1, offsetof(x64emu_t, op1), xEmu);
+    LWZ(x2, offsetof(x64emu_t, op2), xEmu);
+    LI(x3, 0);
+    STW(x3, offsetof(x64emu_t, df), xEmu);
+    rex.w = 0;
+    emit_shr32(dyn, ninst, rex, x1, x2, x3, x4);
+    MTLR(x7);
+    BLR();
+
+    // === d_shr64 ===
+SETMARK(d_shr64);
+    LD(x1, offsetof(x64emu_t, op1), xEmu);
+    LD(x2, offsetof(x64emu_t, op2), xEmu);
+    LI(x3, 0);
+    STW(x3, offsetof(x64emu_t, df), xEmu);
+    rex.w = 1;
+    emit_shr32(dyn, ninst, rex, x1, x2, x3, x4);
+    rex.w = 0;
+    MTLR(x7);
+    BLR();
+
+    // === d_sar8 (sign-extended op1) ===
+SETMARK(d_sar8);
+    LBZ(x1, offsetof(x64emu_t, op1), xEmu);
+    EXTSB(x1, x1);
+    LBZ(x2, offsetof(x64emu_t, op2), xEmu);
+    LI(x3, 0);
+    STW(x3, offsetof(x64emu_t, df), xEmu);
+    emit_sar8(dyn, ninst, x1, x2, x3, x4, x5);
+    MTLR(x7);
+    BLR();
+
+    // === d_sar16 (sign-extended op1) ===
+SETMARK(d_sar16);
+    LHA(x1, offsetof(x64emu_t, op1), xEmu);
+    LHZ(x2, offsetof(x64emu_t, op2), xEmu);
+    LI(x3, 0);
+    STW(x3, offsetof(x64emu_t, df), xEmu);
+    emit_sar16(dyn, ninst, x1, x2, x3, x4, x5);
+    MTLR(x7);
+    BLR();
+
+    // === d_sar32 ===
+SETMARK(d_sar32);
+    LWZ(x1, offsetof(x64emu_t, op1), xEmu);
+    LWZ(x2, offsetof(x64emu_t, op2), xEmu);
+    LI(x3, 0);
+    STW(x3, offsetof(x64emu_t, df), xEmu);
+    rex.w = 0;
+    emit_sar32(dyn, ninst, rex, x1, x2, x3, x4);
+    MTLR(x7);
+    BLR();
+
+    // === d_sar64 ===
+SETMARK(d_sar64);
+    LD(x1, offsetof(x64emu_t, op1), xEmu);
+    LD(x2, offsetof(x64emu_t, op2), xEmu);
+    LI(x3, 0);
+    STW(x3, offsetof(x64emu_t, df), xEmu);
+    rex.w = 1;
+    emit_sar32(dyn, ninst, rex, x1, x2, x3, x4);
+    rex.w = 0;
+    MTLR(x7);
+    BLR();
+
     // === Fallback handler: call C UpdateFlags() for all other df types ===
     // All unimplemented df types branch here.
     // emu->df is still set to the original df value (not cleared in prologue).
@@ -590,18 +726,6 @@ SETMARK(d_mul8);
 SETMARK(d_mul16);
 SETMARK(d_mul32);
 SETMARK(d_mul64);
-SETMARK(d_shl8);
-SETMARK(d_shl16);
-SETMARK(d_shl32);
-SETMARK(d_shl64);
-SETMARK(d_shr8);
-SETMARK(d_shr16);
-SETMARK(d_shr32);
-SETMARK(d_shr64);
-SETMARK(d_sar8);
-SETMARK(d_sar16);
-SETMARK(d_sar32);
-SETMARK(d_sar64);
 SETMARK(d_adc8);
 SETMARK(d_adc8b);
 SETMARK(d_adc16);
