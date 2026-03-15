@@ -729,11 +729,12 @@ uintptr_t dynarec64_66(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                     GETEW(x1, 0);
                     BF_EXTRACT(x2, xRAX, 15, 0);
                     MULLW(x2, x2, ed);
+                    UFLAG_IF {
+                        STW(x2, offsetof(x64emu_t, res), xEmu);  // store full 32-bit product
+                    }
                     BF_INSERT(xRAX, x2, 15, 0);
                     SRDI(x2, x2, 16);
                     BF_INSERT(xRDX, x2, 15, 0);
-                    UFLAG_RES(xRAX);
-                    UFLAG_OP1(xRDX);
                     UFLAG_DF(x2, d_mul16);
                     break;
                 case 5:
@@ -742,11 +743,12 @@ uintptr_t dynarec64_66(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                     GETSEW(x1, 0);
                     EXTSH(x2, xRAX);
                     MULLW(x2, x2, ed);
+                    UFLAG_IF {
+                        STW(x2, offsetof(x64emu_t, res), xEmu);  // store full 32-bit product
+                    }
                     BF_INSERT(xRAX, x2, 15, 0);
                     SRDI(x2, x2, 16);
                     BF_INSERT(xRDX, x2, 15, 0);
-                    UFLAG_RES(xRAX);
-                    UFLAG_OP1(xRDX);
                     UFLAG_DF(x2, d_imul16);
                     break;
                 case 6:
