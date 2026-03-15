@@ -223,6 +223,216 @@ SETMARK(d_tst64);
     MTLR(x7);
     BLR();
 
+    // ====================================================================
+    // Batch 2: Arithmetic handlers (d_add, d_sub, d_inc, d_dec, d_neg)
+    // ====================================================================
+
+    // === d_add8 / d_add8b (aliases — same implementation) ===
+SETMARK(d_add8);
+SETMARK(d_add8b);
+    LBZ(x1, offsetof(x64emu_t, op1), xEmu);
+    LBZ(x2, offsetof(x64emu_t, op2), xEmu);
+    LI(x3, 0);
+    STW(x3, offsetof(x64emu_t, df), xEmu);
+    emit_add8(dyn, ninst, x1, x2, x3, x4);
+    MTLR(x7);
+    BLR();
+
+    // === d_add16 / d_add16b ===
+SETMARK(d_add16);
+SETMARK(d_add16b);
+    LHZ(x1, offsetof(x64emu_t, op1), xEmu);
+    LHZ(x2, offsetof(x64emu_t, op2), xEmu);
+    LI(x3, 0);
+    STW(x3, offsetof(x64emu_t, df), xEmu);
+    emit_add16(dyn, ninst, x1, x2, x3, x4, x5);
+    MTLR(x7);
+    BLR();
+
+    // === d_add32 / d_add32b ===
+SETMARK(d_add32);
+SETMARK(d_add32b);
+    LWZ(x1, offsetof(x64emu_t, op1), xEmu);
+    LWZ(x2, offsetof(x64emu_t, op2), xEmu);
+    LI(x3, 0);
+    STW(x3, offsetof(x64emu_t, df), xEmu);
+    rex.w = 0;
+    emit_add32(dyn, ninst, rex, x1, x2, x3, x4, x5);
+    MTLR(x7);
+    BLR();
+
+    // === d_add64 ===
+SETMARK(d_add64);
+    LD(x1, offsetof(x64emu_t, op1), xEmu);
+    LD(x2, offsetof(x64emu_t, op2), xEmu);
+    LI(x3, 0);
+    STW(x3, offsetof(x64emu_t, df), xEmu);
+    rex.w = 1;
+    emit_add32(dyn, ninst, rex, x1, x2, x3, x4, x5);
+    rex.w = 0;
+    MTLR(x7);
+    BLR();
+
+    // === d_sub8 ===
+SETMARK(d_sub8);
+    LBZ(x1, offsetof(x64emu_t, op1), xEmu);
+    LBZ(x2, offsetof(x64emu_t, op2), xEmu);
+    LI(x3, 0);
+    STW(x3, offsetof(x64emu_t, df), xEmu);
+    emit_sub8(dyn, ninst, x1, x2, x3, x4, x5);
+    MTLR(x7);
+    BLR();
+
+    // === d_sub16 ===
+SETMARK(d_sub16);
+    LHZ(x1, offsetof(x64emu_t, op1), xEmu);
+    LHZ(x2, offsetof(x64emu_t, op2), xEmu);
+    LI(x3, 0);
+    STW(x3, offsetof(x64emu_t, df), xEmu);
+    emit_sub16(dyn, ninst, x1, x2, x3, x4, x5);
+    MTLR(x7);
+    BLR();
+
+    // === d_sub32 ===
+SETMARK(d_sub32);
+    LWZ(x1, offsetof(x64emu_t, op1), xEmu);
+    LWZ(x2, offsetof(x64emu_t, op2), xEmu);
+    LI(x3, 0);
+    STW(x3, offsetof(x64emu_t, df), xEmu);
+    rex.w = 0;
+    emit_sub32(dyn, ninst, rex, x1, x2, x3, x4, x5);
+    MTLR(x7);
+    BLR();
+
+    // === d_sub64 ===
+SETMARK(d_sub64);
+    LD(x1, offsetof(x64emu_t, op1), xEmu);
+    LD(x2, offsetof(x64emu_t, op2), xEmu);
+    LI(x3, 0);
+    STW(x3, offsetof(x64emu_t, df), xEmu);
+    rex.w = 1;
+    emit_sub32(dyn, ninst, rex, x1, x2, x3, x4, x5);
+    rex.w = 0;
+    MTLR(x7);
+    BLR();
+
+    // === d_inc8 ===
+SETMARK(d_inc8);
+    LBZ(x1, offsetof(x64emu_t, op1), xEmu);
+    LI(x2, 0);
+    STW(x2, offsetof(x64emu_t, df), xEmu);
+    emit_inc8(dyn, ninst, x1, x2, x3, x4);
+    MTLR(x7);
+    BLR();
+
+    // === d_inc16 ===
+SETMARK(d_inc16);
+    LHZ(x1, offsetof(x64emu_t, op1), xEmu);
+    LI(x2, 0);
+    STW(x2, offsetof(x64emu_t, df), xEmu);
+    emit_inc16(dyn, ninst, x1, x2, x3, x4);
+    MTLR(x7);
+    BLR();
+
+    // === d_inc32 ===
+SETMARK(d_inc32);
+    LWZ(x1, offsetof(x64emu_t, op1), xEmu);
+    LI(x2, 0);
+    STW(x2, offsetof(x64emu_t, df), xEmu);
+    rex.w = 0;
+    emit_inc32(dyn, ninst, rex, x1, x2, x3, x4, x5);
+    MTLR(x7);
+    BLR();
+
+    // === d_inc64 ===
+SETMARK(d_inc64);
+    LD(x1, offsetof(x64emu_t, op1), xEmu);
+    LI(x2, 0);
+    STW(x2, offsetof(x64emu_t, df), xEmu);
+    rex.w = 1;
+    emit_inc32(dyn, ninst, rex, x1, x2, x3, x4, x5);
+    rex.w = 0;
+    MTLR(x7);
+    BLR();
+
+    // === d_dec8 ===
+SETMARK(d_dec8);
+    LBZ(x1, offsetof(x64emu_t, op1), xEmu);
+    LI(x2, 0);
+    STW(x2, offsetof(x64emu_t, df), xEmu);
+    emit_dec8(dyn, ninst, x1, x2, x3, x4);
+    MTLR(x7);
+    BLR();
+
+    // === d_dec16 ===
+SETMARK(d_dec16);
+    LHZ(x1, offsetof(x64emu_t, op1), xEmu);
+    LI(x2, 0);
+    STW(x2, offsetof(x64emu_t, df), xEmu);
+    emit_dec16(dyn, ninst, x1, x2, x3, x4, x5);
+    MTLR(x7);
+    BLR();
+
+    // === d_dec32 ===
+SETMARK(d_dec32);
+    LWZ(x1, offsetof(x64emu_t, op1), xEmu);
+    LI(x2, 0);
+    STW(x2, offsetof(x64emu_t, df), xEmu);
+    rex.w = 0;
+    emit_dec32(dyn, ninst, rex, x1, x2, x3, x4, x5);
+    MTLR(x7);
+    BLR();
+
+    // === d_dec64 ===
+SETMARK(d_dec64);
+    LD(x1, offsetof(x64emu_t, op1), xEmu);
+    LI(x2, 0);
+    STW(x2, offsetof(x64emu_t, df), xEmu);
+    rex.w = 1;
+    emit_dec32(dyn, ninst, rex, x1, x2, x3, x4, x5);
+    rex.w = 0;
+    MTLR(x7);
+    BLR();
+
+    // === d_neg8 ===
+SETMARK(d_neg8);
+    LBZ(x1, offsetof(x64emu_t, op1), xEmu);
+    LI(x2, 0);
+    STW(x2, offsetof(x64emu_t, df), xEmu);
+    emit_neg8(dyn, ninst, x1, x2, x3);
+    MTLR(x7);
+    BLR();
+
+    // === d_neg16 ===
+SETMARK(d_neg16);
+    LHZ(x1, offsetof(x64emu_t, op1), xEmu);
+    LI(x2, 0);
+    STW(x2, offsetof(x64emu_t, df), xEmu);
+    emit_neg16(dyn, ninst, x1, x2, x3);
+    MTLR(x7);
+    BLR();
+
+    // === d_neg32 ===
+SETMARK(d_neg32);
+    LWZ(x1, offsetof(x64emu_t, op1), xEmu);
+    LI(x2, 0);
+    STW(x2, offsetof(x64emu_t, df), xEmu);
+    rex.w = 0;
+    emit_neg32(dyn, ninst, rex, x1, x2, x3);
+    MTLR(x7);
+    BLR();
+
+    // === d_neg64 ===
+SETMARK(d_neg64);
+    LD(x1, offsetof(x64emu_t, op1), xEmu);
+    LI(x2, 0);
+    STW(x2, offsetof(x64emu_t, df), xEmu);
+    rex.w = 1;
+    emit_neg32(dyn, ninst, rex, x1, x2, x3);
+    rex.w = 0;
+    MTLR(x7);
+    BLR();
+
     // === Fallback handler: call C UpdateFlags() for all other df types ===
     // All unimplemented df types branch here.
     // emu->df is still set to the original df value (not cleared in prologue).
@@ -237,25 +447,10 @@ SETMARK(d_tst64);
     // 6. Restore LR and stack, return
 
     // Mark all unimplemented df types to jump to the fallback
-SETMARK(d_add8);
-SETMARK(d_add8b);
-SETMARK(d_add16);
-SETMARK(d_add16b);
-SETMARK(d_add32);
-SETMARK(d_add32b);
-SETMARK(d_add64);
 SETMARK(d_and8);
 SETMARK(d_and16);
 SETMARK(d_and32);
 SETMARK(d_and64);
-SETMARK(d_dec8);
-SETMARK(d_dec16);
-SETMARK(d_dec32);
-SETMARK(d_dec64);
-SETMARK(d_inc8);
-SETMARK(d_inc16);
-SETMARK(d_inc32);
-SETMARK(d_inc64);
 SETMARK(d_imul8);
 SETMARK(d_imul16);
 SETMARK(d_imul32);
@@ -268,10 +463,6 @@ SETMARK(d_mul8);
 SETMARK(d_mul16);
 SETMARK(d_mul32);
 SETMARK(d_mul64);
-SETMARK(d_neg8);
-SETMARK(d_neg16);
-SETMARK(d_neg32);
-SETMARK(d_neg64);
 SETMARK(d_shl8);
 SETMARK(d_shl16);
 SETMARK(d_shl32);
@@ -284,10 +475,6 @@ SETMARK(d_sar8);
 SETMARK(d_sar16);
 SETMARK(d_sar32);
 SETMARK(d_sar64);
-SETMARK(d_sub8);
-SETMARK(d_sub16);
-SETMARK(d_sub32);
-SETMARK(d_sub64);
 SETMARK(d_xor8);
 SETMARK(d_xor16);
 SETMARK(d_xor32);
