@@ -79,8 +79,8 @@
     xFlags (r30) is modified by native handlers.
     xEmu (r31) is preserved.
 
-    Batch 1: d_none, d_cmp8/16/32/64, d_tst8/16/32/64 are native.
-    All other df types fall back to the C UpdateFlags() function.
+    All 89 df types are handled natively.
+    A fallback to C UpdateFlags() is kept as a safety net.
 
     IMPORTANT: We do NOT clear emu->df in the prologue.
     - Native handlers clear df after computing flags.
@@ -224,7 +224,7 @@ SETMARK(d_tst64);
     BLR();
 
     // ====================================================================
-    // Batch 2: Arithmetic handlers (d_add, d_sub, d_inc, d_dec, d_neg)
+    // Arithmetic handlers (d_add, d_sub, d_inc, d_dec, d_neg)
     // ====================================================================
 
     // === d_add8 / d_add8b (aliases — same implementation) ===
@@ -434,7 +434,7 @@ SETMARK(d_neg64);
     BLR();
 
     // ====================================================================
-    // Batch 3: Logic handlers (d_and, d_or, d_xor)
+    // Logic handlers (d_and, d_or, d_xor)
     // All logic ops load only 'res' from emu. The second operand is a
     // constant mask: all-ones for AND, zero for OR and XOR.
     // ====================================================================
@@ -569,7 +569,7 @@ SETMARK(d_xor64);
     BLR();
 
     // ====================================================================
-    // Batch 4: Shift handlers (d_shl, d_shr, d_sar)
+    // Shift handlers (d_shl, d_shr, d_sar)
     // All shift ops load op1 and op2 (shift count).
     // SAR 8/16 loads op1 sign-extended.
     // ====================================================================
@@ -704,53 +704,1176 @@ SETMARK(d_sar64);
     MTLR(x7);
     BLR();
 
-    // === Fallback handler: call C UpdateFlags() for all other df types ===
-    // All unimplemented df types branch here.
-    // emu->df is still set to the original df value (not cleared in prologue).
-    // C UpdateFlags() reads emu->df, computes flags into emu->eflags, clears df.
-    //
-    // We need to:
-    // 1. Save our return LR (from caller's BCTRL)
-    // 2. Store xFlags -> emu->eflags (so C function has current flags)
-    // 3. Create stack frame for C call
-    // 4. Call C UpdateFlags(emu)
-    // 5. Reload xFlags from emu->eflags (C function updated it)
-    // 6. Restore LR and stack, return
+    // ====================================================================
+    // MUL handlers (d_mul8/16/32/64)
+    // All fully inlined — CF/OF = high bits nonzero.
+    // Optional SF/ZF/AF/PF when !BOX64ENV(cputype).
+    // ====================================================================
 
-    // Mark all unimplemented df types to jump to the fallback
-SETMARK(d_imul8);
-SETMARK(d_imul16);
-SETMARK(d_imul32);
-SETMARK(d_imul64);
+    // === d_mul8: res is 16-bit (AX). CF/OF = (res>>8) != 0 ===
 SETMARK(d_mul8);
+    LHZ(x1, offsetof(x64emu_t, res), xEmu);
+    LI(x3, 0);
+    STW(x3, offsetof(x64emu_t, df), xEmu);
+    // CF/OF = (x1 >> 8) != 0
+    SRWI(x2, x1, 8);
+    CMPWI(x2, 0);
+    LI(x3, 1);
+    // ISEL: if CR0.EQ set → RT=RA(=0); else RT=RB(=x3=1). So x3 = (high!=0)?1:0
+    ISEL(x3, 0, x3, BI(0, CR_EQ));
+    BF_INSERT(xFlags, x3, F_CF, F_CF);
+    BF_INSERT(xFlags, x3, F_OF, F_OF);
+    if(!BOX64ENV(cputype)) {
+        // SF = bit 7 of res
+        SRWI(x2, x1, 7);
+        BF_INSERT(xFlags, x2, F_SF, F_SF);
+        // ZF = 0 (undefined, but ARM64 clears it)
+        BF_INSERT(xFlags, xZR, F_ZF, F_ZF);
+        // AF = 0
+        BF_INSERT(xFlags, xZR, F_AF, F_AF);
+        // PF
+        emit_pf(dyn, ninst, x1, x3, x4);
+    }
+    MTLR(x7);
+    BLR();
+
+    // === d_mul16: res is 32-bit (DX:AX). CF/OF = (res>>16) != 0 ===
 SETMARK(d_mul16);
+    LWZ(x1, offsetof(x64emu_t, res), xEmu);
+    LI(x3, 0);
+    STW(x3, offsetof(x64emu_t, df), xEmu);
+    // CF/OF = (x1 >> 16) != 0
+    SRWI(x2, x1, 16);
+    CMPWI(x2, 0);
+    LI(x3, 1);
+    ISEL(x3, 0, x3, BI(0, CR_EQ));  // x3 = (high!=0) ? 1 : 0
+    BF_INSERT(xFlags, x3, F_CF, F_CF);
+    BF_INSERT(xFlags, x3, F_OF, F_OF);
+    if(!BOX64ENV(cputype)) {
+        SRWI(x2, x1, 15);
+        BF_INSERT(xFlags, x2, F_SF, F_SF);
+        BF_INSERT(xFlags, xZR, F_ZF, F_ZF);
+        BF_INSERT(xFlags, xZR, F_AF, F_AF);
+        emit_pf(dyn, ninst, x1, x3, x4);
+    }
+    MTLR(x7);
+    BLR();
+
+    // === d_mul32: op1=high32. CF/OF = (op1 != 0) ===
 SETMARK(d_mul32);
+    LWZ(x2, offsetof(x64emu_t, op1), xEmu);
+    LI(x3, 0);
+    STW(x3, offsetof(x64emu_t, df), xEmu);
+    CMPWI(x2, 0);
+    LI(x3, 1);
+    ISEL(x3, 0, x3, BI(0, CR_EQ));  // x3 = (op1!=0) ? 1 : 0
+    BF_INSERT(xFlags, x3, F_CF, F_CF);
+    BF_INSERT(xFlags, x3, F_OF, F_OF);
+    if(!BOX64ENV(cputype)) {
+        LWZ(x1, offsetof(x64emu_t, res), xEmu);
+        SRWI(x2, x1, 31);
+        BF_INSERT(xFlags, x2, F_SF, F_SF);
+        BF_INSERT(xFlags, xZR, F_ZF, F_ZF);
+        BF_INSERT(xFlags, xZR, F_AF, F_AF);
+        emit_pf(dyn, ninst, x1, x3, x4);
+    }
+    MTLR(x7);
+    BLR();
+
+    // === d_mul64: op1=high64. CF/OF = (op1 != 0) ===
 SETMARK(d_mul64);
-SETMARK(d_adc8);
-SETMARK(d_adc8b);
-SETMARK(d_adc16);
-SETMARK(d_adc16b);
-SETMARK(d_adc32);
-SETMARK(d_adc32b);
-SETMARK(d_adc64);
-SETMARK(d_sbb8);
-SETMARK(d_sbb16);
-SETMARK(d_sbb32);
-SETMARK(d_sbb64);
+    LD(x2, offsetof(x64emu_t, op1), xEmu);
+    LI(x3, 0);
+    STW(x3, offsetof(x64emu_t, df), xEmu);
+    CMPDI(x2, 0);
+    LI(x3, 1);
+    ISEL(x3, 0, x3, BI(0, CR_EQ));  // x3 = (op1!=0) ? 1 : 0
+    BF_INSERT(xFlags, x3, F_CF, F_CF);
+    BF_INSERT(xFlags, x3, F_OF, F_OF);
+    if(!BOX64ENV(cputype)) {
+        LD(x1, offsetof(x64emu_t, res), xEmu);
+        SRDI(x2, x1, 63);
+        BF_INSERT(xFlags, x2, F_SF, F_SF);
+        BF_INSERT(xFlags, xZR, F_ZF, F_ZF);
+        BF_INSERT(xFlags, xZR, F_AF, F_AF);
+        emit_pf(dyn, ninst, x1, x3, x4);
+    }
+    MTLR(x7);
+    BLR();
+
+    // ====================================================================
+    // IMUL handlers (d_imul8/16/32/64)
+    // CF/OF = sign extension differs from actual high bits.
+    // Optional SF/ZF/AF/PF when !BOX64ENV(cputype).
+    // ====================================================================
+
+    // === d_imul8: res is signed 16-bit. CF/OF = (ASR(res,8) != ASR(res,16)) ===
+SETMARK(d_imul8);
+    // Load res as signed halfword (sign-extended to 32/64-bit)
+    LHA(x1, offsetof(x64emu_t, res), xEmu);
+    LI(x3, 0);
+    STW(x3, offsetof(x64emu_t, df), xEmu);
+    // x2 = ASR(x1, 8)
+    SRAWI(x2, x1, 8);
+    // x4 = ASR(x1, 16)  — but x1 is already sign-extended from 16-bit
+    // For a signed 16-bit value in a 32-bit register, ASR by 16 gives sign extension
+    SRAWI(x4, x1, 16);
+    CMPW(x2, x4);
+    LI(x3, 1);
+    ISEL(x3, 0, x3, BI(0, CR_EQ));  // x3 = (x2!=x4) ? 1 : 0
+    BF_INSERT(xFlags, x3, F_CF, F_CF);
+    BF_INSERT(xFlags, x3, F_OF, F_OF);
+    if(!BOX64ENV(cputype)) {
+        SRWI(x2, x1, 7);
+        BF_INSERT(xFlags, x2, F_SF, F_SF);
+        BF_INSERT(xFlags, xZR, F_ZF, F_ZF);
+        BF_INSERT(xFlags, xZR, F_AF, F_AF);
+        emit_pf(dyn, ninst, x1, x3, x4);
+    }
+    MTLR(x7);
+    BLR();
+
+    // === d_imul16: res is 32-bit. CF/OF = (ASR(res,16) != ASR(res,31)) ===
+SETMARK(d_imul16);
+    LWZ(x1, offsetof(x64emu_t, res), xEmu);
+    LI(x3, 0);
+    STW(x3, offsetof(x64emu_t, df), xEmu);
+    SRAWI(x2, x1, 16);
+    SRAWI(x4, x1, 31);
+    CMPW(x2, x4);
+    LI(x3, 1);
+    ISEL(x3, 0, x3, BI(0, CR_EQ));
+    BF_INSERT(xFlags, x3, F_CF, F_CF);
+    BF_INSERT(xFlags, x3, F_OF, F_OF);
+    if(!BOX64ENV(cputype)) {
+        SRWI(x2, x1, 15);
+        BF_INSERT(xFlags, x2, F_SF, F_SF);
+        BF_INSERT(xFlags, xZR, F_ZF, F_ZF);
+        BF_INSERT(xFlags, xZR, F_AF, F_AF);
+        emit_pf(dyn, ninst, x1, x3, x4);
+    }
+    MTLR(x7);
+    BLR();
+
+    // === d_imul32: res=32-bit, op1=high32. CF/OF = (op1 != ASR(res,31)) ===
+SETMARK(d_imul32);
+    LWZ(x1, offsetof(x64emu_t, res), xEmu);
+    LWZ(x2, offsetof(x64emu_t, op1), xEmu);
+    LI(x3, 0);
+    STW(x3, offsetof(x64emu_t, df), xEmu);
+    SRAWI(x4, x1, 31);
+    CMPW(x2, x4);
+    LI(x3, 1);
+    ISEL(x3, 0, x3, BI(0, CR_EQ));
+    BF_INSERT(xFlags, x3, F_CF, F_CF);
+    BF_INSERT(xFlags, x3, F_OF, F_OF);
+    if(!BOX64ENV(cputype)) {
+        SRWI(x2, x1, 31);
+        BF_INSERT(xFlags, x2, F_SF, F_SF);
+        BF_INSERT(xFlags, xZR, F_ZF, F_ZF);
+        BF_INSERT(xFlags, xZR, F_AF, F_AF);
+        emit_pf(dyn, ninst, x1, x3, x4);
+    }
+    MTLR(x7);
+    BLR();
+
+    // === d_imul64: res=64-bit, op1=high64. CF/OF = (op1 != ASR(res,63)) ===
+SETMARK(d_imul64);
+    LD(x1, offsetof(x64emu_t, res), xEmu);
+    LD(x2, offsetof(x64emu_t, op1), xEmu);
+    LI(x3, 0);
+    STW(x3, offsetof(x64emu_t, df), xEmu);
+    SRADI(x4, x1, 63);
+    CMPD(x2, x4);
+    LI(x3, 1);
+    ISEL(x3, 0, x3, BI(0, CR_EQ));
+    BF_INSERT(xFlags, x3, F_CF, F_CF);
+    BF_INSERT(xFlags, x3, F_OF, F_OF);
+    if(!BOX64ENV(cputype)) {
+        SRDI(x2, x1, 63);
+        BF_INSERT(xFlags, x2, F_SF, F_SF);
+        BF_INSERT(xFlags, xZR, F_ZF, F_ZF);
+        BF_INSERT(xFlags, xZR, F_AF, F_AF);
+        emit_pf(dyn, ninst, x1, x3, x4);
+    }
+    MTLR(x7);
+    BLR();
+
+    // ====================================================================
+    // ROL handlers (d_rol8/16/32/64)
+    // Only set CF and OF. CF = bit 0 of res.
+    // OF: depends on BOX64ENV(cputype).
+    // ====================================================================
+
+    // === d_rol8 ===
 SETMARK(d_rol8);
+    LBZ(x1, offsetof(x64emu_t, res), xEmu);
+    LI(x3, 0);
+    STW(x3, offsetof(x64emu_t, df), xEmu);
+    if(BOX64ENV(cputype)) {
+        // OF = res[0] ^ res[7]
+        SRWI(x2, x1, 7);
+        XOR(x2, x1, x2);
+        BF_INSERT(xFlags, x2, F_OF, F_OF);
+    } else {
+        // OF = op1[6] ^ op1[7]  (top two bits of 8-bit value)
+        LBZ(x2, offsetof(x64emu_t, op1), xEmu);
+        SLWI(x3, x2, 6);          // x3 = op1 << 6 (bit7 now at bit13, bit6 at bit12)
+        SRWI(x4, x3, 1);          // x4 = x3 >> 1
+        XOR(x3, x3, x4);          // bit12 = bit13^bit12
+        BF_INSERT(xFlags, x3, F_OF, F_OF);
+    }
+    // CF = bit 0 of res
+    BF_INSERT(xFlags, x1, F_CF, F_CF);
+    MTLR(x7);
+    BLR();
+
+    // === d_rol16 ===
 SETMARK(d_rol16);
+    LHZ(x1, offsetof(x64emu_t, res), xEmu);
+    LI(x3, 0);
+    STW(x3, offsetof(x64emu_t, df), xEmu);
+    if(BOX64ENV(cputype)) {
+        // OF = res[0] ^ res[15]
+        SRWI(x2, x1, 15);
+        XOR(x2, x1, x2);
+        BF_INSERT(xFlags, x2, F_OF, F_OF);
+    } else {
+        LHZ(x2, offsetof(x64emu_t, op1), xEmu);
+        SLWI(x3, x2, 14);
+        SRWI(x4, x3, 1);
+        XOR(x3, x3, x4);
+        BF_INSERT(xFlags, x3, F_OF, F_OF);
+    }
+    BF_INSERT(xFlags, x1, F_CF, F_CF);
+    MTLR(x7);
+    BLR();
+
+    // === d_rol32 ===
 SETMARK(d_rol32);
+    LWZ(x1, offsetof(x64emu_t, res), xEmu);
+    LI(x3, 0);
+    STW(x3, offsetof(x64emu_t, df), xEmu);
+    if(BOX64ENV(cputype)) {
+        // OF = res[0] ^ res[31]
+        SRWI(x2, x1, 31);
+        XOR(x2, x1, x2);
+        BF_INSERT(xFlags, x2, F_OF, F_OF);
+    } else {
+        LWZ(x2, offsetof(x64emu_t, op1), xEmu);
+        SLWI(x3, x2, 30);
+        SRWI(x4, x3, 1);
+        XOR(x3, x3, x4);
+        BF_INSERT(xFlags, x3, F_OF, F_OF);
+    }
+    BF_INSERT(xFlags, x1, F_CF, F_CF);
+    MTLR(x7);
+    BLR();
+
+    // === d_rol64 ===
 SETMARK(d_rol64);
+    LD(x1, offsetof(x64emu_t, res), xEmu);
+    LI(x3, 0);
+    STW(x3, offsetof(x64emu_t, df), xEmu);
+    if(BOX64ENV(cputype)) {
+        // OF = res[0] ^ res[63]
+        SRDI(x2, x1, 63);
+        XOR(x2, x1, x2);
+        BF_INSERT(xFlags, x2, F_OF, F_OF);
+    } else {
+        LD(x2, offsetof(x64emu_t, op1), xEmu);
+        SLDI(x3, x2, 62);
+        SRWI(x4, x3, 1);          // only need low 32 bits for the XOR result bit
+        XOR(x3, x3, x4);
+        BF_INSERT(xFlags, x3, F_OF, F_OF);
+    }
+    BF_INSERT(xFlags, x1, F_CF, F_CF);
+    MTLR(x7);
+    BLR();
+
+    // ====================================================================
+    // ROR handlers (d_ror8/16/32/64)
+    // Only set CF and OF. CF = MSB of res.
+    // OF: depends on BOX64ENV(cputype).
+    // ====================================================================
+
+    // === d_ror8 ===
 SETMARK(d_ror8);
+    LBZ(x1, offsetof(x64emu_t, res), xEmu);
+    LI(x3, 0);
+    STW(x3, offsetof(x64emu_t, df), xEmu);
+    if(BOX64ENV(cputype)) {
+        // OF = res[6] ^ res[7] (using res<<6, then XOR with >>1)
+        SLWI(x2, x1, 6);
+        SRWI(x3, x2, 1);
+        XOR(x3, x2, x3);
+        BF_INSERT(xFlags, x3, F_OF, F_OF);
+    } else {
+        // OF = op1[0] ^ op1[7]
+        LBZ(x2, offsetof(x64emu_t, op1), xEmu);
+        SRWI(x3, x2, 7);
+        XOR(x3, x2, x3);
+        BF_INSERT(xFlags, x3, F_OF, F_OF);
+    }
+    // CF = bit 7 of res
+    SRWI(x2, x1, 7);
+    BF_INSERT(xFlags, x2, F_CF, F_CF);
+    MTLR(x7);
+    BLR();
+
+    // === d_ror16 ===
 SETMARK(d_ror16);
+    LHZ(x1, offsetof(x64emu_t, res), xEmu);
+    LI(x3, 0);
+    STW(x3, offsetof(x64emu_t, df), xEmu);
+    if(BOX64ENV(cputype)) {
+        SLWI(x2, x1, 14);
+        SRWI(x3, x2, 1);
+        XOR(x3, x2, x3);
+        BF_INSERT(xFlags, x3, F_OF, F_OF);
+    } else {
+        LHZ(x2, offsetof(x64emu_t, op1), xEmu);
+        SRWI(x3, x2, 15);
+        XOR(x3, x2, x3);
+        BF_INSERT(xFlags, x3, F_OF, F_OF);
+    }
+    // CF = bit 15 of res
+    SRWI(x2, x1, 15);
+    BF_INSERT(xFlags, x2, F_CF, F_CF);
+    MTLR(x7);
+    BLR();
+
+    // === d_ror32 ===
 SETMARK(d_ror32);
+    LWZ(x1, offsetof(x64emu_t, res), xEmu);
+    LI(x3, 0);
+    STW(x3, offsetof(x64emu_t, df), xEmu);
+    if(BOX64ENV(cputype)) {
+        SLWI(x2, x1, 30);
+        SRWI(x3, x2, 1);
+        XOR(x3, x2, x3);
+        BF_INSERT(xFlags, x3, F_OF, F_OF);
+    } else {
+        LWZ(x2, offsetof(x64emu_t, op1), xEmu);
+        SRWI(x3, x2, 31);
+        XOR(x3, x2, x3);
+        BF_INSERT(xFlags, x3, F_OF, F_OF);
+    }
+    // CF = bit 31 of res
+    SRWI(x2, x1, 31);
+    BF_INSERT(xFlags, x2, F_CF, F_CF);
+    MTLR(x7);
+    BLR();
+
+    // === d_ror64 ===
 SETMARK(d_ror64);
+    LD(x1, offsetof(x64emu_t, res), xEmu);
+    LI(x3, 0);
+    STW(x3, offsetof(x64emu_t, df), xEmu);
+    if(BOX64ENV(cputype)) {
+        SLDI(x2, x1, 62);
+        SRWI(x3, x2, 1);
+        XOR(x3, x2, x3);
+        BF_INSERT(xFlags, x3, F_OF, F_OF);
+    } else {
+        LD(x2, offsetof(x64emu_t, op1), xEmu);
+        SRDI(x3, x2, 63);
+        XOR(x3, x2, x3);
+        BF_INSERT(xFlags, x3, F_OF, F_OF);
+    }
+    // CF = bit 63 of res
+    SRDI(x2, x1, 63);
+    BF_INSERT(xFlags, x2, F_CF, F_CF);
+    MTLR(x7);
+    BLR();
+
+    // ====================================================================
+    // SBB handlers (d_sbb8/16/32/64)
+    // Fully inlined borrow chain computation.
+    // CC = (~op1 & op2) | (res & (~op1 | op2))
+    // CF = CC[MSB], AF = CC[3], OF = XOR2(CC >> (MSB-1))
+    // ====================================================================
+
+    // === d_sbb8 ===
+SETMARK(d_sbb8);
+    LBZ(x1, offsetof(x64emu_t, res), xEmu);
+    LI(x5, 0);
+    STW(x5, offsetof(x64emu_t, df), xEmu);
+    // SF = res[7]
+    SRWI(x2, x1, 7);
+    BF_INSERT(xFlags, x2, F_SF, F_SF);
+    // ZF = (res == 0)
+    CMPWI(x1, 0);
+    LI(x2, 1);
+    ISEL(x2, x2, 0, BI(0, CR_EQ));
+    BF_INSERT(xFlags, x2, F_ZF, F_ZF);
+    // Load op1, op2
+    LBZ(x2, offsetof(x64emu_t, op1), xEmu);
+    LBZ(x3, offsetof(x64emu_t, op2), xEmu);
+    // CC = (~op1 & op2) | (res & (~op1 | op2))
+    ANDC(x4, x3, x2);     // x4 = op2 & ~op1
+    ORC(x2, x3, x2);      // x2 = op2 | ~op1
+    AND(x2, x2, x1);      // x2 = res & (~op1 | op2)
+    OR(x2, x2, x4);       // x2 = CC
+    // CF = CC[7]
+    SRWI(x3, x2, 7);
+    BF_INSERT(xFlags, x3, F_CF, F_CF);
+    // AF = CC[3]
+    SRWI(x3, x2, 3);
+    BF_INSERT(xFlags, x3, F_AF, F_AF);
+    // OF = XOR2(CC >> 6) = CC[6] ^ CC[7]
+    SRWI(x3, x2, 6);
+    SRWI(x5, x3, 1);
+    XOR(x3, x3, x5);
+    BF_INSERT(xFlags, x3, F_OF, F_OF);
+    // PF
+    emit_pf(dyn, ninst, x1, x3, x4);
+    MTLR(x7);
+    BLR();
+
+    // === d_sbb16 ===
+SETMARK(d_sbb16);
+    LHZ(x1, offsetof(x64emu_t, res), xEmu);
+    LI(x5, 0);
+    STW(x5, offsetof(x64emu_t, df), xEmu);
+    // SF = res[15]
+    SRWI(x2, x1, 15);
+    BF_INSERT(xFlags, x2, F_SF, F_SF);
+    // ZF = (res == 0)
+    CMPWI(x1, 0);
+    LI(x2, 1);
+    ISEL(x2, x2, 0, BI(0, CR_EQ));
+    BF_INSERT(xFlags, x2, F_ZF, F_ZF);
+    // Load op1, op2
+    LHZ(x2, offsetof(x64emu_t, op1), xEmu);
+    LHZ(x3, offsetof(x64emu_t, op2), xEmu);
+    // CC = (~op1 & op2) | (res & (~op1 | op2))
+    ANDC(x4, x3, x2);     // x4 = op2 & ~op1
+    ORC(x2, x3, x2);      // x2 = op2 | ~op1
+    AND(x2, x2, x1);      // x2 = res & (~op1 | op2)
+    OR(x2, x2, x4);       // x2 = CC
+    // CF = CC[15]
+    SRWI(x3, x2, 15);
+    BF_INSERT(xFlags, x3, F_CF, F_CF);
+    // AF = CC[3]
+    SRWI(x3, x2, 3);
+    BF_INSERT(xFlags, x3, F_AF, F_AF);
+    // OF = XOR2(CC >> 14) = CC[14] ^ CC[15]
+    SRWI(x3, x2, 14);
+    SRWI(x5, x3, 1);
+    XOR(x3, x3, x5);
+    BF_INSERT(xFlags, x3, F_OF, F_OF);
+    // PF
+    emit_pf(dyn, ninst, x1, x3, x4);
+    MTLR(x7);
+    BLR();
+
+    // === d_sbb32 ===
+SETMARK(d_sbb32);
+    LWZ(x1, offsetof(x64emu_t, res), xEmu);
+    LI(x5, 0);
+    STW(x5, offsetof(x64emu_t, df), xEmu);
+    // SF = res[31]
+    SRWI(x2, x1, 31);
+    BF_INSERT(xFlags, x2, F_SF, F_SF);
+    // ZF = (res == 0)
+    CMPWI(x1, 0);
+    LI(x2, 1);
+    ISEL(x2, x2, 0, BI(0, CR_EQ));
+    BF_INSERT(xFlags, x2, F_ZF, F_ZF);
+    // Load op1, op2
+    LWZ(x2, offsetof(x64emu_t, op1), xEmu);
+    LWZ(x3, offsetof(x64emu_t, op2), xEmu);
+    // CC = (~op1 & op2) | (res & (~op1 | op2))
+    ANDC(x4, x3, x2);     // x4 = op2 & ~op1
+    ORC(x2, x3, x2);      // x2 = op2 | ~op1
+    AND(x2, x2, x1);      // x2 = res & (~op1 | op2)
+    OR(x2, x2, x4);       // x2 = CC
+    // CF = CC[31]
+    SRWI(x3, x2, 31);
+    BF_INSERT(xFlags, x3, F_CF, F_CF);
+    // AF = CC[3]
+    SRWI(x3, x2, 3);
+    BF_INSERT(xFlags, x3, F_AF, F_AF);
+    // OF = XOR2(CC >> 30) = CC[30] ^ CC[31]
+    SRWI(x3, x2, 30);
+    SRWI(x5, x3, 1);
+    XOR(x3, x3, x5);
+    BF_INSERT(xFlags, x3, F_OF, F_OF);
+    // PF
+    emit_pf(dyn, ninst, x1, x3, x4);
+    MTLR(x7);
+    BLR();
+
+    // === d_sbb64 ===
+SETMARK(d_sbb64);
+    LD(x1, offsetof(x64emu_t, res), xEmu);
+    LI(x5, 0);
+    STW(x5, offsetof(x64emu_t, df), xEmu);
+    // SF = res[63]
+    SRDI(x2, x1, 63);
+    BF_INSERT(xFlags, x2, F_SF, F_SF);
+    // ZF = (res == 0)
+    CMPDI(x1, 0);
+    LI(x2, 1);
+    ISEL(x2, x2, 0, BI(0, CR_EQ));
+    BF_INSERT(xFlags, x2, F_ZF, F_ZF);
+    // Load op1, op2
+    LD(x2, offsetof(x64emu_t, op1), xEmu);
+    LD(x3, offsetof(x64emu_t, op2), xEmu);
+    // CC = (~op1 & op2) | (res & (~op1 | op2))
+    ANDC(x4, x3, x2);     // x4 = op2 & ~op1
+    ORC(x2, x3, x2);      // x2 = op2 | ~op1
+    AND(x2, x2, x1);      // x2 = res & (~op1 | op2)
+    OR(x2, x2, x4);       // x2 = CC
+    // CF = CC[63]
+    SRDI(x3, x2, 63);
+    BF_INSERT(xFlags, x3, F_CF, F_CF);
+    // AF = CC[3]
+    SRWI(x3, x2, 3);
+    BF_INSERT(xFlags, x3, F_AF, F_AF);
+    // OF = XOR2(CC >> 62) = CC[62] ^ CC[63]
+    SRDI(x3, x2, 62);
+    SRWI(x5, x3, 1);
+    XOR(x3, x3, x5);
+    BF_INSERT(xFlags, x3, F_OF, F_OF);
+    // PF
+    emit_pf(dyn, ninst, x1, x3, x4);
+    MTLR(x7);
+    BLR();
+
+    // ====================================================================
+    // ADC handlers (d_adc8/8b/16/16b/32/32b/64)
+    // Carry chain: CC = (op1 & op2) | (~res & (op1 | op2))
+    // Non-b variants: res stored wider (carry bit accessible directly)
+    // b variants: res stored truncated, carry must be reconstructed
+    // ====================================================================
+
+    // === d_adc8: res is 16-bit (carry in bit 8) ===
+SETMARK(d_adc8);
+    LHZ(x1, offsetof(x64emu_t, res), xEmu);
+    LI(x5, 0);
+    STW(x5, offsetof(x64emu_t, df), xEmu);
+    // CF = bit 8 of res
+    SRWI(x2, x1, 8);
+    BF_INSERT(xFlags, x2, F_CF, F_CF);
+    // SF = bit 7 of res
+    SRWI(x2, x1, 7);
+    BF_INSERT(xFlags, x2, F_SF, F_SF);
+    // ZF = (res & 0xff) == 0
+    CMPWI(x1, 0);    // x1 was LBZ-range from LHZ, but low byte could be 0 with high byte nonzero
+    ANDId(x5, x1, 0xff);  // x5 = x1 & 0xff, sets CR0
+    LI(x2, 1);
+    ISEL(x2, x2, 0, BI(0, CR_EQ));
+    BF_INSERT(xFlags, x2, F_ZF, F_ZF);
+    // Load op1, op2
+    LBZ(x2, offsetof(x64emu_t, op1), xEmu);
+    LBZ(x3, offsetof(x64emu_t, op2), xEmu);
+    // CC = (op1 & op2) | (~res & (op1 | op2))
+    AND(x4, x2, x3);      // x4 = op1 & op2
+    OR(x2, x2, x3);       // x2 = op1 | op2
+    ANDC(x2, x2, x1);     // x2 = (op1 | op2) & ~res
+    OR(x2, x2, x4);       // x2 = CC
+    // AF = CC[3]
+    SRWI(x3, x2, 3);
+    BF_INSERT(xFlags, x3, F_AF, F_AF);
+    // OF = XOR2(CC >> 6)
+    SRWI(x3, x2, 6);
+    SRWI(x5, x3, 1);
+    XOR(x3, x3, x5);
+    BF_INSERT(xFlags, x3, F_OF, F_OF);
+    // PF
+    emit_pf(dyn, ninst, x1, x3, x4);
+    MTLR(x7);
+    BLR();
+
+    // === d_adc8b: res stored as 8-bit, must reconstruct carry ===
+SETMARK(d_adc8b);
+    LBZ(x1, offsetof(x64emu_t, res), xEmu);
+    LBZ(x2, offsetof(x64emu_t, op1), xEmu);
+    LBZ(x3, offsetof(x64emu_t, op2), xEmu);
+    LI(x5, 0);
+    STW(x5, offsetof(x64emu_t, df), xEmu);
+    // Detect carry_in: if res == (uint8_t)(op1+op2), carry_in=0, else 1
+    ADD(x4, x2, x3);              // x4 = op1 + op2 (full)
+    RLWINM(x5, x4, 0, 24, 31);   // x5 = (uint8_t)(op1+op2)
+    CMPW(x1, x5);
+    LI(x4, 0);                    // x4 = carry_in = 0
+    BEQ(8);                        // skip LI if equal
+    LI(x4, 1);                    // x4 = carry_in = 1
+    // Recompute wider res: x1 = op1 + op2 + carry_in (16-bit)
+    ADD(x1, x2, x3);
+    ADD(x1, x1, x4);
+    // CF = bit 8 of wider res
+    SRWI(x5, x1, 8);
+    BF_INSERT(xFlags, x5, F_CF, F_CF);
+    // SF = bit 7 of res
+    SRWI(x5, x1, 7);
+    BF_INSERT(xFlags, x5, F_SF, F_SF);
+    // ZF = (res & 0xff) == 0
+    ANDId(x5, x1, 0xff);  // sets CR0
+    LI(x5, 1);
+    ISEL(x5, x5, 0, BI(0, CR_EQ));
+    BF_INSERT(xFlags, x5, F_ZF, F_ZF);
+    // CC = (op1 & op2) | (~res & (op1 | op2))
+    AND(x4, x2, x3);      // x4 = op1 & op2
+    OR(x2, x2, x3);       // x2 = op1 | op2
+    ANDC(x2, x2, x1);     // x2 = (op1 | op2) & ~res
+    OR(x2, x2, x4);       // x2 = CC
+    // AF = CC[3]
+    SRWI(x3, x2, 3);
+    BF_INSERT(xFlags, x3, F_AF, F_AF);
+    // OF = XOR2(CC >> 6)
+    SRWI(x3, x2, 6);
+    SRWI(x5, x3, 1);
+    XOR(x3, x3, x5);
+    BF_INSERT(xFlags, x3, F_OF, F_OF);
+    // PF
+    emit_pf(dyn, ninst, x1, x3, x4);
+    MTLR(x7);
+    BLR();
+
+    // === d_adc16: res is 32-bit (carry in bit 16) ===
+SETMARK(d_adc16);
+    LWZ(x1, offsetof(x64emu_t, res), xEmu);
+    LI(x5, 0);
+    STW(x5, offsetof(x64emu_t, df), xEmu);
+    // CF = bit 16 of res
+    SRWI(x2, x1, 16);
+    BF_INSERT(xFlags, x2, F_CF, F_CF);
+    // SF = bit 15 of res
+    SRWI(x2, x1, 15);
+    BF_INSERT(xFlags, x2, F_SF, F_SF);
+    // ZF = (res & 0xffff) == 0
+    ANDId(x5, x1, 0xffff);  // sets CR0 — but ANDId only takes 16-bit immediate
+    LI(x2, 1);
+    ISEL(x2, x2, 0, BI(0, CR_EQ));
+    BF_INSERT(xFlags, x2, F_ZF, F_ZF);
+    // Load op1, op2
+    LHZ(x2, offsetof(x64emu_t, op1), xEmu);
+    LHZ(x3, offsetof(x64emu_t, op2), xEmu);
+    // CC = (op1 & op2) | (~res & (op1 | op2))
+    AND(x4, x2, x3);
+    OR(x2, x2, x3);
+    ANDC(x2, x2, x1);
+    OR(x2, x2, x4);       // x2 = CC
+    // AF = CC[3]
+    SRWI(x3, x2, 3);
+    BF_INSERT(xFlags, x3, F_AF, F_AF);
+    // OF = XOR2(CC >> 14)
+    SRWI(x3, x2, 14);
+    SRWI(x5, x3, 1);
+    XOR(x3, x3, x5);
+    BF_INSERT(xFlags, x3, F_OF, F_OF);
+    // PF
+    emit_pf(dyn, ninst, x1, x3, x4);
+    MTLR(x7);
+    BLR();
+
+    // === d_adc16b: res stored as 16-bit, must reconstruct carry ===
+SETMARK(d_adc16b);
+    LHZ(x1, offsetof(x64emu_t, res), xEmu);
+    LHZ(x2, offsetof(x64emu_t, op1), xEmu);
+    LHZ(x3, offsetof(x64emu_t, op2), xEmu);
+    LI(x5, 0);
+    STW(x5, offsetof(x64emu_t, df), xEmu);
+    // Detect carry_in: if res == (uint16_t)(op1+op2), carry_in=0, else 1
+    ADD(x4, x2, x3);                 // x4 = op1 + op2 (full)
+    RLWINM(x5, x4, 0, 16, 31);      // x5 = (uint16_t)(op1+op2)
+    CMPW(x1, x5);
+    LI(x4, 0);
+    BEQ(8);
+    LI(x4, 1);
+    // Recompute wider res: x1 = op1 + op2 + carry_in (32-bit)
+    ADD(x1, x2, x3);
+    ADD(x1, x1, x4);
+    // CF = bit 16 of wider res
+    SRWI(x5, x1, 16);
+    BF_INSERT(xFlags, x5, F_CF, F_CF);
+    // SF = bit 15 of res
+    SRWI(x5, x1, 15);
+    BF_INSERT(xFlags, x5, F_SF, F_SF);
+    // ZF = (res & 0xffff) == 0
+    ANDId(x5, x1, 0xffff);  // sets CR0
+    LI(x5, 1);
+    ISEL(x5, x5, 0, BI(0, CR_EQ));
+    BF_INSERT(xFlags, x5, F_ZF, F_ZF);
+    // CC = (op1 & op2) | (~res & (op1 | op2))
+    AND(x4, x2, x3);
+    OR(x2, x2, x3);
+    ANDC(x2, x2, x1);
+    OR(x2, x2, x4);       // x2 = CC
+    // AF = CC[3]
+    SRWI(x3, x2, 3);
+    BF_INSERT(xFlags, x3, F_AF, F_AF);
+    // OF = XOR2(CC >> 14)
+    SRWI(x3, x2, 14);
+    SRWI(x5, x3, 1);
+    XOR(x3, x3, x5);
+    BF_INSERT(xFlags, x3, F_OF, F_OF);
+    // PF
+    emit_pf(dyn, ninst, x1, x3, x4);
+    MTLR(x7);
+    BLR();
+
+    // === d_adc32: res is 64-bit (carry in bit 32) ===
+SETMARK(d_adc32);
+    LD(x1, offsetof(x64emu_t, res), xEmu);
+    LI(x5, 0);
+    STW(x5, offsetof(x64emu_t, df), xEmu);
+    // CF = bit 32 of res
+    SRDI(x2, x1, 32);
+    BF_INSERT(xFlags, x2, F_CF, F_CF);
+    // SF = bit 31 of res
+    SRWI(x2, x1, 31);
+    BF_INSERT(xFlags, x2, F_SF, F_SF);
+    // ZF = (uint32_t)res == 0
+    ZEROUP2(x5, x1);   // x5 = (uint32_t)res
+    CMPWI(x5, 0);
+    LI(x2, 1);
+    ISEL(x2, x2, 0, BI(0, CR_EQ));
+    BF_INSERT(xFlags, x2, F_ZF, F_ZF);
+    // Load op1, op2 (32-bit)
+    LWZ(x2, offsetof(x64emu_t, op1), xEmu);
+    LWZ(x3, offsetof(x64emu_t, op2), xEmu);
+    // CC = (op1 & op2) | (~res & (op1 | op2))  — 32-bit operations
+    AND(x4, x2, x3);
+    OR(x2, x2, x3);
+    ANDC(x2, x2, x1);     // uses low 32 bits of x1 (= truncated res)
+    OR(x2, x2, x4);       // x2 = CC
+    // AF = CC[3]
+    SRWI(x3, x2, 3);
+    BF_INSERT(xFlags, x3, F_AF, F_AF);
+    // OF = XOR2(CC >> 30)
+    SRWI(x3, x2, 30);
+    SRWI(x5, x3, 1);
+    XOR(x3, x3, x5);
+    BF_INSERT(xFlags, x3, F_OF, F_OF);
+    // PF
+    emit_pf(dyn, ninst, x1, x3, x4);
+    MTLR(x7);
+    BLR();
+
+    // === d_adc32b: res stored as 32-bit, must reconstruct carry ===
+SETMARK(d_adc32b);
+    LWZ(x1, offsetof(x64emu_t, res), xEmu);
+    LI(x5, 0);
+    STW(x5, offsetof(x64emu_t, df), xEmu);
+    // SF = bit 31 of res
+    SRWI(x2, x1, 31);
+    BF_INSERT(xFlags, x2, F_SF, F_SF);
+    // ZF = (res == 0)
+    CMPWI(x1, 0);
+    LI(x2, 1);
+    ISEL(x2, x2, 0, BI(0, CR_EQ));
+    BF_INSERT(xFlags, x2, F_ZF, F_ZF);
+    // Load op1, op2
+    LWZ(x2, offsetof(x64emu_t, op1), xEmu);
+    LWZ(x3, offsetof(x64emu_t, op2), xEmu);
+    // Detect carry_in: compare (uint32_t)res with (uint32_t)(op1+op2)
+    ADD(x4, x2, x3);         // x4 = op1 + op2 (64-bit, but LWZ values fit 32 bits)
+    ZEROUP(x4);               // x4 = (uint32_t)(op1+op2)
+    CMPW(x1, x4);
+    LI(x4, 1);
+    ISEL(x4, 0, x4, BI(0, CR_EQ));  // x4 = carry_in: 0 if equal, 1 if not
+    // Recompute wider: x4 = carry_in + op1 + op2 (64-bit)
+    ADD(x4, x4, x2);
+    ADD(x4, x4, x3);
+    // CF = bit 32
+    SRDI(x5, x4, 32);
+    BF_INSERT(xFlags, x5, F_CF, F_CF);
+    // CC = (op1 & op2) | (~res & (op1 | op2))
+    AND(x4, x2, x3);
+    OR(x2, x2, x3);
+    ANDC(x2, x2, x1);
+    OR(x2, x2, x4);       // x2 = CC
+    // AF = CC[3]
+    SRWI(x3, x2, 3);
+    BF_INSERT(xFlags, x3, F_AF, F_AF);
+    // OF = XOR2(CC >> 30)
+    SRWI(x3, x2, 30);
+    SRWI(x5, x3, 1);
+    XOR(x3, x3, x5);
+    BF_INSERT(xFlags, x3, F_OF, F_OF);
+    // PF
+    emit_pf(dyn, ninst, x1, x3, x4);
+    MTLR(x7);
+    BLR();
+
+    // === d_adc64: must reconstruct carry via hi/lo split ===
+SETMARK(d_adc64);
+    LD(x1, offsetof(x64emu_t, res), xEmu);
+    LI(x5, 0);
+    STW(x5, offsetof(x64emu_t, df), xEmu);
+    // SF = bit 63 of res
+    SRDI(x2, x1, 63);
+    BF_INSERT(xFlags, x2, F_SF, F_SF);
+    // ZF = (res == 0)
+    CMPDI(x1, 0);
+    LI(x2, 1);
+    ISEL(x2, x2, 0, BI(0, CR_EQ));
+    BF_INSERT(xFlags, x2, F_ZF, F_ZF);
+    // Load op1, op2
+    LD(x2, offsetof(x64emu_t, op1), xEmu);
+    LD(x3, offsetof(x64emu_t, op2), xEmu);
+    // Detect carry_in: if res == op1+op2, carry_in=0, else 1
+    ADD(x4, x2, x3);         // x4 = op1 + op2 (64-bit, may wrap)
+    CMPD(x1, x4);
+    LI(x4, 1);
+    ISEL(x4, 0, x4, BI(0, CR_EQ));  // x4 = carry_in
+    // Compute CF via hi/lo split:
+    // lo = carry_in + (uint32_t)op1 + (uint32_t)op2
+    ZEROUP2(x5, x2);         // x5 = (uint32_t)op1
+    ADD(x4, x4, x5);         // x4 = carry_in + lo(op1)
+    ZEROUP2(x5, x3);         // x5 = (uint32_t)op2
+    ADD(x4, x4, x5);         // x4 = carry_in + lo(op1) + lo(op2) = lo
+    // hi = (lo >> 32) + (op1 >> 32) + (op2 >> 32)
+    SRDI(x4, x4, 32);        // x4 = lo >> 32 (carry from low half)
+    SRDI(x5, x2, 32);        // x5 = op1 >> 32
+    ADD(x4, x4, x5);
+    SRDI(x5, x3, 32);        // x5 = op2 >> 32
+    ADD(x4, x4, x5);         // x4 = hi
+    // CF = bit 32 of hi
+    SRDI(x5, x4, 32);
+    BF_INSERT(xFlags, x5, F_CF, F_CF);
+    // CC = (op1 & op2) | (~res & (op1 | op2))
+    AND(x4, x2, x3);
+    OR(x2, x2, x3);
+    ANDC(x2, x2, x1);
+    OR(x2, x2, x4);       // x2 = CC
+    // AF = CC[3]
+    SRWI(x3, x2, 3);
+    BF_INSERT(xFlags, x3, F_AF, F_AF);
+    // OF = XOR2(CC >> 62)
+    SRDI(x3, x2, 62);
+    SRWI(x5, x3, 1);
+    XOR(x3, x3, x5);
+    BF_INSERT(xFlags, x3, F_OF, F_OF);
+    // PF
+    emit_pf(dyn, ninst, x1, x3, x4);
+    MTLR(x7);
+    BLR();
+
+    // ====================================================================
+    // SHRD handlers (d_shrd16/32/64)
+    // CF = (op1 >> (cnt-1)) & 1
+    // OF (cputype): XOR2(res >> (N-2))
+    // OF (!cputype): ((res >> (N-cnt)) ^ (op1 >> (N-1))) & 1
+    // AF: SET (cputype) or CLEAR (!cputype)
+    // d_shrd16: OF/AF unconditional, CF/SF/ZF/PF only when cnt>0
+    // d_shrd32/64: all flags only when cnt>0
+    // ====================================================================
+
+    // === d_shrd16 ===
+    // C ref: OF and AF are set unconditionally (outside if(cnt>0)).
+    // CF/SF/ZF/PF only when cnt > 0.
 SETMARK(d_shrd16);
+    LHZ(x1, offsetof(x64emu_t, res), xEmu);
+    LHZ(x2, offsetof(x64emu_t, op1), xEmu);
+    LHZ(x3, offsetof(x64emu_t, op2), xEmu);
+    LI(x5, 0);
+    STW(x5, offsetof(x64emu_t, df), xEmu);
+    // OF (unconditional)
+    if(BOX64ENV(cputype)) {
+        // OF = XOR2(res >> 14)
+        SRWI(x4, x1, 14);
+        SRWI(x5, x4, 1);
+        XOR(x4, x4, x5);
+        BF_INSERT(xFlags, x4, F_OF, F_OF);
+        // AF = 1
+        ORI(xFlags, xFlags, 1 << F_AF);
+    } else {
+        // OF = ((res >> (16 - (cnt & 15))) ^ (op1 >> 15)) & 1
+        ANDId(x4, x3, 0x0f);     // x4 = cnt & 0xf, sets CR0
+        SUBFIC(x4, x4, 16);      // x4 = 16 - (cnt & 0xf)
+        SRW(x4, x1, x4);         // x4 = res >> (16 - (cnt & 0xf))
+        SRWI(x5, x2, 15);        // x5 = op1 >> 15
+        XOR(x4, x4, x5);
+        BF_INSERT(xFlags, x4, F_OF, F_OF);
+        // AF = 0
+        BF_INSERT(xFlags, xZR, F_AF, F_AF);
+    }
+    // Early return if cnt == 0
+    CMPWI(x3, 0);
+    BNE(12);       // if cnt != 0, skip to CF/SF/ZF/PF
+    MTLR(x7);
+    BLR();
+    // CF = (op1 >> (cnt - 1)) & 1
+    ADDI(x4, x3, -1);         // x4 = cnt - 1
+    SRW(x4, x2, x4);          // x4 = op1 >> (cnt - 1)
+    if(BOX64ENV(cputype)) {
+        // if cnt > 15, CF = 0
+        CMPWI(x3, 15);
+        BLE(8);                // if cnt <= 15, skip zeroing
+        LI(x4, 0);            // CF = 0 for cnt > 15
+    }
+    BF_INSERT(xFlags, x4, F_CF, F_CF);
+    // SF = bit 15 of res
+    SRWI(x4, x1, 15);
+    BF_INSERT(xFlags, x4, F_SF, F_SF);
+    // ZF = (res & 0xffff) == 0
+    ANDId(x4, x1, 0xffff);   // sets CR0
+    LI(x4, 1);
+    ISEL(x4, x4, 0, BI(0, CR_EQ));
+    BF_INSERT(xFlags, x4, F_ZF, F_ZF);
+    // PF
+    emit_pf(dyn, ninst, x1, x4, x5);
+    MTLR(x7);
+    BLR();
+
+    // === d_shrd32 ===
 SETMARK(d_shrd32);
+    LWZ(x1, offsetof(x64emu_t, res), xEmu);
+    LWZ(x2, offsetof(x64emu_t, op1), xEmu);
+    LWZ(x3, offsetof(x64emu_t, op2), xEmu);
+    LI(x5, 0);
+    STW(x5, offsetof(x64emu_t, df), xEmu);
+    // Early return if cnt == 0
+    CMPWI(x3, 0);
+    BNE(12);
+    MTLR(x7);
+    BLR();
+    // OF
+    if(BOX64ENV(cputype)) {
+        // OF = XOR2(res >> 30)
+        SRWI(x4, x1, 30);
+        SRWI(x5, x4, 1);
+        XOR(x4, x4, x5);
+        BF_INSERT(xFlags, x4, F_OF, F_OF);
+        // AF = 1
+        ORI(xFlags, xFlags, 1 << F_AF);
+    } else {
+        // OF = ((res >> (32 - cnt)) ^ (op1 >> 31)) & 1
+        SUBFIC(x4, x3, 32);       // x4 = 32 - cnt
+        SRW(x4, x1, x4);          // x4 = res >> (32 - cnt)
+        SRWI(x5, x2, 31);         // x5 = op1 >> 31
+        XOR(x4, x4, x5);
+        BF_INSERT(xFlags, x4, F_OF, F_OF);
+        // AF = 0
+        BF_INSERT(xFlags, xZR, F_AF, F_AF);
+    }
+    // CF = (op1 >> (cnt - 1)) & 1
+    ADDI(x4, x3, -1);
+    SRW(x4, x2, x4);
+    BF_INSERT(xFlags, x4, F_CF, F_CF);
+    // SF = bit 31 of res
+    SRWI(x4, x1, 31);
+    BF_INSERT(xFlags, x4, F_SF, F_SF);
+    // ZF = (res == 0)
+    CMPWI(x1, 0);
+    LI(x4, 1);
+    ISEL(x4, x4, 0, BI(0, CR_EQ));
+    BF_INSERT(xFlags, x4, F_ZF, F_ZF);
+    // PF
+    emit_pf(dyn, ninst, x1, x4, x5);
+    MTLR(x7);
+    BLR();
+
+    // === d_shrd64 ===
 SETMARK(d_shrd64);
+    LD(x1, offsetof(x64emu_t, res), xEmu);
+    LD(x2, offsetof(x64emu_t, op1), xEmu);
+    LD(x3, offsetof(x64emu_t, op2), xEmu);
+    LI(x5, 0);
+    STW(x5, offsetof(x64emu_t, df), xEmu);
+    // Early return if cnt == 0
+    CMPWI(x3, 0);
+    BNE(12);
+    MTLR(x7);
+    BLR();
+    // OF
+    if(BOX64ENV(cputype)) {
+        // OF = XOR2(res >> 62)
+        SRDI(x4, x1, 62);
+        SRWI(x5, x4, 1);
+        XOR(x4, x4, x5);
+        BF_INSERT(xFlags, x4, F_OF, F_OF);
+        // AF = 1
+        ORI(xFlags, xFlags, 1 << F_AF);
+    } else {
+        // OF = ((res >> (64 - cnt)) ^ (op1 >> 63)) & 1
+        SUBFIC(x4, x3, 64);       // x4 = 64 - cnt
+        SRD(x4, x1, x4);          // x4 = res >> (64 - cnt)
+        SRDI(x5, x2, 63);         // x5 = op1 >> 63
+        XOR(x4, x4, x5);
+        BF_INSERT(xFlags, x4, F_OF, F_OF);
+        // AF = 0
+        BF_INSERT(xFlags, xZR, F_AF, F_AF);
+    }
+    // CF = (op1 >> (cnt - 1)) & 1
+    ADDI(x4, x3, -1);
+    SRD(x4, x2, x4);
+    BF_INSERT(xFlags, x4, F_CF, F_CF);
+    // SF = bit 63 of res
+    SRDI(x4, x1, 63);
+    BF_INSERT(xFlags, x4, F_SF, F_SF);
+    // ZF = (res == 0)
+    CMPDI(x1, 0);
+    LI(x4, 1);
+    ISEL(x4, x4, 0, BI(0, CR_EQ));
+    BF_INSERT(xFlags, x4, F_ZF, F_ZF);
+    // PF
+    emit_pf(dyn, ninst, x1, x4, x5);
+    MTLR(x7);
+    BLR();
+
+    // ====================================================================
+    // SHLD handlers (d_shld16/32/64)
+    // CF = (op1 >> (N - cnt)) & 1
+    // OF (cputype): (CF ^ (res >> (N-1))) & 1
+    // OF (!cputype): XOR2(op1 >> (N-2))
+    // AF: SET (cputype) or CLEAR (!cputype)
+    // All flags only when cnt > 0
+    // ====================================================================
+
+    // === d_shld16 ===
 SETMARK(d_shld16);
+    LHZ(x1, offsetof(x64emu_t, res), xEmu);
+    LHZ(x2, offsetof(x64emu_t, op1), xEmu);
+    LHZ(x3, offsetof(x64emu_t, op2), xEmu);
+    LI(x5, 0);
+    STW(x5, offsetof(x64emu_t, df), xEmu);
+    // Early return if cnt == 0
+    CMPWI(x3, 0);
+    BNE(12);
+    MTLR(x7);
+    BLR();
+    // CF = (op1 >> (16 - cnt)) & 1
+    SUBFIC(x4, x3, 16);       // x4 = 16 - cnt
+    SRW(x4, x2, x4);          // x4 = op1 >> (16 - cnt)
+    BF_INSERT(xFlags, x4, F_CF, F_CF);
+    // OF
+    if(BOX64ENV(cputype)) {
+        // OF = (CF ^ (res >> 15)) & 1
+        // CF was just inserted into xFlags bit 0
+        // But if cnt > 15, OF = CF (i.e., res >> 15 is treated as 0? No, CSEL preserves xFlags)
+        // ARM64: EORw_REG_LSR(x4, xFlags, x1, 15); CMPSw_U12(x3, 15); CSELw(x4, x4, xFlags, cGT)
+        // When cnt > 15: x4 = xFlags (so OF = xFlags bit F_OF which is preserved)
+        // When cnt <= 15: x4 = xFlags ^ (res >> 15), bit 0 = CF ^ sign(res)
+        SRWI(x4, x1, 15);         // x4 = res >> 15
+        XOR(x4, xFlags, x4);      // x4 = xFlags ^ (res >> 15), bit F_CF = CF ^ sign(res)
+        CMPWI(x3, 15);
+        // if cnt > 15: use xFlags (preserve existing OF)
+        // if cnt <= 15: use x4
+        ISEL(x4, x4, xFlags, BI(0, CR_GT));  // GT: x4=x4; else: x4=xFlags
+        BF_INSERT(xFlags, x4, F_OF, F_OF);
+        // AF = 1
+        ORI(xFlags, xFlags, 1 << F_AF);
+    } else {
+        // OF = XOR2(op1 >> 14)
+        SRWI(x4, x2, 14);
+        SRWI(x5, x4, 1);
+        XOR(x4, x4, x5);
+        BF_INSERT(xFlags, x4, F_OF, F_OF);
+        // AF = 0
+        BF_INSERT(xFlags, xZR, F_AF, F_AF);
+    }
+    // SF = bit 15 of res
+    SRWI(x4, x1, 15);
+    BF_INSERT(xFlags, x4, F_SF, F_SF);
+    // ZF = (res & 0xffff) == 0
+    ANDId(x4, x1, 0xffff);   // sets CR0
+    LI(x4, 1);
+    ISEL(x4, x4, 0, BI(0, CR_EQ));
+    BF_INSERT(xFlags, x4, F_ZF, F_ZF);
+    // PF
+    emit_pf(dyn, ninst, x1, x4, x5);
+    MTLR(x7);
+    BLR();
+
+    // === d_shld32 ===
 SETMARK(d_shld32);
+    LWZ(x1, offsetof(x64emu_t, res), xEmu);
+    LWZ(x2, offsetof(x64emu_t, op1), xEmu);
+    LWZ(x3, offsetof(x64emu_t, op2), xEmu);
+    LI(x5, 0);
+    STW(x5, offsetof(x64emu_t, df), xEmu);
+    // Early return if cnt == 0
+    CMPWI(x3, 0);
+    BNE(12);
+    MTLR(x7);
+    BLR();
+    // CF = (op1 >> (32 - cnt)) & 1
+    SUBFIC(x4, x3, 32);       // x4 = 32 - cnt
+    SRW(x4, x2, x4);          // x4 = op1 >> (32 - cnt)
+    BF_INSERT(xFlags, x4, F_CF, F_CF);
+    // OF
+    if(BOX64ENV(cputype)) {
+        // OF = (CF ^ (res >> 31)) & 1
+        // CF is in xFlags bit 0
+        SRWI(x4, x1, 31);         // x4 = res >> 31
+        XOR(x4, xFlags, x4);      // x4 = xFlags ^ (res >> 31), bit 0 = CF ^ sign(res)
+        BF_INSERT(xFlags, x4, F_OF, F_OF);
+        // AF = 1
+        ORI(xFlags, xFlags, 1 << F_AF);
+    } else {
+        // OF = XOR2(op1 >> 30)
+        SRWI(x4, x2, 30);
+        SRWI(x5, x4, 1);
+        XOR(x4, x4, x5);
+        BF_INSERT(xFlags, x4, F_OF, F_OF);
+        // AF = 0
+        BF_INSERT(xFlags, xZR, F_AF, F_AF);
+    }
+    // SF = bit 31 of res
+    SRWI(x4, x1, 31);
+    BF_INSERT(xFlags, x4, F_SF, F_SF);
+    // ZF = (res == 0)
+    CMPWI(x1, 0);
+    LI(x4, 1);
+    ISEL(x4, x4, 0, BI(0, CR_EQ));
+    BF_INSERT(xFlags, x4, F_ZF, F_ZF);
+    // PF
+    emit_pf(dyn, ninst, x1, x4, x5);
+    MTLR(x7);
+    BLR();
+
+    // === d_shld64 ===
 SETMARK(d_shld64);
+    LD(x1, offsetof(x64emu_t, res), xEmu);
+    LD(x2, offsetof(x64emu_t, op1), xEmu);
+    LD(x3, offsetof(x64emu_t, op2), xEmu);
+    LI(x5, 0);
+    STW(x5, offsetof(x64emu_t, df), xEmu);
+    // Early return if cnt == 0
+    CMPDI(x3, 0);
+    BNE(12);
+    MTLR(x7);
+    BLR();
+    // CF = (op1 >> (64 - cnt)) & 1
+    MOV32w(x4, 64);
+    SUB(x4, x4, x3);          // x4 = 64 - cnt
+    SRD(x4, x2, x4);          // x4 = op1 >> (64 - cnt)
+    BF_INSERT(xFlags, x4, F_CF, F_CF);
+    // OF
+    if(BOX64ENV(cputype)) {
+        // OF = (CF ^ (res >> 63)) & 1
+        SRDI(x4, x1, 63);         // x4 = res >> 63
+        XOR(x4, xFlags, x4);      // bit 0 = CF ^ sign(res)
+        BF_INSERT(xFlags, x4, F_OF, F_OF);
+        // AF = 1
+        ORI(xFlags, xFlags, 1 << F_AF);
+    } else {
+        // OF = XOR2(op1 >> 62)
+        SRDI(x4, x2, 62);
+        SRWI(x5, x4, 1);
+        XOR(x4, x4, x5);
+        BF_INSERT(xFlags, x4, F_OF, F_OF);
+        // AF = 0
+        BF_INSERT(xFlags, xZR, F_AF, F_AF);
+    }
+    // SF = bit 63 of res
+    SRDI(x4, x1, 63);
+    BF_INSERT(xFlags, x4, F_SF, F_SF);
+    // ZF = (res == 0)
+    CMPDI(x1, 0);
+    LI(x4, 1);
+    ISEL(x4, x4, 0, BI(0, CR_EQ));
+    BF_INSERT(xFlags, x4, F_ZF, F_ZF);
+    // PF
+    emit_pf(dyn, ninst, x1, x4, x5);
+    MTLR(x7);
+    BLR();
 
     // Fallback code: call C UpdateFlags(emu)
 
