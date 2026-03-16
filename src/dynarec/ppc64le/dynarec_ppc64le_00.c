@@ -3196,6 +3196,7 @@ uintptr_t dynarec64_00(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                         }
                     }
                     PUSH1(x2);
+                    MESSAGE(LOG_DUMP, "Native Call to %s (retn=%d)\n", GetNativeName(GetNativeFnc(dyn->insts[ninst].natcall - 1), 1), dyn->insts[ninst].retn);
                     // calling a native function
                     SMEND();
                     sse_purge07cache(dyn, ninst, x3);
@@ -3206,7 +3207,6 @@ uintptr_t dynarec64_00(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                         tmp = 0;
                     if (tmp < 0 || (tmp & 15) > 1)
                         tmp = 0; // TODO: removed when FP is in place
-                    MESSAGE(LOG_DUMP, "Native Call to %s (retn=%d, simpleWrapper=%d)\n", GetNativeName(GetNativeFnc(dyn->insts[ninst].natcall - 1), 1), dyn->insts[ninst].retn, tmp);
                     if (dyn->insts[ninst].natcall && isRetX87Wrapper(*(wrapper_t*)(dyn->insts[ninst].natcall + 2)))
                         // return value will be on the stack, so the stack depth needs to be updated
                         x87_purgecache(dyn, ninst, 0, x3, x1, x4);
