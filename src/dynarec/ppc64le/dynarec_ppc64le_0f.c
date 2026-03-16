@@ -2202,43 +2202,78 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             u8 = F8;
             // SHUFPS: result[31:0] = Gx[imm[1:0]*32], result[63:32] = Gx[imm[3:2]*32],
             //         result[95:64] = Ex[imm[5:4]*32], result[127:96] = Ex[imm[7:6]*32]
-            // Strategy: extract 4 words from Gx and Ex via GPR and reassemble
-            {
-                int sel0 = (u8 >> 0) & 3;
-                int sel1 = (u8 >> 2) & 3;
-                int sel2 = (u8 >> 4) & 3;
-                int sel3 = (u8 >> 6) & 3;
-                // Extract Gx halves to GPRs
-                MFVSRLD(x4, VSXREG(v0));    // x86 low 64 bits (ISA dw1) - words 0,1
-                MFVSRD(x5, VSXREG(v0));     // x86 high 64 bits (ISA dw0) - words 2,3
-                // In LE GPR: x4 bits [31:0]=word0, [63:32]=word1
-                //             x5 bits [31:0]=word2, [63:32]=word3
-                // Helper: extract word sel from (x4 for sel<2, x5 for sel>=2)
-                // word N from register: N%2==0 -> low 32 bits (CLRLDI by 32), N%2==1 -> shift right 32
-                #define EXTRACT_WORD(dst, sel) do {                  \
-                    int _reg = ((sel) < 2) ? x4 : x5;              \
-                    if (((sel) & 1) == 0)                           \
-                        RLWINM(dst, _reg, 0, 0, 31);               \
-                    else                                            \
-                        SRDI(dst, _reg, 32);                        \
-                } while(0)
-
-                EXTRACT_WORD(x6, sel0);
-                EXTRACT_WORD(x7, sel1);
-                RLDIMI(x6, x7, 32, 0);  // x6 = x86 result low qword
-
-                // Extract Ex halves for sel2, sel3
-                if (v0 != v1) {
-                    MFVSRLD(x4, VSXREG(v1));
-                    MFVSRD(x5, VSXREG(v1));
+            if (v0 == v1 && u8 == 0xE4) {
+                // Tier 0: Identity shuffle — no-op
+            } else if (v0 == v1 && ((u8 & 0x3) == ((u8 >> 2) & 3)) && ((u8 & 0xF) == ((u8 >> 4) & 0xF))) {
+                // Tier 1: Broadcast single word (all 4 selectors identical, same-reg)
+                // UIM2 for XXSPLTW: x86 word w → BE word (3-w) → UIM2 = 3-w
+                XXSPLTW(VSXREG(v0), VSXREG(v0), 3 - (u8 & 3));
+            } else if ((((u8 & 0x0F) == 0x04) || ((u8 & 0x0F) == 0x0E))
+                    && (((u8 & 0xF0) == 0x40) || ((u8 & 0xF0) == 0xE0))) {
+                // Tier 2: Doubleword-aligned — use XXPERMDI (1 instruction)
+                // Low result half from Gx, high result half from Ex
+                // XXPERMDI(XT, XA, XB, DM): dw0 from XA, dw1 from XB
+                // XA=Ex (produces ISA dw0 = x86 high), XB=Gx (produces ISA dw1 = x86 low)
+                // Low nibble 0x04 = Gx words[0,1] = x86 low qword = ISA dw1 → need XB dw1 → DM[0]=1
+                // Low nibble 0x0E = Gx words[2,3] = x86 high qword = ISA dw0 → need XB dw0 → DM[0]=0
+                // High nibble 0x40 = Ex words[0,1] = x86 low qword = ISA dw1 → need XA dw1 → DM[1]=1
+                // High nibble 0xE0 = Ex words[2,3] = x86 high qword = ISA dw0 → need XA dw0 → DM[1]=0
+                int dm = (((u8 & 0xF0) == 0x40) ? 2 : 0) | (((u8 & 0x0F) == 0x04) ? 1 : 0);
+                XXPERMDI(VSXREG(v0), VSXREG(v1), VSXREG(v0), dm);
+            } else if (v0 != v1) {
+                // Tier 3b: General two-source — VPERM avoids VSX↔GPR domain crossings
+                // VPERM(VRT, VRA, VRB, VRC): VRT[i] = (VRA||VRB)[VRC[i] & 0x1F]
+                // VRA=Ex (indices 0-15), VRB=Gx (indices 16-31)
+                // Words 0,1 from Gx → bit4=1 (indices 16+), words 2,3 from Ex → bit4=0
+                // PPC BE byte layout: x86 word w → BE word (3-w) at byte offset (3-w)*4
+                {
+                    d0 = fpu_get_scratch(dyn);
+                    uint64_t ctrl_hi = 0, ctrl_lo = 0;
+                    for (int i = 0; i < 4; ++i) {
+                        int src_word = (u8 >> (i * 2)) & 3;
+                        int dest_be_word = 3 - i;
+                        int src_be_offset = (3 - src_word) * 4;
+                        // Words 0,1 come from Gx (VRB, indices 16-31), words 2,3 from Ex (VRA, indices 0-15)
+                        int base = (i < 2) ? 16 : 0;
+                        for (int b = 0; b < 4; ++b) {
+                            int dest_byte = dest_be_word * 4 + b;
+                            uint8_t src_byte = base + src_be_offset + b;
+                            if (dest_byte < 8)
+                                ctrl_hi |= ((uint64_t)src_byte) << ((7 - dest_byte) * 8);
+                            else
+                                ctrl_lo |= ((uint64_t)src_byte) << ((15 - dest_byte) * 8);
+                        }
+                    }
+                    TABLE64(x4, ctrl_hi);
+                    TABLE64(x5, ctrl_lo);
+                    MTVSRDD(VSXREG(d0), x4, x5);
+                    VPERM(VRREG(v0), VRREG(v1), VRREG(v0), VRREG(d0));
                 }
-                EXTRACT_WORD(x3, sel2);
-                EXTRACT_WORD(x7, sel3);
-                RLDIMI(x3, x7, 32, 0);  // x3 = x86 result high qword
-
-                #undef EXTRACT_WORD
-                // Assemble: x3 = ISA dw0 (x86 high), x6 = ISA dw1 (x86 low)
-                MTVSRDD(VSXREG(v0), x3, x6);
+            } else {
+                // Tier 3a: General single-source (Gx==Ex) — GPR extract/reassemble
+                {
+                    int sel0 = (u8 >> 0) & 3;
+                    int sel1 = (u8 >> 2) & 3;
+                    int sel2 = (u8 >> 4) & 3;
+                    int sel3 = (u8 >> 6) & 3;
+                    MFVSRLD(x4, VSXREG(v0));    // x86 low 64 bits (ISA dw1) - words 0,1
+                    MFVSRD(x5, VSXREG(v0));     // x86 high 64 bits (ISA dw0) - words 2,3
+                    #define EXTRACT_WORD(dst, sel) do {                  \
+                        int _reg = ((sel) < 2) ? x4 : x5;              \
+                        if (((sel) & 1) == 0)                           \
+                            RLWINM(dst, _reg, 0, 0, 31);               \
+                        else                                            \
+                            SRDI(dst, _reg, 32);                        \
+                    } while(0)
+                    EXTRACT_WORD(x6, sel0);
+                    EXTRACT_WORD(x7, sel1);
+                    RLDIMI(x6, x7, 32, 0);
+                    EXTRACT_WORD(x3, sel2);
+                    EXTRACT_WORD(x7, sel3);
+                    RLDIMI(x3, x7, 32, 0);
+                    #undef EXTRACT_WORD
+                    MTVSRDD(VSXREG(v0), x3, x6);
+                }
             }
             break;
         case 0xC8:
