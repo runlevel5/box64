@@ -18,10 +18,12 @@ The upstream `helper.h` already declares ALL emit functions - only implementatio
 | #3652 | 0x00-0x05 | ADD Eb/Gb, ADD Ed/Gd, ADD AL/Ib, ADD EAX/Id |
 | #3668 | 0x08-0x0D, 0x20-0x25, 0x28-0x2D, 0x30-0x35 | OR, AND, SUB, XOR (all Eb/Gb..EAX/Id forms) |
 | #3677 | (refactor) | GETED/GETEB/GETGB/GETGBEB/WBACK/GBBACK/EBBACK helper macros + refactor _00.c ALU opcodes |
+| #3678 | 0x38-0x3D, 0x84-0x85, 0xA8-0xA9 | CMP, TEST (depends on #3677) |
 
 ### Emit Files Upstream
 - `dynarec_ppc64le_emit_math.c` — `emit_add8`, `emit_add8c`, `emit_add32`, `emit_add32c`, `emit_sub8`, `emit_sub8c`, `emit_sub32`, `emit_sub32c` (8 functions)
 - `dynarec_ppc64le_emit_logic.c` — `emit_or8`, `emit_or8c`, `emit_or32`, `emit_or32c`, `emit_and8`, `emit_and8c`, `emit_and32`, `emit_and32c`, `emit_xor8`, `emit_xor8c`, `emit_xor32`, `emit_xor32c` (12 functions)
+- `dynarec_ppc64le_emit_tests.c` — `emit_cmp8`, `emit_cmp8_0`, `emit_cmp16`, `emit_cmp16_0`, `emit_cmp32`, `emit_cmp32_0`, `emit_test8`, `emit_test8c`, `emit_test16`, `emit_test32`, `emit_test32c` (11 functions) *(PR #3678, pending)*
 
 ### Opcode Dispatch Files Upstream (stubs only, minimal implementations)
 - `dynarec_ppc64le_66.c`
@@ -87,15 +89,20 @@ Each batch follows the ADD pattern (6 opcodes per group: Eb/Gb, Ed/Gd, Gb/Eb, Gd
   | test_and_xor | INTERP | 8.92s | 8.93s | +0.1% |
   Conclusion: Macros are compile-time only (C preprocessor) and generate identical PPC64LE machine code. Interpreter mode confirms no regression (<1%). Dynarec variance is system load noise — these micro-benchmarks are dominated by 500x box64 process startup/teardown overhead.
 
-#### Batch 1c: CMP + TEST (0x84-0x85, 0xA8-0xA9)
+#### Batch 1c: CMP + TEST (0x84-0x85, 0xA8-0xA9) — ✅ PR Submitted
+- **PR**: [#3678](https://github.com/ptitSeb/box64/pull/3678)
+- **Branch**: `ppc64le-cmp-test-opcodes` (based on `ppc64le-helper-macros`)
 - **Opcodes**: 0x38-0x3D (CMP), 0x84-0x85 (TEST Eb/Ed), 0xA8-0xA9 (TEST AL/EAX) — 10 opcodes
-- **New emit functions needed**:
-  - `emit_cmp8`, `emit_cmp8_0`, `emit_cmp32`, `emit_cmp32_0` (in new `emit_tests.c`)
-  - `emit_test8`, `emit_test8c`, `emit_test32`, `emit_test32c` (in `emit_tests.c`)
+- **Emit functions added** (in new `dynarec_ppc64le_emit_tests.c`, 535 lines, 11 functions):
+  - `emit_cmp8`, `emit_cmp8_0`, `emit_cmp16`, `emit_cmp16_0`, `emit_cmp32`, `emit_cmp32_0`
+  - `emit_test8`, `emit_test8c`, `emit_test16`, `emit_test32`, `emit_test32c`
 - **New file**: `dynarec_ppc64le_emit_tests.c`
-- **Special**: CMP never writes back; CMP 0x3C/0x3D has zero-optimized paths
-- **Dependencies**: Batch 1-macros (so opcode cases can use the macro style instead of manual inline)
-- **Style**: Will use GETGBEB/EBBACK/GBBACK/WBACK macros (matching ARM64/RV64/LA64 style)
+- **CMakeLists.txt**: added `emit_tests.c` to DYNAREC_PASS
+- **Special**: CMP never writes back; CMP 0x3C/0x3D has zero-optimized paths via `emit_cmp8_0`/`emit_cmp32_0`
+- **Dependencies**: Batch 1-macros (#3677) must merge first
+- **Style**: Uses GETGBEB/EBBACK/GBBACK/WBACK macros (matching ARM64/RV64/LA64 style)
+- **NASM tests**: `test_cmp_test.asm` — 35 test cases covering register, memory, 64-bit, hi-byte, zero-optimized, overflow, SF, PF, and TEST clearing CF/OF. **Note**: NASM test files were excluded from PR #3678 since upstream has no `tests/dynarec/` directory — test framework upstreaming is tracked separately in Phase 8. Tests remain on `ppc64le-dynarec` branch for local validation.
+- **Verified**: Build clean (0 warnings), ctest 33/33 pass, NASM test_cmp_test 35/35 pass (dynarec + interpreter match native x86_64), all existing NASM tests still pass
 
 #### Batch 1d: ADC + SBB
 - **Opcodes**: 0x10-0x15 (ADC), 0x18-0x1D (SBB) — 12 opcodes
@@ -153,6 +160,112 @@ Each batch follows the ADD pattern (6 opcodes per group: Eb/Gb, Ed/Gd, Gb/Eb, Gd
 ### Phase 7: AVX
 - 11 AVX files (~8,800 lines total)
 - Lowest priority; many applications don't require AVX
+
+### Phase 8: NASM Dynarec Test Framework
+
+Upstream the `tests/dynarec/` NASM test infrastructure for opcode-level regression testing. This is orthogonal to opcode upstreaming (Phases 1-7) and can be proposed at any time. All backends (ARM64, RV64, LA64, PPC64LE) benefit equally since these tests exercise the interpreter and all dynarec backends.
+
+**Current state**: 37 `.asm` test files + `test_framework.inc` + `run_tests.sh` exist on the `ppc64le-dynarec` branch. Upstream has no `tests/dynarec/` directory — its existing tests use pre-compiled x86_64 ELF binaries + `.txt` reference outputs compared via `runTest.cmake`.
+
+#### Approach: Hybrid (pre-compiled binaries + optional NASM recompilation)
+
+**Files to upstream**:
+- `tests/dynarec/test_framework.inc` — macro framework (INIT_TESTS, TEST_CASE, CHECK_EQ_32/64, SAVE_FLAGS, CHECK_FLAGS_EQ, END_TESTS); raw syscalls only, no libc dependency
+- 37 `.asm` source files (one per opcode group / feature area)
+- Pre-compiled x86_64 ELF static binaries for each (committed to repo, like upstream's existing `tests/testNN` binaries)
+- `.txt` reference output files for each (generated once on native x86_64, committed to repo)
+- `tests/dynarec/run_tests.sh` — convenience script for manual testing outside of ctest
+
+**CMake integration**:
+```cmake
+# Optional NASM detection
+find_program(NASM nasm)
+
+# If NASM found, add custom commands to recompile .asm files
+# This allows editing tests without an external toolchain
+if(NASM)
+    foreach(TEST_ASM ${DYNAREC_TEST_ASM_FILES})
+        get_filename_component(TEST_NAME ${TEST_ASM} NAME_WE)
+        add_custom_command(
+            OUTPUT ${CMAKE_BINARY_DIR}/tests/dynarec/${TEST_NAME}
+            COMMAND ${NASM} -f elf64 ${TEST_ASM} -o ${CMAKE_BINARY_DIR}/tests/dynarec/${TEST_NAME}.o
+            COMMAND ld -o ${CMAKE_BINARY_DIR}/tests/dynarec/${TEST_NAME} ${CMAKE_BINARY_DIR}/tests/dynarec/${TEST_NAME}.o
+            DEPENDS ${TEST_ASM} ${CMAKE_SOURCE_DIR}/tests/dynarec/test_framework.inc
+        )
+    endforeach()
+endif()
+
+# Tests always use pre-compiled binaries (or NASM-recompiled if available)
+# Following upstream's existing runTest.cmake pattern
+if(NOT ANDROID)
+    add_test(dynarec_add_or_sub ${CMAKE_COMMAND}
+        -D TEST_PROGRAM=${CMAKE_BINARY_DIR}/${BOX64}
+        -D TEST_ARGS=${CMAKE_SOURCE_DIR}/tests/dynarec/test_add_or_sub
+        -D TEST_OUTPUT=tmpfile_dynarec_add_or_sub.txt
+        -D TEST_REFERENCE=${CMAKE_SOURCE_DIR}/tests/dynarec/test_add_or_sub.txt
+        -P ${CMAKE_SOURCE_DIR}/runTest.cmake)
+    # ... repeat for each test
+endif()
+```
+
+**Key design decisions**:
+- Pre-compiled binaries guarantee tests work on CI without NASM installed
+- Optional NASM recompilation allows contributors to edit/add tests locally
+- `.txt` reference files are generated once on native x86_64 and committed — no need to run natively during CI
+- Tests follow upstream's existing `add_test()` + `runTest.cmake` pattern exactly
+- All test binaries are static (no libc dependency) — they use raw syscalls via `test_framework.inc`
+
+**Test inventory** (37 files on `ppc64le-dynarec`):
+
+| Test file | Description |
+|-----------|-------------|
+| `test_add_or_sub.asm` | ADD/OR/SUB: all opcode forms, mem paths, hi-byte, 64-bit, flags |
+| `test_and_xor.asm` | AND/XOR: all opcode forms, mem paths, hi-byte, 64-bit, flags |
+| `test_cmp_test.asm` | CMP/TEST: all opcode forms, mem, zero-optimized, overflow, flags |
+| `test_int_arith.asm` | Integer arithmetic: ADD, SUB, CMP, TEST, ADC, SBB, INC, DEC, NEG, MUL, IMUL, DIV, IDIV |
+| `test_mov.asm` | MOV: reg-reg, mem, imm, hi-byte, RIP-relative, flags preservation |
+| `test_push_pop_misc.asm` | PUSH/POP, XCHG, NOP, LEAVE, MOVSXD, CWDE/CDQ |
+| `test_shifts.asm` | Shift/rotate operations |
+| `test_updateflags.asm` | General flags update verification |
+| `test_updateflags_arith.asm` | Arithmetic flags (CF, AF, OF) edge cases |
+| `test_updateflags_carry.asm` | Carry flag propagation (ADC/SBB chains) |
+| `test_updateflags_logic.asm` | Logic flags (CF=0, OF=0 for AND/OR/XOR/TEST) |
+| `test_updateflags_mul.asm` | MUL/IMUL flags |
+| `test_updateflags_shift.asm` | Shift flags (CF from last bit shifted) |
+| `test_updateflags_shld.asm` | SHLD/SHRD flags |
+| `test_misc_flags.asm` | Misc flag operations (CMC, CLC, STC, SAHF, LAHF) |
+| `test_misc_int.asm` | Misc integer (BSF, BSR, BT, BTC, BTS, BTR, BSWAP, MOVZX, MOVSX) |
+| `test_bit_extract.asm` | BMI1/BMI2 bit extraction |
+| `test_conversions.asm` | Type conversions (CBW, CWD, CDQ, CQO, MOVSX, MOVZX) |
+| `test_movs_stos.asm` | String operations (MOVS, STOS, CMPS, SCAS with REP) |
+| `test_mov_push_imm.asm` | MOV/PUSH with immediate operands |
+| `test_lock_atomic.asm` | LOCK prefix atomic operations |
+| `test_sse_arith.asm` | SSE arithmetic (ADDPS/SUBPS/MULPS/DIVPS etc.) |
+| `test_sse_cmp.asm` | SSE comparison (CMPPS, COMISS, UCOMISS) |
+| `test_sse_hadd.asm` | SSE horizontal add/sub |
+| `test_sse_int.asm` | SSE integer (PADDB/W/D, PSUBB/W/D, PMULL, etc.) |
+| `test_sse_misc_int.asm` | SSE misc integer (PSHUFB, PSADBW, etc.) |
+| `test_sse_shuffle.asm` | SSE shuffle (SHUFPS, PSHUFD, PUNPCK, etc.) |
+| `test_sse_insert_extract.asm` | SSE4.1 insert/extract |
+| `test_sse_round_blend.asm` | SSE4.1 round/blend |
+| `test_sse_string.asm` | SSE4.2 string (PCMPISTRI, PCMPISTRM) |
+| `test_sse3_move.asm` | SSE3 move (MOVDDUP, MOVSHDUP, MOVSLDUP, LDDQU) |
+| `test_pmaddubsw.asm` | SSSE3 PMADDUBSW |
+| `test_shufps.asm` | SHUFPS detailed testing |
+| `test_aes_crc.asm` | AES-NI and CRC32 instructions |
+| `test_x87.asm` | x87 FPU operations |
+
+**Batching strategy**:
+- **Batch 8a**: Framework + integer tests (test_framework.inc, test_add_or_sub, test_and_xor, test_cmp_test, test_int_arith, test_mov, test_push_pop_misc, test_shifts, all updateflags tests, test_misc_flags, test_misc_int, test_bit_extract, test_conversions, test_movs_stos, test_mov_push_imm, test_lock_atomic) — ~22 tests
+- **Batch 8b**: SSE/SSE2/SSE3/SSE4/AES tests (all test_sse_*, test_pmaddubsw, test_shufps, test_aes_crc, test_sse3_move) — ~13 tests
+- **Batch 8c**: x87 FPU tests (test_x87) — 1 test
+- **Batch 8d**: run_tests.sh convenience script + any remaining tests
+
+**Prerequisites**: Discuss with maintainer (ptitSeb) before submitting. This introduces a new testing paradigm for the project. Key selling points:
+1. Opcode-level regression tests catch dynarec bugs that higher-level C tests miss (e.g., the EBBACK STB argument swap bug was only caught by memory-path NASM tests)
+2. Tests are backend-agnostic — they benefit ARM64/RV64/LA64 equally, not just PPC64LE
+3. Hybrid approach requires zero new CI dependencies (pre-compiled binaries always work)
+4. Follows upstream's existing `add_test()` + `runTest.cmake` pattern exactly
 
 ## Upstream Style Reference
 
