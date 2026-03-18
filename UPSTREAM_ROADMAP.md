@@ -16,8 +16,8 @@ The upstream `helper.h` already declares ALL emit functions - only implementatio
 | #3620 | 0x50-0x5F, 0xC9 | PUSH/POP reg, LEAVE |
 | #3633 | 0x63, 0x88-0x8B, 0x8D, 0x90-0x99, 0xB0-0xBF, 0xC6-0xC7 | MOV, NOP/XCHG, MOVSXD, CWDE/CDQ, LEA |
 | #3652 | 0x00-0x05 | ADD Eb/Gb, ADD Ed/Gd, ADD AL/Ib, ADD EAX/Id |
-| #3668 | 0x08-0x0D, 0x28-0x2D | OR Eb/Gb..AL/Ib, SUB Eb/Gb..EAX/Id |
-| #3669 | 0x20-0x25, 0x30-0x35 | AND Eb/Gb..EAX/Id, XOR Eb/Gb..EAX/Id |
+| #3668 | 0x08-0x0D, 0x20-0x25, 0x28-0x2D, 0x30-0x35 | OR, AND, SUB, XOR (all Eb/Gb..EAX/Id forms) |
+| #3677 | (refactor) | GETED/GETEB/GETGB/GETGBEB/WBACK/GBBACK/EBBACK helper macros + refactor _00.c ALU opcodes |
 
 ### Emit Files Upstream
 - `dynarec_ppc64le_emit_math.c` — `emit_add8`, `emit_add8c`, `emit_add32`, `emit_add32c`, `emit_sub8`, `emit_sub8c`, `emit_sub32`, `emit_sub32c` (8 functions)
@@ -46,8 +46,8 @@ Each batch follows the ADD pattern (6 opcodes per group: Eb/Gb, Ed/Gd, Gb/Eb, Gd
 - **CMakeLists.txt**: added `emit_logic.c` to DYNAREC_PASS
 - **Verified**: Build clean (0 warnings), ctest 33/33 pass, NASM test_int_arith 40/40 pass (dynarec + interpreter)
 
-#### Batch 1b: AND + XOR — ✅ PR Submitted
-- **PR**: [#3669](https://github.com/ptitSeb/box64/pull/3669)
+#### Batch 1b: AND + XOR — ✅ Merged (folded into #3668)
+- **PR**: [#3669](https://github.com/ptitSeb/box64/pull/3669) (closed; content merged via [#3668](https://github.com/ptitSeb/box64/pull/3668))
 - **Branch**: `ppc64le-and-xor-opcodes` (based on `ppc64le-or-sub-opcodes`)
 - **Opcodes**: 0x20-0x25 (AND), 0x30-0x35 (XOR) — 12 opcodes
 - **Emit functions added**:
@@ -57,7 +57,9 @@ Each batch follows the ADD pattern (6 opcodes per group: Eb/Gb, Ed/Gd, Gb/Eb, Gd
 - **Bug found & fixed**: All four XOR emitters used `SET_DF(s4, ...)` which clobbered `x2` (the address register from `geted()`) in the memory path of 0x30/0x31. Fixed to `SET_DF(s3, ...)` matching AND/OR emitters. The bug caused SIGSEGV accessing address `0x34` (the df constant value) when writing back the XOR result.
 - **Verified**: Build clean (0 warnings), ctest 33/33 pass, NASM test_and_xor 30/30 pass (dynarec + interpreter), NASM test_int_arith 40/40 pass
 
-#### Batch 1-macros: Upstream GETGB/GETEB/GETED/WBACK/GBBACK/EBBACK/GETGBEB Macros + Refactor Existing Opcodes
+#### Batch 1-macros: Upstream GETGB/GETEB/GETED/WBACK/GBBACK/EBBACK/GETGBEB Macros + Refactor Existing Opcodes — ✅ PR Submitted
+- **PR**: [#3677](https://github.com/ptitSeb/box64/pull/3677)
+- **Branch**: `ppc64le-helper-macros`
 - **Files**: `dynarec_ppc64le_helper.h`, `dynarec_ppc64le_00.c`
 - **Part A — Add macros to `helper.h`**:
   - `GETED`, `GETEB`, `GETGB`, `GETGBEB`, `WBACK`, `GBBACK`, `EBBACK`
@@ -74,7 +76,7 @@ Each batch follows the ADD pattern (6 opcodes per group: Eb/Gb, Ed/Gd, Gb/Eb, Gd
   2. Eliminates the scratch register conflict risk class (SET_DF clobbering address registers)
   3. Keeps `_00.c` internally consistent — no mix of manual inline vs macro style
   4. Reduces review burden for future PRs
-- **Dependencies**: Batch 1b (AND+XOR) must be merged first so the diff is clean
+- **Dependencies**: #3668 (OR/AND/SUB/XOR) must be merged first so the diff is clean — ✅ done
 - **Verification**: Must pass all existing tests (ctest 33/33, NASM test_int_arith 40/40, NASM test_and_xor 30/30) since this is a pure refactor with no behavioral change
 - **Benchmark (500 invocations x 3 runs)**:
   | Test | Mode | BEFORE (inline) avg | AFTER (macro) avg | Delta |
