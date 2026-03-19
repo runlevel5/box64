@@ -310,15 +310,15 @@
     gd = i;
 
 // GETED can use r1 for ed, and r2 for wback. wback is 0 if ed is xEAX..xEDI
-#define GETED(D)                                                                                \
-    if (MODREG) {                                                                               \
-        ed = TO_NAT((nextop & 7) + (rex.b << 3));                                               \
-        wback = 0;                                                                              \
-    } else {                                                                                    \
-        SMREAD();                                                                               \
+#define GETED(D)                                                                                      \
+    if (MODREG) {                                                                                     \
+        ed = TO_NAT((nextop & 7) + (rex.b << 3));                                                     \
+        wback = 0;                                                                                    \
+    } else {                                                                                          \
+        SMREAD();                                                                                     \
         addr = geted(dyn, addr, ninst, nextop, &wback, x2, x1, &fixedaddress, rex, NULL, DS_DISP, D); \
-        LDxw(x1, wback, fixedaddress);                                                          \
-        ed = x1;                                                                                \
+        LDxw(x1, wback, fixedaddress);                                                                \
+        ed = x1;                                                                                      \
     }
 
 #define GETEDz(D)                                                                               \
