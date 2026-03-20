@@ -105,6 +105,7 @@ Each batch follows the ADD pattern (6 opcodes per group: Eb/Gb, Ed/Gd, Gb/Eb, Gd
 - **Verified**: Build clean (0 warnings), ctest 33/33 pass, NASM test_cmp_test 35/35 pass (dynarec + interpreter match native x86_64), all existing NASM tests still pass
 
 #### Batch 1d: ADC + SBB
+- **PR**: [#3684](https://github.com/ptitSeb/box64/pull/3684)
 - **Opcodes**: 0x10-0x15 (ADC), 0x18-0x1D (SBB) — 12 opcodes
 - **New emit functions needed**:
   - `emit_adc8`, `emit_adc8c`, `emit_adc32` (add to `emit_math.c`)
