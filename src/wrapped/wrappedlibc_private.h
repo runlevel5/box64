@@ -861,7 +861,11 @@ DATA(_IO_2_1_stdin_, 224)
 DATA(_IO_2_1_stdout_, 224)
 //GO(_IO_adjust_column, 
 //GO(_IO_adjust_wcolumn, 
+#ifdef PPC64LE
+GOWM(ioctl, iFEiLp)
+#else
 GOW(ioctl, iFiLN)
+#endif
 GO(_IO_default_doallocate, iFS)
 GO(_IO_default_finish, vFSi)
 GO(_IO_default_pbackfail, iFSi)
@@ -1216,7 +1220,11 @@ GO(__libc_realloc, pFpL)
 //GOW(__libc_secure_getenv, 
 //GO(__libc_siglongjmp, 
 GOM(__libc_start_main, iFEpippppp)
-//GO(__libc_system, 
+#ifdef STATICBUILD
+// GO(__libc_system, iFp)
+#else
+GO(__libc_system, iFp)
+#endif
 //GO(__libc_thread_freeres, 
 GO(__libc_valloc, pFL)
 //GO(__libc_vfork, 

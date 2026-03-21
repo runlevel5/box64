@@ -36,6 +36,8 @@ uintptr_t dynarec64_00(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
     int8_t i8;
     int32_t i32, tmp;
     int64_t i64, j64;
+    uint8_t gb1, gb2, eb1, eb2;
+    uint8_t wback, wb1, wb2;
     uint8_t u8;
     uint8_t gb1, gb2, eb1, eb2;
     uint16_t u16;
@@ -55,6 +57,9 @@ uintptr_t dynarec64_00(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
     MAYUSE(wb);
     MAYUSE(lock);
     MAYUSE(cacheupd);
+    MAYUSE(wb1);
+
+    opcode = F8;
 
     switch (opcode) {
         case 0x00:
@@ -408,6 +413,14 @@ uintptr_t dynarec64_00(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 *need_epilog = 1;
                 *ok = 0;
             }
+            emit_add32(dyn, ninst, rex, ed, gd, x3, x4, x5);
+            WBACK;
+            break;
+            SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_FUSION);
+            nextop = F8;
+            GETGBEB(x1, x2, 0);
+            emit_add8(dyn, ninst, gd, ed, x4, x5);
+            GBBACK();
             break;
         case 0x20:
             INST_NAME("AND Eb, Gb");
@@ -524,6 +537,7 @@ uintptr_t dynarec64_00(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             if (ed != gd) {
                 WBACK;
             }
+            emit_add32(dyn, ninst, rex, gd, ed, x3, x4, x5);
             break;
         case 0x32:
             INST_NAME("XOR Gb, Eb");
@@ -733,6 +747,196 @@ uintptr_t dynarec64_00(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 *need_epilog = 1;
                 *ok = 0;
             }
+            break;
+        case 0x08:
+            INST_NAME("OR Eb, Gb");
+            SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_FUSION);
+            nextop = F8;
+            GETGBEB(x1, x2, 0);
+            emit_or8(dyn, ninst, ed, gd, x4, x5);
+            EBBACK();
+            break;
+        case 0x09:
+            INST_NAME("OR Ed, Gd");
+            SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_FUSION);
+            nextop = F8;
+            GETGD;
+            GETED(0);
+            emit_or32(dyn, ninst, rex, ed, gd, x3, x4);
+            WBACK;
+            break;
+        case 0x0A:
+            INST_NAME("OR Gb, Eb");
+            SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_FUSION);
+            nextop = F8;
+            GETGBEB(x1, x2, 0);
+            emit_or8(dyn, ninst, gd, ed, x4, x5);
+            GBBACK();
+            break;
+        case 0x0B:
+            INST_NAME("OR Gd, Ed");
+            SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_FUSION);
+            nextop = F8;
+            GETGD;
+            GETED(0);
+            emit_or32(dyn, ninst, rex, gd, ed, x3, x4);
+            break;
+        case 0x0C:
+            INST_NAME("OR AL, Ib");
+            SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_FUSION);
+            u8 = F8;
+            ANDI(x1, xRAX, 0xff);
+            emit_or8c(dyn, ninst, x1, u8, x3, x4, x5);
+            BF_INSERT(xRAX, x1, 7, 0);
+            break;
+        case 0x0D:
+            INST_NAME("OR EAX, Id");
+            SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_FUSION);
+            i64 = F32S;
+            emit_or32c(dyn, ninst, rex, xRAX, i64, x3, x4);
+            break;
+        case 0x28:
+            INST_NAME("SUB Eb, Gb");
+            SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_FUSION);
+            nextop = F8;
+            GETGBEB(x1, x2, 0);
+            emit_sub8(dyn, ninst, ed, gd, x4, x5, x6);
+            EBBACK();
+            break;
+        case 0x29:
+            INST_NAME("SUB Ed, Gd");
+            SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_FUSION);
+            nextop = F8;
+            GETGD;
+            GETED(0);
+            emit_sub32(dyn, ninst, rex, ed, gd, x3, x4, x5);
+            WBACK;
+            break;
+        case 0x2A:
+            INST_NAME("SUB Gb, Eb");
+            SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_FUSION);
+            nextop = F8;
+            GETGBEB(x1, x2, 0);
+            emit_sub8(dyn, ninst, gd, ed, x4, x5, x6);
+            GBBACK();
+            break;
+        case 0x2B:
+            INST_NAME("SUB Gd, Ed");
+            SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_FUSION);
+            nextop = F8;
+            GETGD;
+            GETED(0);
+            emit_sub32(dyn, ninst, rex, gd, ed, x3, x4, x5);
+            break;
+        case 0x2C:
+            INST_NAME("SUB AL, Ib");
+            SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_FUSION);
+            u8 = F8;
+            ANDI(x1, xRAX, 0xff);
+            emit_sub8c(dyn, ninst, x1, u8, x3, x4, x5, x6);
+            BF_INSERT(xRAX, x1, 7, 0);
+            break;
+        case 0x2D:
+            INST_NAME("SUB EAX, Id");
+            SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_FUSION);
+            i64 = F32S;
+            emit_sub32c(dyn, ninst, rex, xRAX, i64, x3, x4, x5, x6);
+            break;
+        case 0x20:
+            INST_NAME("AND Eb, Gb");
+            SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_FUSION);
+            nextop = F8;
+            GETGBEB(x1, x2, 0);
+            emit_and8(dyn, ninst, ed, gd, x4, x5);
+            EBBACK();
+            break;
+        case 0x21:
+            INST_NAME("AND Ed, Gd");
+            SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_FUSION);
+            nextop = F8;
+            GETGD;
+            GETED(0);
+            emit_and32(dyn, ninst, rex, ed, gd, x3, x4);
+            WBACK;
+            break;
+        case 0x22:
+            INST_NAME("AND Gb, Eb");
+            SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_FUSION);
+            nextop = F8;
+            GETGBEB(x1, x2, 0);
+            emit_and8(dyn, ninst, gd, ed, x4, x5);
+            GBBACK();
+            break;
+        case 0x23:
+            INST_NAME("AND Gd, Ed");
+            SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_FUSION);
+            nextop = F8;
+            GETGD;
+            GETED(0);
+            emit_and32(dyn, ninst, rex, gd, ed, x3, x4);
+            break;
+        case 0x24:
+            INST_NAME("AND AL, Ib");
+            SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_FUSION);
+            u8 = F8;
+            ANDI(x1, xRAX, 0xff);
+            emit_and8c(dyn, ninst, x1, u8, x3, x4);
+            BF_INSERT(xRAX, x1, 7, 0);
+            break;
+        case 0x25:
+            INST_NAME("AND EAX, Id");
+            SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_FUSION);
+            i64 = F32S;
+            emit_and32c(dyn, ninst, rex, xRAX, i64, x3, x4);
+            break;
+        case 0x30:
+            INST_NAME("XOR Eb, Gb");
+            SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_FUSION);
+            nextop = F8;
+            GETGBEB(x1, x2, 0);
+            emit_xor8(dyn, ninst, ed, gd, x4, x5);
+            EBBACK();
+            break;
+        case 0x31:
+            INST_NAME("XOR Ed, Gd");
+            SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_FUSION);
+            nextop = F8;
+            GETGD;
+            GETED(0);
+            emit_xor32(dyn, ninst, rex, ed, gd, x3, x4);
+            if (ed != gd) {
+                WBACK;
+            }
+            break;
+        case 0x32:
+            INST_NAME("XOR Gb, Eb");
+            SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_FUSION);
+            nextop = F8;
+            GETGBEB(x1, x2, 0);
+            emit_xor8(dyn, ninst, gd, ed, x4, x5);
+            GBBACK();
+            break;
+        case 0x33:
+            INST_NAME("XOR Gd, Ed");
+            SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_FUSION);
+            nextop = F8;
+            GETGD;
+            GETED(0);
+            emit_xor32(dyn, ninst, rex, gd, ed, x3, x4);
+            break;
+        case 0x34:
+            INST_NAME("XOR AL, Ib");
+            SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_FUSION);
+            u8 = F8;
+            ANDI(x1, xRAX, 0xff);
+            emit_xor8c(dyn, ninst, x1, u8, x3, x4);
+            BF_INSERT(xRAX, x1, 7, 0);
+            break;
+        case 0x35:
+            INST_NAME("XOR EAX, Id");
+            SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_FUSION);
+            i64 = F32S;
+            emit_xor32c(dyn, ninst, rex, xRAX, i64, x3, x4);
             break;
         case 0x63:
             if (rex.is32bits) {
