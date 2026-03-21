@@ -444,7 +444,7 @@ void emit_sub8(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3, int s4
     if (dyn->insts[ninst].nat_flags_fusion) NAT_FLAGS_OPS(s1, xZR, s3, xZR);
 }
 
-// emit SUB8 instruction, from s1, constant c, store result in s1 using s2, s3, s4 and s5 as scratch
+// emit SUB8 instruction, from s1, constant c, store result in s1 using s3 and s4 as scratch
 void emit_sub8c(dynarec_ppc64le_t* dyn, int ninst, int s1, int32_t c, int s2, int s3, int s4, int s5)
 {
     MOV32w(s2, c & 0xff);
@@ -1313,14 +1313,13 @@ void emit_inc32(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, int s1, int s2, in
     if (!rex.w) {
         ZEROUP(s1);
     }
-    CALC_SUB_FLAGS(s5, s2, s1, s3, s4, rex.w ? 64 : 32);
+    IFX (X_PF) {
+        emit_pf(dyn, ninst, s1, s3, s2);
+    }
     IFX (X_ZF) {
         CMPDI(s1, 0);
         BNE(8);
         ORI(xFlags, xFlags, 1 << F_ZF);
-    }
-    IFX (X_PF) {
-        emit_pf(dyn, ninst, s1, s3, s2);
     }
     if (dyn->insts[ninst].nat_flags_fusion) NAT_FLAGS_OPS(s1, xZR, s3, xZR);
 }
@@ -1474,8 +1473,6 @@ void emit_dec32(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, int s1, int s2, in
         CMPDI(s1, 0);
         BNE(8);
         ORI(xFlags, xFlags, 1 << F_ZF);
-    IFX (X_PF) {
-        emit_pf(dyn, ninst, s1, s3, s4);
     }
     if (dyn->insts[ninst].nat_flags_fusion) NAT_FLAGS_OPS(s1, xZR, s3, xZR);
 }
