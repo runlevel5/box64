@@ -1,3 +1,5 @@
+#include <stdlib.h>
+#include <stddef.h>
 #include <stdint.h>
 
 #include "alternate.h"
@@ -81,7 +83,10 @@ void addAlternate(void* addr, void* alt)
     khint_t k = kh_put(alternate, my_alternates, (uintptr_t)addr, &ret);
     if (!ret) // already there
         return;
-    kh_value(my_alternates, k) = alt;
+    kh_value(my_alternates, k).addr = alt;
+#ifdef HAVE_ALTJUMP
+    kh_value(my_alternates, k).jump = AddAltJump(my_context->alternates, (uintptr_t)addr, (uintptr_t)alt);
+#endif
     bloom_set((uintptr_t)addr);
 }
 
