@@ -1,4 +1,6 @@
-; test_push_pop_misc.asm - Test PUSH/POP, XCHG, NOP, LEAVE, MOVSXD, CWDE/CDQ
+; test_push_pop_misc.asm - Test PUSH/POP, XCHG, NOP, MOVSXD
+; NOTE: LEAVE covered by test_misc_flags.asm (ENTER/LEAVE tests)
+;       CWDE/CDQ/CDQE/CQO/CBW covered by test_misc_flags.asm
 %include "test_framework.inc"
 
 section .data
@@ -23,23 +25,9 @@ section .data
     t27_name: db "xchg 64-bit (REX.W 0x87)", 0
     t28_name: db "nop (0x90)", 0
 
-    t30_name: db "leave (0xC9)", 0
-    t31_name: db "leave restores rsp/rbp", 0
-
     t40_name: db "movsxd positive (0x63)", 0
     t41_name: db "movsxd negative (0x63)", 0
     t42_name: db "movsxd mem (0x63 mem)", 0
-
-    t50_name: db "cwde positive (0x98)", 0
-    t51_name: db "cwde negative (0x98)", 0
-    t52_name: db "cdq positive (0x99)", 0
-    t53_name: db "cdq negative (0x99)", 0
-    t54_name: db "cbw positive (0x98 16)", 0
-    t55_name: db "cbw negative (0x98 16)", 0
-    t56_name: db "cqo positive (REX.W 0x99)", 0
-    t57_name: db "cqo negative (REX.W 0x99)", 0
-    t58_name: db "cdqe positive (REX.W 0x98)", 0
-    t59_name: db "cdqe negative (REX.W 0x98)", 0
 
 section .bss
     scratch: resq 2
@@ -292,42 +280,6 @@ _start:
     nop
     CHECK_EQ_32 eax, 0xDEADBEEF
 
-    ;; ============ LEAVE ============
-
-    TEST_CASE t30_name
-    mov rax, rbp          ; save original rbp
-    push rax              ; save it on stack too
-    push rbp
-    mov rbp, rsp
-    leave
-    pop rbx               ; restore our saved original rbp
-    cmp rbp, rbx
-    je .t30_pass
-    mov eax, 0
-    CHECK_EQ_32 eax, 1
-    jmp .t30_done
-.t30_pass:
-    mov eax, 1
-    CHECK_EQ_32 eax, 1
-.t30_done:
-
-    TEST_CASE t31_name
-    mov rax, rsp          ; save rsp
-    push rbp              ; save rbp
-    mov rbp, rsp          ; rbp = current rsp
-    sub rsp, 64           ; allocate some space
-    leave                 ; rsp=rbp, pop rbp
-    cmp rsp, rax
-    je .t31_pass
-    mov rsp, rax
-    mov eax, 0
-    CHECK_EQ_32 eax, 1
-    jmp .t31_done
-.t31_pass:
-    mov eax, 1
-    CHECK_EQ_32 eax, 1
-.t31_done:
-
     ;; ============ MOVSXD ============
 
     TEST_CASE t40_name
@@ -344,61 +296,5 @@ _start:
     mov dword [rel scratch], 0xFFFFFFFF
     movsxd rax, dword [rel scratch]
     CHECK_EQ_64 rax, 0xFFFFFFFFFFFFFFFF
-
-    ;; ============ CWDE/CDQ/CDQE/CQO ============
-
-    TEST_CASE t50_name
-    mov eax, 0x00007F00
-    mov ax, 0x007F
-    cwde
-    CHECK_EQ_32 eax, 0x0000007F
-
-    TEST_CASE t51_name
-    mov eax, 0x00000000
-    mov ax, 0xFF80
-    cwde
-    CHECK_EQ_32 eax, 0xFFFFFF80
-
-    TEST_CASE t52_name
-    mov eax, 0x7FFFFFFF
-    cdq
-    CHECK_EQ_32 edx, 0x00000000
-
-    TEST_CASE t53_name
-    mov eax, 0x80000000
-    cdq
-    CHECK_EQ_32 edx, 0xFFFFFFFF
-
-    TEST_CASE t54_name
-    mov eax, 0x007F
-    cbw
-    movzx ecx, ax
-    CHECK_EQ_32 ecx, 0x007F
-
-    TEST_CASE t55_name
-    mov eax, 0x0080
-    cbw
-    movzx ecx, ax
-    CHECK_EQ_32 ecx, 0xFF80
-
-    TEST_CASE t56_name
-    mov rax, 0x000000007FFFFFFF
-    cqo
-    CHECK_EQ_64 rdx, 0x0000000000000000
-
-    TEST_CASE t57_name
-    mov rax, 0xFFFFFFFF80000000
-    cqo
-    CHECK_EQ_64 rdx, 0xFFFFFFFFFFFFFFFF
-
-    TEST_CASE t58_name
-    mov rax, 0x000000007FFFFFFF
-    cdqe
-    CHECK_EQ_64 rax, 0x000000007FFFFFFF
-
-    TEST_CASE t59_name
-    mov rax, 0x0000000080000000
-    cdqe
-    CHECK_EQ_64 rax, 0xFFFFFFFF80000000
 
     END_TESTS

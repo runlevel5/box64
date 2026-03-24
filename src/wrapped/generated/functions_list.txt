@@ -109,6 +109,7 @@
 #() pFv
 #() pFw
 #() pFi
+#() pFI
 #() pFC
 #() pFW
 #() pFu
@@ -200,7 +201,6 @@
 #() iFEu
 #() iFEf
 #() iFEd
-#() iFEL
 #() iFEp
 #() iFwp
 #() iFii
@@ -244,9 +244,11 @@
 #() iFpV
 #() iFpO
 #() iFpS
+#() iFpH
 #() iFpA
 #() iFSi
 #() iFSp
+#() iFHp
 #() IFEf
 #() IFEd
 #() IFED
@@ -408,6 +410,7 @@
 #() pFpS
 #() pFSi
 #() pFSp
+#() pFHp
 #() pFbu
 #() pFbp
 #() SFip
@@ -568,6 +571,7 @@
 #() iFiii
 #() iFiiI
 #() iFiiu
+#() iFiiU
 #() iFiil
 #() iFiip
 #() iFiiO
@@ -584,7 +588,6 @@
 #() iFilp
 #() iFiLi
 #() iFiLp
-#() iFiLN
 #() iFipi
 #() iFipu
 #() iFipL
@@ -608,11 +611,13 @@
 #() iFupf
 #() iFupL
 #() iFupp
+#() iFUpp
 #() iFfff
-#() iFLip
 #() iFLpi
 #() iFLpL
 #() iFLpp
+#() iFpcU
+#() iFpcp
 #() iFpwp
 #() iFpiw
 #() iFpii
@@ -626,6 +631,7 @@
 #() iFpiL
 #() iFpip
 #() iFpiN
+#() iFpiH
 #() iFpIi
 #() iFpIp
 #() iFpCu
@@ -668,12 +674,15 @@
 #() iFppl
 #() iFppL
 #() iFppp
+#() iFppH
 #() iFpOi
 #() iFpOu
 #() iFpON
 #() iFpSi
 #() iFpSu
+#() iFpSU
 #() iFpSp
+#() iFpHU
 #() iFpHH
 #() iFSIi
 #() iFSli
@@ -681,6 +690,7 @@
 #() iFSpL
 #() iFSpp
 #() iFSpA
+#() iFHHp
 #() iFbpp
 #() IFiIi
 #() IFIII
@@ -1157,8 +1167,6 @@
 #() iFEupp
 #() iFEpii
 #() iFEpip
-#() iFEpiV
-#() iFEpiA
 #() iFEpui
 #() iFEpup
 #() iFEpuV
@@ -1227,6 +1235,10 @@
 #() iFuppp
 #() iFLpLp
 #() iFLppp
+#() iFpcLp
+#() iFpcpu
+#() iFpcpL
+#() iFpcpp
 #() iFpwww
 #() iFpwpp
 #() iFpiww
@@ -1241,6 +1253,7 @@
 #() iFpiuu
 #() iFpiuL
 #() iFpiup
+#() iFpiUU
 #() iFpili
 #() iFpild
 #() iFpiLL
@@ -1250,6 +1263,7 @@
 #() iFpipp
 #() iFpipV
 #() iFpIip
+#() iFpISp
 #() iFpCCC
 #() iFpCCp
 #() iFpCuu
@@ -1324,6 +1338,7 @@
 #() iFppip
 #() iFppIi
 #() iFppIL
+#() iFppIp
 #() iFppCC
 #() iFppuw
 #() iFppui
@@ -1334,6 +1349,7 @@
 #() iFppuL
 #() iFppup
 #() iFppUU
+#() iFppUp
 #() iFppdi
 #() iFppdd
 #() iFppdp
@@ -1353,6 +1369,7 @@
 #() iFpppL
 #() iFpppp
 #() iFpONN
+#() iFpHpp
 #() iFSpii
 #() iFSpiL
 #() iFSpip
@@ -1376,6 +1393,8 @@
 #() uFEipp
 #() uFEupp
 #() uFEUpp
+#() uFEpiV
+#() uFEpiA
 #() uFEpup
 #() uFEppp
 #() uFiiii
@@ -1402,6 +1421,7 @@
 #() uFLppp
 #() uFpiii
 #() uFpiip
+#() uFpipi
 #() uFpipu
 #() uFpipL
 #() uFpipp
@@ -1796,6 +1816,7 @@
 #() vFpipii
 #() vFpipiu
 #() vFpippi
+#() vFpippp
 #() vFpuiii
 #() vFpuiil
 #() vFpuiip
@@ -1892,8 +1913,6 @@
 #() iFEpLpA
 #() iFEppii
 #() iFEppip
-#() iFEppiV
-#() iFEppiA
 #() iFEppup
 #() iFEpplp
 #() iFEpppi
@@ -1901,11 +1920,15 @@
 #() iFEpppp
 #() iFEpppV
 #() iFEpppA
+#() iFiiiiW
 #() iFiiiip
 #() iFiiiui
 #() iFiiipu
+#() iFiiipL
 #() iFiiipp
 #() iFiiupp
+#() iFiipui
+#() iFiippu
 #() iFiippp
 #() iFiuuuu
 #() iFiuuuU
@@ -1940,6 +1963,7 @@
 #() iFupppp
 #() iFLppip
 #() iFLpppp
+#() iFpciUU
 #() iFpwwww
 #() iFpwppp
 #() iFpiiii
@@ -1966,6 +1990,7 @@
 #() iFpippW
 #() iFpippL
 #() iFpippp
+#() iFpIppp
 #() iFpCCCC
 #() iFpCCpu
 #() iFpCupp
@@ -2048,6 +2073,7 @@
 #() iFppupl
 #() iFppupp
 #() iFppUup
+#() iFppUpp
 #() iFpplii
 #() iFppllp
 #() iFpplpp
@@ -2085,6 +2111,8 @@
 #() uFEippp
 #() uFEpipp
 #() uFEpupp
+#() uFEppiV
+#() uFEppiA
 #() uFEpppu
 #() uFEpppp
 #() uFEpppV
@@ -2695,6 +2723,7 @@
 #() iFpppppp
 #() iFpppppS
 #() iFpSipip
+#() iFSpIppp
 #() iFSpppuu
 #() IFppuuuW
 #() uFEiippp
@@ -2705,6 +2734,7 @@
 #() uFEpuppp
 #() uFEpppuu
 #() uFEpppLp
+#() uFEppppp
 #() uFipuppp
 #() uFuuuuuu
 #() uFupuufp
@@ -3150,6 +3180,7 @@
 #() iFppppppi
 #() iFppppppu
 #() iFppppppp
+#() iFSipIppp
 #() uFEiiuppp
 #() uFEiipppp
 #() uFEpiuppp
@@ -3431,6 +3462,7 @@
 #() iFppppuplu
 #() iFpppppupp
 #() iFpppppLpu
+#() iFppppppcp
 #() iFppppppii
 #() iFppppppuu
 #() iFpppppppi
@@ -3956,6 +3988,7 @@
 #() iFpippuuuiipppp
 #() iFpLLlliiLppppp
 #() iFppppppLLLLupp
+#() iFppppppppppppp
 #() uFippuuuulllipp
 #() uFpppppuupppppp
 #() UFbCuuwwWWWWuup
@@ -4083,7 +4116,6 @@
 #() vFppppppppppppppppppppppppppppppppppLLLLLL
 #() vFpppppppppppppppppppppppppppppppppppLLLLLL
 #defined(NOALIGN) iFipipp
-#!defined(NOALIGN) iFELp
 #!defined(NOALIGN) iFEppu
 #!defined(NOALIGN) iFEiiip
 #!defined(NOALIGN) iFEipii
@@ -4102,6 +4134,8 @@
 #!defined(STATICBUILD) iFEpipppL
 #!defined(STATICBUILD) iFiiULippp
 #!defined(STATICBUILD) lFpLpdddddd
+#defined(PPC64LE) iFEiLp
+#!defined(PPC64LE) iFiLN
 #() vFEv -> vFE
 #() iFEv -> iFE
 #() lFEv -> lFE
@@ -4192,6 +4226,7 @@ wrappedcairo:
 - uFppp:
   - cairo_surface_write_to_png_stream
 - iFpppp:
+  - cairo_pattern_set_user_data
   - cairo_set_user_data
   - cairo_surface_set_user_data
 - pFppdd:
@@ -4367,33 +4402,33 @@ wrappeddbus:
   - dbus_connection_remove_filter
   - dbus_timeout_set_data
   - dbus_watch_set_data
-- iFpiV:
+- uFpiV:
   - dbus_message_append_args
-- iFpiA:
+- uFpiA:
   - dbus_message_append_args_valist
 - vFpppp:
   - dbus_connection_set_dispatch_status_function
   - dbus_connection_set_unix_user_function
   - dbus_connection_set_wakeup_main_function
   - dbus_server_set_new_connection_function
-- iFpipp:
+- uFpipp:
   - dbus_connection_set_data
   - dbus_message_set_data
   - dbus_pending_call_set_data
   - dbus_server_set_data
-- iFppiV:
+- uFppiV:
   - dbus_message_get_args
-- iFppiA:
+- uFppiA:
   - dbus_message_get_args_valist
-- iFpppp:
+- uFpppp:
   - dbus_connection_add_filter
   - dbus_connection_register_fallback
   - dbus_connection_register_object_path
   - dbus_pending_call_set_notify
-- iFppppp:
+- uFppppp:
   - dbus_connection_try_register_fallback
   - dbus_connection_try_register_object_path
-- iFpppppp:
+- uFpppppp:
   - dbus_connection_set_timeout_functions
   - dbus_connection_set_watch_functions
   - dbus_server_set_timeout_functions
@@ -4835,6 +4870,7 @@ wrappedgnutls:
 - vFp:
   - gnutls_global_set_log_function
 - vFpp:
+  - gnutls_certificate_set_retrieve_function
   - gnutls_transport_set_pull_function
   - gnutls_transport_set_pull_timeout_function
   - gnutls_transport_set_push_function
@@ -5498,6 +5534,8 @@ wrappedlibc:
   - fcntl64
 - iFiuu:
   - fsmount
+- iFiLp:
+  - ioctl
 - iFipu:
   - fspick
 - iFipp:
@@ -5996,6 +6034,10 @@ wrappedlibm:
   - __pow_finite
 - DFDD:
   - __powl_finite
+wrappedlibmvec:
+- vFv:
+  - _ZGVbN2v_cos
+  - _ZGVbN2v_sin
 wrappedlibncurses:
 - pFv:
   - initscr
@@ -6124,7 +6166,9 @@ wrappedlibpthread:
   - __pthread_register_cancel
   - __pthread_unregister_cancel
   - __pthread_unwind_next
-- iFL:
+- iFv:
+  - fork
+- iFu:
   - pthread_key_delete
 - iFp:
   - __pthread_mutexattr_destroy
@@ -6148,8 +6192,6 @@ wrappedlibpthread:
 - vFpi:
   - _pthread_cleanup_pop
   - _pthread_cleanup_pop_restore
-- iFLp:
-  - pthread_getattr_np
 - iFpi:
   - __pthread_mutexattr_settype
   - pthread_attr_setdetachstate
@@ -6193,6 +6235,7 @@ wrappedlibpthread:
   - pthread_condattr_getclock
   - pthread_condattr_getpshared
   - pthread_getaffinity_np@GLIBC_2.3.3
+  - pthread_getattr_np
   - pthread_key_create
   - pthread_mutex_init
   - pthread_mutexattr_getkind_np
@@ -7117,6 +7160,7 @@ wrappedsmpeg2:
   - SMPEG_new_rwops
 wrappedsoftokn3:
 wrappedssl3:
+wrappedsystemd:
 wrappedtbbbind:
 - vFv:
   - __TBB_internal_destroy_system_topology

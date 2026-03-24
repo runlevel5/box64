@@ -836,6 +836,176 @@ int of_unconvert(int a)
 }
 #undef SUPER
 
+
+#ifdef PPC64LE
+// ioctl number translation: x86_64 -> PPC64LE
+// x86_64 _IOC encoding: dir(2 bits, 30-31) | size(14 bits, 16-29) | type(8 bits, 8-15) | nr(8 bits, 0-7)
+// PPC64LE _IOC encoding: dir(3 bits, 29-31) | size(13 bits, 16-28) | type(8 bits, 8-15) | nr(8 bits, 0-7)
+// Direction bits: x86: NONE=0, WRITE=1, READ=2  PPC: NONE=1, READ=2, WRITE=4
+
+// x86_64 _IOC field extraction
+#define X86_IOC_NRBITS    8
+#define X86_IOC_TYPEBITS  8
+#define X86_IOC_SIZEBITS  14
+#define X86_IOC_DIRBITS   2
+#define X86_IOC_NRSHIFT   0
+#define X86_IOC_TYPESHIFT  (X86_IOC_NRSHIFT + X86_IOC_NRBITS)
+#define X86_IOC_SIZESHIFT  (X86_IOC_TYPESHIFT + X86_IOC_TYPEBITS)
+#define X86_IOC_DIRSHIFT   (X86_IOC_SIZESHIFT + X86_IOC_SIZEBITS)
+#define X86_IOC_NRMASK    ((1 << X86_IOC_NRBITS) - 1)
+#define X86_IOC_TYPEMASK  ((1 << X86_IOC_TYPEBITS) - 1)
+#define X86_IOC_SIZEMASK  ((1 << X86_IOC_SIZEBITS) - 1)
+#define X86_IOC_DIRMASK   ((1 << X86_IOC_DIRBITS) - 1)
+#define X86_IOC_DIR(nr)   (((nr) >> X86_IOC_DIRSHIFT) & X86_IOC_DIRMASK)
+#define X86_IOC_TYPE(nr)  (((nr) >> X86_IOC_TYPESHIFT) & X86_IOC_TYPEMASK)
+#define X86_IOC_NR(nr)    (((nr) >> X86_IOC_NRSHIFT) & X86_IOC_NRMASK)
+#define X86_IOC_SIZE(nr)  (((nr) >> X86_IOC_SIZESHIFT) & X86_IOC_SIZEMASK)
+
+// x86_64 direction values
+#define X86_IOC_NONE   0
+#define X86_IOC_WRITE  1
+#define X86_IOC_READ   2
+
+// Old-style x86 terminal/file ioctl values (not _IOC-encoded)
+#define X86_TCGETS           0x5401
+#define X86_TCSETS           0x5402
+#define X86_TCSETSW          0x5403
+#define X86_TCSETSF          0x5404
+#define X86_TCGETA           0x5405
+#define X86_TCSETA           0x5406
+#define X86_TCSETAW          0x5407
+#define X86_TCSETAF          0x5408
+#define X86_TCSBRK           0x5409
+#define X86_TCXONC           0x540A
+#define X86_TCFLSH           0x540B
+#define X86_TIOCEXCL         0x540C
+#define X86_TIOCNXCL         0x540D
+#define X86_TIOCSCTTY        0x540E
+#define X86_TIOCGPGRP        0x540F
+#define X86_TIOCSPGRP        0x5410
+#define X86_TIOCOUTQ         0x5411
+#define X86_TIOCSTI          0x5412
+#define X86_TIOCGWINSZ       0x5413
+#define X86_TIOCSWINSZ       0x5414
+#define X86_TIOCMGET         0x5415
+#define X86_TIOCMBIS         0x5416
+#define X86_TIOCMBIC         0x5417
+#define X86_TIOCMSET         0x5418
+#define X86_TIOCGSOFTCAR     0x5419
+#define X86_TIOCSSOFTCAR     0x541A
+#define X86_FIONREAD         0x541B
+#define X86_TIOCLINUX        0x541C
+#define X86_TIOCCONS         0x541D
+#define X86_TIOCGSERIAL      0x541E
+#define X86_TIOCSSERIAL      0x541F
+#define X86_TIOCPKT          0x5420
+#define X86_FIONBIO          0x5421
+#define X86_TIOCNOTTY        0x5422
+#define X86_TIOCSETD         0x5423
+#define X86_TIOCGETD         0x5424
+#define X86_TCSBRKP          0x5425
+#define X86_TIOCGSID         0x5429
+#define X86_FIONCLEX         0x5450
+#define X86_FIOCLEX          0x5451
+#define X86_FIOASYNC         0x5452
+#define X86_FIOQSIZE         0x5460
+
+#include <sys/ioctl.h>
+#include <termios.h>
+
+unsigned long ioctl_convert(unsigned long x86_req)
+{
+    // Lookup table for old-style x86 terminal/file ioctls
+    switch(x86_req)
+    {
+        case X86_TCGETS:       return TCGETS;
+        case X86_TCSETS:       return TCSETS;
+        case X86_TCSETSW:      return TCSETSW;
+        case X86_TCSETSF:      return TCSETSF;
+        case X86_TCGETA:       return TCGETA;
+        case X86_TCSETA:       return TCSETA;
+        case X86_TCSETAW:      return TCSETAW;
+        case X86_TCSETAF:      return TCSETAF;
+        case X86_TCSBRK:       return TCSBRK;
+        case X86_TCXONC:       return TCXONC;
+        case X86_TCFLSH:       return TCFLSH;
+        case X86_TIOCEXCL:     return TIOCEXCL;
+        case X86_TIOCNXCL:     return TIOCNXCL;
+        case X86_TIOCSCTTY:    return TIOCSCTTY;
+        case X86_TIOCGPGRP:    return TIOCGPGRP;
+        case X86_TIOCSPGRP:    return TIOCSPGRP;
+        case X86_TIOCOUTQ:     return TIOCOUTQ;
+        case X86_TIOCSTI:      return TIOCSTI;
+        case X86_TIOCGWINSZ:   return TIOCGWINSZ;
+        case X86_TIOCSWINSZ:   return TIOCSWINSZ;
+        case X86_TIOCMGET:     return TIOCMGET;
+        case X86_TIOCMBIS:     return TIOCMBIS;
+        case X86_TIOCMBIC:     return TIOCMBIC;
+        case X86_TIOCMSET:     return TIOCMSET;
+        case X86_TIOCGSOFTCAR: return TIOCGSOFTCAR;
+        case X86_TIOCSSOFTCAR: return TIOCSSOFTCAR;
+        case X86_FIONREAD:     return FIONREAD;
+        case X86_TIOCLINUX:    return TIOCLINUX;
+        case X86_TIOCCONS:     return TIOCCONS;
+        case X86_TIOCGSERIAL:  return TIOCGSERIAL;
+        case X86_TIOCSSERIAL:  return TIOCSSERIAL;
+        case X86_TIOCPKT:      return TIOCPKT;
+        case X86_FIONBIO:      return FIONBIO;
+        case X86_TIOCNOTTY:    return TIOCNOTTY;
+        case X86_TIOCSETD:     return TIOCSETD;
+        case X86_TIOCGETD:     return TIOCGETD;
+        case X86_TCSBRKP:      return TCSBRKP;
+        case X86_TIOCGSID:     return TIOCGSID;
+        case X86_FIONCLEX:     return FIONCLEX;
+        case X86_FIOCLEX:      return FIOCLEX;
+        case X86_FIOASYNC:     return FIOASYNC;
+        case X86_FIOQSIZE:     return FIOQSIZE;
+    }
+
+    // For _IOC-encoded ioctls, translate the encoding
+    unsigned long x86_dir  = X86_IOC_DIR(x86_req);
+    unsigned long x86_type = X86_IOC_TYPE(x86_req);
+    unsigned long x86_nr   = X86_IOC_NR(x86_req);
+    unsigned long x86_size = X86_IOC_SIZE(x86_req);
+
+    // If it looks like a small raw number (not _IOC encoded), pass through
+    if(x86_dir == 0 && x86_type == 0) {
+        return x86_req;
+    }
+
+    // Translate x86 direction bits to PPC direction bits
+    unsigned long ppc_dir = 0;
+    if(x86_dir == X86_IOC_NONE) {
+        // x86 NONE=0, but if type!=0 it's a real _IOC_NONE ioctl
+        ppc_dir = 1; // PPC _IOC_NONE = 1
+    } else {
+        if(x86_dir & X86_IOC_READ)  ppc_dir |= 2; // PPC _IOC_READ = 2
+        if(x86_dir & X86_IOC_WRITE) ppc_dir |= 4; // PPC _IOC_WRITE = 4
+    }
+
+    // PPC64LE: size is 13 bits (max 8191)
+    if(x86_size > 8191) {
+        printf_log(LOG_DEBUG, "Warning: ioctl size %lu exceeds PPC64LE 13-bit limit, clamping\n", x86_size);
+        x86_size = 8191;
+    }
+
+    // Recompose as PPC64LE _IOC: dir(3 bits, 29-31) | size(13 bits, 16-28) | type(8, 8-15) | nr(8, 0-7)
+    unsigned long ppc_req = (ppc_dir << 29) | (x86_size << 16) | (x86_type << 8) | x86_nr;
+
+    printf_log(LOG_DEBUG, "ioctl_convert: x86=0x%lx -> ppc=0x%lx (dir %lu->%lu, type 0x%lx, nr 0x%lx, size %lu)\n",
+               x86_req, ppc_req, X86_IOC_DIR(x86_req), ppc_dir, x86_type, x86_nr, x86_size);
+
+    return ppc_req;
+}
+
+EXPORT int my_ioctl(x64emu_t* emu, int fd, unsigned long req, void* arg)
+{
+    (void)emu;
+    unsigned long native_req = ioctl_convert(req);
+    return ioctl(fd, native_req, arg);
+}
+#endif
+
 EXPORT void* my__ZGTtnaX (size_t a) { (void)a; printf("warning _ZGTtnaX called\n"); return NULL; }
 EXPORT void* my__ZGTtnam (size_t a) { (void)a; printf("warning _ZGTtnam called\n"); return NULL; }
 EXPORT void my__ZGTtdlPv (void* a) { (void)a; printf("warning _ZGTtdlPv called\n"); }
@@ -2533,12 +2703,57 @@ EXPORT char** my___environ = NULL;  // all aliases
 
 EXPORT int32_t my_execv(x64emu_t* emu, const char* path, char* const argv[])
 {
+    int ret;
+    int n = 0;
     int self = isProcSelf(path, "exe");
     int x64 = FileIsX64ELF(path);
     int x86 = my_context->box86path?FileIsX86ELF(path):0;
     int script = (my_context->bashpath && FileIsShell(path))?1:0;
     printf_log(LOG_DEBUG, "execv(\"%s\", %p) is x64=%d x86=%d script=%d self=%d\n", path, argv, x64, x86, script, self);
-    #if 1
+    while (argv[n])
+        ++n;
+    if (BOX64ENV(steam_vulkan) && n == 3 && !strcmp(argv[0], "sh") && !strcmp(argv[1], "-c") && strstr(argv[2], "steamwebhelper.sh")) {
+        char** newargv = (char**)box_calloc(n + 1, sizeof(char*));
+        for (int i = 0; i <= n; ++i)
+            newargv[i] = argv[i];
+        // For some reason, Steam UI on RISC-V/LoongArch does not have hardware accel.
+        // To workaround this, we insert `--enable-features=Vulkan` to the exec of steamwebhelper to force Vulkan.
+        // For cases where there is an existing `--enable-features=` string:
+        static const char* vulkanstr1 = "Vulkan,";
+        static const char* searchstr1 = "--enable-features=";
+        // For cases where there is no existing `--enable-features=` string:
+        static const char* vulkanstr2 = "--enable-features=Vulkan ";
+        static const char* searchstr2 = "--disable-features=";
+
+        size_t bufsize = strlen(newargv[2]) + strlen(vulkanstr1);
+        char* pos = strstr(newargv[2], searchstr1);
+        if (!pos) {
+            size_t bufsize = strlen(newargv[2]) + strlen(vulkanstr2);
+            pos = strstr(newargv[2], searchstr2);
+            if (!pos) goto do_exec;
+
+            char* newstr = (char*)box_calloc(bufsize + 1, 1);
+            size_t insertat = pos - newargv[2];
+            strncpy(newstr, newargv[2], insertat);
+            newstr[insertat] = '\0';
+            strcat(newstr, vulkanstr2);
+            strcat(newstr, newargv[2] + insertat);
+            newargv[2] = newstr;
+            goto do_exec;
+        }
+        char* newstr = (char*)box_calloc(bufsize + 1, 1);
+        size_t insertat = pos - newargv[2] + strlen(searchstr1);
+        strncpy(newstr, newargv[2], insertat);
+        newstr[insertat] = '\0';
+        strcat(newstr, vulkanstr1);
+        strcat(newstr, newargv[2] + insertat);
+        newargv[2] = newstr;
+    do_exec:
+        ret = execv(path, (void*)newargv);
+        box_free(newargv);
+        return ret;
+    }
+#if 1
     if (x64 || x86 || script || self) {
         int skip_first = 0;
         if(strlen(path)>=strlen("wine64-preloader") && strcmp(path+strlen(path)-strlen("wine64-preloader"), "wine64-preloader")==0)
@@ -2573,7 +2788,7 @@ EXPORT int32_t my_execv(x64emu_t* emu, const char* path, char* const argv[])
         box_free(newargv);
         return ret;
     }
-    #endif
+#endif
     return execv(path, argv);
 }
 
@@ -2751,7 +2966,7 @@ EXPORT int32_t my_execvp(x64emu_t* emu, const char* path, char* const argv[])
     return execvp(path, argv);
 }
 // execvp should use PATH to search for the program first
-EXPORT int32_t my_execvpe(x64emu_t* emu, const char* path, char* const argv[], char* const envp[])
+EXPORT int32_t my_execvpe(x64emu_t* emu, const char* path, char* argv[], char* const envp[])
 {
     // need to use BOX64_PATH / PATH here...
     char* fullpath = ResolveFileSoft(path, &my_context->box64_path);
@@ -2760,8 +2975,93 @@ EXPORT int32_t my_execvpe(x64emu_t* emu, const char* path, char* const argv[], c
     int x64 = FileIsX64ELF(fullpath);
     int x86 = my_context->box86path?FileIsX86ELF(fullpath):0;
     int script = (my_context->bashpath && FileIsShell(fullpath))?1:0;
-    printf_log(LOG_DEBUG, "execvpe(\"%s\", %p, %p), IsX86=%d / fullpath=\"%s\"\n", path, argv, envp, x64, fullpath);
+    printf_log(LOG_DEBUG, "execvpe(\"%s\", %p[%s,%s,%s], %p), IsX86=%d / fullpath=\"%s\"\n", path, argv, (argv && argv[0])?argv[0]:"(nil)", (argv && argv[0] && argv[1])?argv[1]:"(nil)", (argv && argv[0] && argv[1] && argv[2])?argv[2]:"(nil)", envp, x64, fullpath);
     // hack to update the environ var if needed
+    if(!x64 && !x86 && !script && !self && !strcmp(path, "/bin/sh") && argv) {
+        if(argv[0] && argv[1] && !strcmp(argv[1], "-c") && argv[2] && !argv[3]) {
+            // it's a "/bin/sh -c XXX" type of command line, with XXXX being the whole command line...
+            // because XXXX can contains things like "VAR=something" type of definition, getting the program to be launched can be tricky
+            char* prog = NULL;
+            char buff[MAX_PATH*3] = {0};
+            char buffsrlc[MAX_PATH*3] = {0};
+            char* multiarg2 = NULL;
+            int n = 0;
+            while(argv[n]) ++n;
+            if(FileExist(argv[2], IS_FILE))
+                prog = argv[2];
+            else {
+                #define SRLC "/usr/bin/steam-runtime-launch-client"
+                if(strstr(argv[2], SRLC) && !FileExist(SRLC, IS_FILE)) {
+                    char* runtime = getenv("BOX64_PRESSURE_ENV_PATH");
+                    char* srlc = strstr(argv[2], SRLC);
+                    if(runtime && ((srlc==argv[2]) || (*(srlc-1)==' '))) {
+                        strncpy(buffsrlc, argv[2], sizeof(buffsrlc)-1);
+                        *strstr(buffsrlc, SRLC) = '\0';
+                        strncat(buffsrlc, runtime, sizeof(buffsrlc)-1);
+                        strncat(buffsrlc, "/steam-runtime-launch-client", sizeof(buffsrlc)-1);
+                        strncat(buffsrlc, srlc+strlen(SRLC), sizeof(buffsrlc)-1);
+                        argv[2] = buffsrlc;
+                        printf_log(LOG_DEBUG, "Changed path of %s\n", SRLC);
+                    } else 
+                        printf_log(LOG_INFO, "Warning, trying to launch " SRLC " without BOX64_PRESSURE_ENV_PATH set\n");
+                }
+                #undef SRLC
+                strncpy(buff, argv[2], sizeof(buff)-1);
+                char* p = GetSpaceSeparator(buff);
+                char* prev = buff;
+                while(p && !prog) {
+                    char* next = p;
+                    while(*next==' ') ++next;
+                    char* p2 = strchr(prev, '=');
+                    if(!p2 || (p2>p)) {
+                        // found it
+                        multiarg2 = next;
+                        *p = '\0';
+                        prog = prev;
+                        prev = next;
+                        if(!strlen(prog) || !strcmp(prog, "mangohud")) {
+                            //nope, nothing found, rollback
+                            prog = NULL;
+                            multiarg2 = NULL;
+                            *p = ' ';
+                        }
+                    } else {
+                        // nope, there is a = in the middle (will not work if equal is escaped tho)
+                        prev = next;
+                    }
+                    p = GetSpaceSeparator(next);
+                }
+            }
+            // should check if start with '/' and resolve else
+            if(prog && FileExist(prog, IS_FILE)) {
+                x64 = FileIsX64ELF(prog);
+                x86 = my_context->box86path?FileIsX86ELF(prog):0;
+                script = (my_context->bashpath && FileIsShell(prog))?1:0;
+            }
+            if(x64 || x86 || script) {
+                char buff2[MAX_PATH*4] = {0};
+                // rebuild argv[2]
+                if(multiarg2) {
+                    // get the front stuffs first
+                    strncpy(buff2, argv[2], sizeof(buff2)-1);
+                    *strstr(buff2, prog) = '\0';
+                    strncat(buff2, " ", sizeof(buff2)-1);
+                    strncat(buff2, x86?emu->context->box86path:emu->context->box64path, sizeof(buff2)-1);
+                    strncat(buff2, " ", sizeof(buff2)-1);
+                    strncat(buff2, prog, sizeof(buff2)-1);
+                    strncat(buff2, " ", sizeof(buff2)-1);
+                    strncat(buff2, multiarg2, sizeof(buff2)-1);
+                } else {
+                    strcpy(buff2, x86?emu->context->box86path:emu->context->box64path);
+                    strncat(buff2, " ", sizeof(buff2)-1);
+                    strncat(buff2, argv[2], sizeof(buff2)-1);
+                }
+                argv[2] = buff2;
+                printf_log(LOG_DEBUG, "Will launch %s instead\n", argv[2]);
+                return execvpe(path, argv, envp);
+            }
+        }
+    }
     if(envp == my_context->envv && environ) {
         envp = environ;
     }

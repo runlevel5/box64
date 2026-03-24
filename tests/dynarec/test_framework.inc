@@ -162,11 +162,12 @@ _fw_print_dec:
 
 ;; CHECK_EQ_64 actual_reg, expected_value
 ;; Compares reg64 to immediate, prints PASS/FAIL
+;; Note: uses r14 as scratch to avoid self-compare when %1 is rax
 %macro CHECK_EQ_64 2
-    push rax
+    push r14
     push rsi
-    mov rax, %2
-    cmp %1, rax
+    mov r14, %2
+    cmp %1, r14
     jne %%fail
     ; PASS
     lea rsi, [rel _fw_pass_msg]
@@ -189,7 +190,7 @@ _fw_print_dec:
     call _fw_print_str
 %%done:
     pop rsi
-    pop rax
+    pop r14
 %endmacro
 
 ;; CHECK_EQ_32 actual_reg, expected_value

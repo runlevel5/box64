@@ -59,7 +59,7 @@ Each batch follows the ADD pattern (6 opcodes per group: Eb/Gb, Ed/Gd, Gb/Eb, Gd
 - **Bug found & fixed**: All four XOR emitters used `SET_DF(s4, ...)` which clobbered `x2` (the address register from `geted()`) in the memory path of 0x30/0x31. Fixed to `SET_DF(s3, ...)` matching AND/OR emitters. The bug caused SIGSEGV accessing address `0x34` (the df constant value) when writing back the XOR result.
 - **Verified**: Build clean (0 warnings), ctest 33/33 pass, NASM test_and_xor 30/30 pass (dynarec + interpreter), NASM test_int_arith 40/40 pass
 
-#### Batch 1-macros: Upstream GETGB/GETEB/GETED/WBACK/GBBACK/EBBACK/GETGBEB Macros + Refactor Existing Opcodes — ✅ PR Submitted
+#### Batch 1-macros: Upstream GETGB/GETEB/GETED/WBACK/GBBACK/EBBACK/GETGBEB Macros + Refactor Existing Opcodes — ✅ Merged
 - **PR**: [#3677](https://github.com/ptitSeb/box64/pull/3677)
 - **Branch**: `ppc64le-helper-macros`
 - **Files**: `dynarec_ppc64le_helper.h`, `dynarec_ppc64le_00.c`
@@ -89,7 +89,7 @@ Each batch follows the ADD pattern (6 opcodes per group: Eb/Gb, Ed/Gd, Gb/Eb, Gd
   | test_and_xor | INTERP | 8.92s | 8.93s | +0.1% |
   Conclusion: Macros are compile-time only (C preprocessor) and generate identical PPC64LE machine code. Interpreter mode confirms no regression (<1%). Dynarec variance is system load noise — these micro-benchmarks are dominated by 500x box64 process startup/teardown overhead.
 
-#### Batch 1c: CMP + TEST (0x84-0x85, 0xA8-0xA9) — ✅ PR Submitted
+#### Batch 1c: CMP + TEST (0x84-0x85, 0xA8-0xA9) — ✅ Merged
 - **PR**: [#3678](https://github.com/ptitSeb/box64/pull/3678)
 - **Branch**: `ppc64le-cmp-test-opcodes` (based on `ppc64le-helper-macros`)
 - **Opcodes**: 0x38-0x3D (CMP), 0x84-0x85 (TEST Eb/Ed), 0xA8-0xA9 (TEST AL/EAX) — 10 opcodes
@@ -104,7 +104,7 @@ Each batch follows the ADD pattern (6 opcodes per group: Eb/Gb, Ed/Gd, Gb/Eb, Gd
 - **NASM tests**: `test_cmp_test.asm` — 35 test cases covering register, memory, 64-bit, hi-byte, zero-optimized, overflow, SF, PF, and TEST clearing CF/OF. **Note**: NASM test files were excluded from PR #3678 since upstream has no `tests/dynarec/` directory — test framework upstreaming is tracked separately in Phase 8. Tests remain on `ppc64le-dynarec` branch for local validation.
 - **Verified**: Build clean (0 warnings), ctest 33/33 pass, NASM test_cmp_test 35/35 pass (dynarec + interpreter match native x86_64), all existing NASM tests still pass
 
-#### Batch 1d: ADC + SBB
+#### Batch 1d: ADC + SBB - ✅ Merged
 - **PR**: [#3684](https://github.com/ptitSeb/box64/pull/3684)
 - **Opcodes**: 0x10-0x15 (ADC), 0x18-0x1D (SBB) — 12 opcodes
 - **New emit functions needed**:
@@ -115,6 +115,7 @@ Each batch follows the ADD pattern (6 opcodes per group: Eb/Gb, Ed/Gd, Gb/Eb, Gd
 - **Style**: Macro style (GETGBEB/EBBACK/GBBACK/WBACK)
 
 #### Batch 1e: Group 1 ALU Immediate (0x80-0x83)
+- **PR**: [#3706](https://github.com/ptitSeb/box64/pull/3706)
 - **Opcodes**: 0x80/0x82 (Group 1 Eb, Ib), 0x81 (Group 1 Ed, Id), 0x83 (Group 1 Ed, Ib) — 4 opcodes, 8 sub-operations each
 - **Dependencies**: ALL emit functions from Batches 1a-1d must be upstream
 - **Special**: These use switch on `(nextop>>3)&7` to dispatch ADD/OR/ADC/SBB/AND/SUB/XOR/CMP
@@ -387,7 +388,34 @@ ssh tle@192.168.1.247 "cd /tmp/box64-build/build && ctest --output-on-failure"
 
 Expected: `100% tests passed, 0 tests failed out of 33`.
 
-### Step 4: Write NASM Test
+### Step 4: Run NASM Dynarec Tests
+
+**This step is mandatory for every commit.** After building, run the pre-compiled NASM dynarec test suite to verify no regressions:
+
+```bash
+# Rsync source (includes bin/ with pre-compiled x86_64 test binaries)
+rsync -az --exclude='.git' --exclude='build' /Users/tle/Work/box64/ tle@192.168.1.247:/tmp/box64-build/
+
+# Run all 42 test suites (dynarec vs interpreter comparison)
+ssh tle@192.168.1.247 'bash -c "BOX64=/tmp/box64-build/build/box64 bash /tmp/box64-build/tests/dynarec/run_dynarec_tests.sh"'
+```
+
+Expected: `38 passed, 4 failed, 0 skipped / 42 total`. The 4 known failures are pre-existing:
+- `test_aes_crc` (33/36): both modes, not a dynarec bug
+- `test_misc_flags` (29/30): both modes, not a dynarec bug
+- `test_sse_insert_extract` (26/33): both modes, not a dynarec bug
+- `test_updateflags_mul` (19/22 dynarec): known 16-bit MUL/IMUL flag handling bug
+
+Any **new** failure or any test that previously passed now failing is a regression and must be fixed before committing.
+
+The script can also run individual tests:
+```bash
+ssh tle@192.168.1.247 'bash -c "BOX64=/tmp/box64-build/build/box64 bash /tmp/box64-build/tests/dynarec/run_dynarec_tests.sh test_shifts test_mov"'
+```
+
+The pre-compiled binaries live in `tests/dynarec/bin/`. If you add or modify a `.asm` test file, recompile on the x86_64 box (Step 5) and update the binary in `bin/`.
+
+### Step 5: Write/Edit NASM Test
 
 NASM tests live in `tests/dynarec/` on the `ppc64le-dynarec` branch. Each test file:
 - Includes `test_framework.inc` at the top
@@ -414,7 +442,7 @@ Each batch should have a dedicated NASM test covering:
 - 64-bit (REX.W) variants
 - Flag verification (ZF, SF, CF=0/OF=0 for logic ops)
 
-### Step 5: Compile NASM Test on x86_64 Box
+### Step 6: Compile NASM Test on x86_64 Box
 
 ```bash
 # Copy .asm and framework to x86_64 box
@@ -429,7 +457,7 @@ ssh -p 2222 tle@192.168.1.148 "/tmp/nasm_tests/test_file"
 # Expected: all PASS, Result: N/N
 ```
 
-### Step 6: Transfer Binary to PPC64LE Box
+### Step 7: Transfer Binary to PPC64LE Box
 
 Two-hop transfer (x86_64 -> local Mac -> PPC64LE):
 ```bash
@@ -437,7 +465,7 @@ scp -P 2222 tle@192.168.1.148:/tmp/nasm_tests/test_file /tmp/test_file
 scp /tmp/test_file tle@192.168.1.247:/tmp/test_file
 ```
 
-### Step 7: Run NASM Test Under box64 (Dynarec + Interpreter)
+### Step 8: Run NASM Test Under box64 (Dynarec + Interpreter)
 
 ```bash
 # Dynarec mode
@@ -454,7 +482,7 @@ Both modes must: exit 0, show all PASS, Result: N/N, and outputs must match.
 
 Note: The remote PPC64LE box runs **fish shell**, so use `$status` instead of `$?` for exit codes.
 
-### Step 8: Debug Crashes (if needed)
+### Step 9: Debug Crashes (if needed)
 
 Enable debug logging to diagnose dynarec segfaults:
 ```bash

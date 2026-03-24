@@ -234,24 +234,21 @@ _start:
     ; ================================================================
 
     ; PEXTRB position 0: byte 0 = 0x00
+    TEST_CASE tn_pextrb_p0
     movdqa xmm0, [rel vec_base]
     pextrb eax, xmm0, 0
-
-    TEST_CASE tn_pextrb_p0
     CHECK_EQ_64 rax, 0x0000000000000000
 
     ; PEXTRB position 5: byte 5 = 0x05
+    TEST_CASE tn_pextrb_p5
     movdqa xmm0, [rel vec_base]
     pextrb eax, xmm0, 5
-
-    TEST_CASE tn_pextrb_p5
     CHECK_EQ_64 rax, 0x0000000000000005
 
     ; PEXTRB position 15: byte 15 = 0x0F
+    TEST_CASE tn_pextrb_p15
     movdqa xmm0, [rel vec_base]
     pextrb eax, xmm0, 15
-
-    TEST_CASE tn_pextrb_p15
     CHECK_EQ_64 rax, 0x000000000000000F
 
     ; ================================================================
@@ -261,24 +258,21 @@ _start:
     ; ================================================================
 
     ; PEXTRW position 0: word 0 = 0x0100
+    TEST_CASE tn_pextrw_p0
     movdqa xmm0, [rel vec_base]
     pextrw eax, xmm0, 0
-
-    TEST_CASE tn_pextrw_p0
     CHECK_EQ_32 eax, 0x00000100
 
     ; PEXTRW position 3: word 3 = 0x0706
+    TEST_CASE tn_pextrw_p3
     movdqa xmm0, [rel vec_base]
     pextrw eax, xmm0, 3
-
-    TEST_CASE tn_pextrw_p3
     CHECK_EQ_32 eax, 0x00000706
 
     ; PEXTRW position 7: word 7 = 0x0F0E
+    TEST_CASE tn_pextrw_p7
     movdqa xmm0, [rel vec_base]
     pextrw eax, xmm0, 7
-
-    TEST_CASE tn_pextrw_p7
     CHECK_EQ_32 eax, 0x00000F0E
 
     ; ================================================================
@@ -288,31 +282,27 @@ _start:
     ; ================================================================
 
     ; PEXTRD position 0: dword 0 = 0x03020100
+    TEST_CASE tn_pextrd_p0
     movdqa xmm0, [rel vec_base]
     pextrd eax, xmm0, 0
-
-    TEST_CASE tn_pextrd_p0
     CHECK_EQ_32 eax, 0x03020100
 
     ; PEXTRD position 1: dword 1 = 0x07060504
+    TEST_CASE tn_pextrd_p1
     movdqa xmm0, [rel vec_base]
     pextrd eax, xmm0, 1
-
-    TEST_CASE tn_pextrd_p1
     CHECK_EQ_32 eax, 0x07060504
 
     ; PEXTRD position 2: dword 2 = 0x0B0A0908
+    TEST_CASE tn_pextrd_p2
     movdqa xmm0, [rel vec_base]
     pextrd eax, xmm0, 2
-
-    TEST_CASE tn_pextrd_p2
     CHECK_EQ_32 eax, 0x0B0A0908
 
     ; PEXTRD position 3: dword 3 = 0x0F0E0D0C
+    TEST_CASE tn_pextrd_p3
     movdqa xmm0, [rel vec_base]
     pextrd eax, xmm0, 3
-
-    TEST_CASE tn_pextrd_p3
     CHECK_EQ_32 eax, 0x0F0E0D0C
 
     ; ================================================================
@@ -320,17 +310,15 @@ _start:
     ; ================================================================
 
     ; PEXTRQ position 0: qword 0 = 0x0706050403020100
+    TEST_CASE tn_pextrq_p0
     movdqa xmm0, [rel vec_base]
     pextrq rax, xmm0, 0
-
-    TEST_CASE tn_pextrq_p0
     CHECK_EQ_64 rax, 0x0706050403020100
 
     ; PEXTRQ position 1: qword 1 = 0x0F0E0D0C0B0A0908
+    TEST_CASE tn_pextrq_p1
     movdqa xmm0, [rel vec_base]
     pextrq rax, xmm0, 1
-
-    TEST_CASE tn_pextrq_p1
     CHECK_EQ_64 rax, 0x0F0E0D0C0B0A0908
 
     ; ================================================================

@@ -24,7 +24,7 @@
 void emit_xor8(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3, int s4)
 {
     IFX (X_PEND) {
-        SET_DF(s4, d_xor8);
+        SET_DF(s3, d_xor8);
     } else IFXORNAT (X_ALL) {
         SET_DFNONE();
     }
@@ -58,7 +58,7 @@ void emit_xor8(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3, int s4
 void emit_xor8c(dynarec_ppc64le_t* dyn, int ninst, int s1, int32_t c, int s3, int s4)
 {
     IFX (X_PEND) {
-        SET_DF(s4, d_xor8);
+        SET_DF(s3, d_xor8);
     } else IFXORNAT (X_ALL) {
         SET_DFNONE();
     }
@@ -127,7 +127,7 @@ void emit_xor16(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3, int s
 void emit_xor32(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, int s1, int s2, int s3, int s4)
 {
     IFX (X_PEND) {
-        SET_DF(s4, rex.w ? d_xor64 : d_xor32);
+        SET_DF(s3, rex.w ? d_xor64 : d_xor32);
     } else IFXORNAT (X_ALL) {
         SET_DFNONE();
     }
@@ -165,7 +165,7 @@ void emit_xor32(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, int s1, int s2, in
 void emit_xor32c(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, int s1, int64_t c, int s3, int s4)
 {
     IFX (X_PEND) {
-        SET_DF(s4, rex.w ? d_xor64 : d_xor32);
+        SET_DF(s3, rex.w ? d_xor64 : d_xor32);
     } else IFXORNAT (X_ALL) {
         SET_DFNONE();
     }
@@ -408,7 +408,7 @@ void emit_or8(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3, int s4)
     if (dyn->insts[ninst].nat_flags_fusion) NAT_FLAGS_OPS(s1, xZR, s3, xZR);
 }
 
-// emit OR8 instruction, from s1 , constant c, store result in s1 using s3 and s4 as scratch
+// emit OR8 instruction, from s1 , constant c, store result in s1 using s2, s3 and s4 as scratch
 void emit_or8c(dynarec_ppc64le_t* dyn, int ninst, int s1, int32_t c, int s2, int s3, int s4)
 {
     MOV32w(s2, c & 0xff);

@@ -6,6 +6,16 @@
 ; SBB: dest = dest - src - CF.  Flags set like SUB but including borrow-in.
 ; SHLD: shift left double - shifts bits from src into dest from the right
 ; SHRD: shift right double - shifts bits from src into dest from the left
+;
+; SHLD: Double-precision shift left.  dest = (dest << count) | (src >> (N-count))
+;   CF = last bit shifted out of dest (bit N-count of original dest)
+;   SF/ZF/PF set from result. AF undefined.
+;   OF defined only for count=1.
+; SHRD: Double-precision shift right. dest = (dest >> count) | (src << (N-count))
+;   CF = last bit shifted out of dest (bit count-1 of original dest)
+;   SF/ZF/PF set from result. AF undefined.
+;   OF defined only for count=1.
+; When count=0, no flags are modified.
 %include "test_framework.inc"
 
 section .data
@@ -54,6 +64,37 @@ section .data
     ; --- shrd64 ---
     tshrd64_1: db "shrd64 basic shift via call", 0
     tshrd64_2: db "shrd64 CF=last bit out via call", 0
+    ; --- extended shrd tests (merged from test_updateflags_shld) ---
+    tshrd16_3: db "shrd16 count=0 no flags change", 0
+    tshrd16_4: db "shrd16 CF from bit(cnt-1)", 0
+    tshrd16_5: db "shrd16 sign bit result SF=1", 0
+    tshrd16_r: db "shrd16 result check", 0
+    tshrd32_3: db "shrd32 count=0 no flags change", 0
+    tshrd32_4: db "shrd32 shift by 4 CF check", 0
+    tshrd32_5: db "shrd32 high bits from src", 0
+    tshrd32_r: db "shrd32 result check", 0
+    tshrd64_3: db "shrd64 count=0 no flags change", 0
+    tshrd64_4: db "shrd64 shift by 8 CF check", 0
+    tshrd64_r: db "shrd64 result check", 0
+    ; --- extended shld tests (merged from test_updateflags_shld) ---
+    tshld16_3: db "shld16 count=0 no flags change", 0
+    tshld16_4: db "shld16 CF from bit(16-cnt)", 0
+    tshld16_5: db "shld16 sign bit result SF=1", 0
+    tshld16_r: db "shld16 result check", 0
+    tshld32_3: db "shld32 count=0 no flags change", 0
+    tshld32_4: db "shld32 shift by 4 CF check", 0
+    tshld32_5: db "shld32 high bits from src", 0
+    tshld32_r: db "shld32 result check", 0
+    tshld64_3: db "shld64 count=0 no flags change", 0
+    tshld64_4: db "shld64 shift by 8 CF check", 0
+    tshld64_r: db "shld64 result check", 0
+    ; --- extra ZF tests ---
+    tshld16_z: db "shld16 zero result ZF=1", 0
+    tshld32_z: db "shld32 zero result ZF=1", 0
+    tshld64_z: db "shld64 zero result ZF=1", 0
+    tshrd16_z: db "shrd16 zero result ZF=1", 0
+    tshrd32_z: db "shrd32 zero result ZF=1", 0
+    tshrd64_z: db "shrd64 zero result ZF=1", 0
 
 section .text
 global _start
@@ -413,6 +454,277 @@ _start:
     mov rax, 1
     xor rbx, rbx
     shrd rax, rbx, 1
+    call flag_barrier_ret
+    SAVE_FLAGS
+    CHECK_FLAGS_EQ (CF|ZF), (CF|ZF)
+
+    ;; ================================================================
+    ;; Extended SHRD tests (merged from test_updateflags_shld)
+    ;; ================================================================
+
+    ; shrd16 count=0: no flags change
+    TEST_CASE tshrd16_3
+    stc
+    mov ax, 0x1234
+    mov bx, 0x5678
+    shrd ax, bx, 0
+    call flag_barrier_ret
+    SAVE_FLAGS
+    CHECK_FLAGS_EQ CF, CF   ; CF should still be set
+
+    ; shrd16 CF from bit(cnt-1): ax=0x00F0, bx=0xABCD, count=4
+    ; CF = bit 3 of 0x00F0 = (0x00F0 >> 3) & 1 = 0x1E & 1 = 0
+    TEST_CASE tshrd16_4
+    mov ax, 0x00F0
+    mov bx, 0xABCD
+    shrd ax, bx, 4
+    call flag_barrier_ret
+    SAVE_FLAGS
+    CHECK_FLAGS_EQ CF, 0
+
+    ; shrd16 SF=1: ax=0x0000, bx=0xFFFF, count=1
+    ; res = (0x0000 >> 1) | (0xFFFF << 15) = 0x8000 => SF=1, CF=0
+    TEST_CASE tshrd16_5
+    mov ax, 0x0000
+    mov bx, 0xFFFF
+    shrd ax, bx, 1
+    call flag_barrier_ret
+    SAVE_FLAGS
+    CHECK_FLAGS_EQ (SF|CF), SF
+
+    ; shrd16 result check: ax=0x8001, bx=0x0003, count=1
+    ; res = (0x8001 >> 1) | (0x0003 << 15) = 0x4000 | 0x8000 = 0xC000
+    TEST_CASE tshrd16_r
+    mov ax, 0x8001
+    mov bx, 0x0003
+    shrd ax, bx, 1
+    call flag_barrier_ret
+    CHECK_EQ_32 eax, 0xC000
+
+    ; shrd16 zero result: ax=0x0001, bx=0x0000, count=1 => 0, CF=1, ZF=1
+    TEST_CASE tshrd16_z
+    mov ax, 0x0001
+    mov bx, 0x0000
+    shrd ax, bx, 1
+    call flag_barrier_ret
+    SAVE_FLAGS
+    CHECK_FLAGS_EQ (CF|ZF), (CF|ZF)
+
+    ; shrd32 count=0: no flags change
+    TEST_CASE tshrd32_3
+    stc
+    mov eax, 0x12345678
+    mov ebx, 0xABCDEF01
+    shrd eax, ebx, 0
+    call flag_barrier_ret
+    SAVE_FLAGS
+    CHECK_FLAGS_EQ CF, CF
+
+    ; shrd32 shift by 4 CF check: eax=0x000000F0, ebx=0xDEADBEEF, count=4
+    ; CF = bit 3 of 0xF0 = 0
+    TEST_CASE tshrd32_4
+    mov eax, 0x000000F0
+    mov ebx, 0xDEADBEEF
+    shrd eax, ebx, 4
+    call flag_barrier_ret
+    SAVE_FLAGS
+    CHECK_FLAGS_EQ CF, 0
+
+    ; shrd32 high bits from src: eax=0, ebx=0x80000001, count=1
+    ; res = 0x80000000, SF=1
+    TEST_CASE tshrd32_5
+    xor eax, eax
+    mov ebx, 0x80000001
+    shrd eax, ebx, 1
+    call flag_barrier_ret
+    SAVE_FLAGS
+    CHECK_FLAGS_EQ (SF|CF), SF
+
+    ; shrd32 result check
+    TEST_CASE tshrd32_r
+    mov eax, 0x80000001
+    mov ebx, 0x00000003
+    shrd eax, ebx, 1
+    call flag_barrier_ret
+    CHECK_EQ_32 eax, 0xC0000000
+
+    ; shrd32 zero result: eax=1, ebx=0, count=1 => 0, CF=1, ZF=1
+    TEST_CASE tshrd32_z
+    mov eax, 0x00000001
+    xor ebx, ebx
+    shrd eax, ebx, 1
+    call flag_barrier_ret
+    SAVE_FLAGS
+    CHECK_FLAGS_EQ (CF|ZF), (CF|ZF)
+
+    ; shrd64 count=0: no flags change
+    TEST_CASE tshrd64_3
+    stc
+    mov rax, 0x123456789ABCDEF0
+    mov rbx, 0xFEDCBA9876543210
+    shrd rax, rbx, 0
+    call flag_barrier_ret
+    SAVE_FLAGS
+    CHECK_FLAGS_EQ CF, CF
+
+    ; shrd64 shift by 8: rax=0xFF, rbx=0xAB, count=8 => CF = bit 7 of 0xFF = 1
+    TEST_CASE tshrd64_4
+    mov rax, 0xFF
+    mov rbx, 0xAB
+    shrd rax, rbx, 8
+    call flag_barrier_ret
+    SAVE_FLAGS
+    CHECK_FLAGS_EQ CF, CF
+
+    ; shrd64 result check
+    TEST_CASE tshrd64_r
+    mov rax, 0x8000000000000001
+    mov rbx, 0x0000000000000003
+    shrd rax, rbx, 1
+    call flag_barrier_ret
+    CHECK_EQ_64 rax, 0xC000000000000000
+
+    ; shrd64 zero result: rax=1, rbx=0, count=1 => 0, CF=1, ZF=1
+    TEST_CASE tshrd64_z
+    mov rax, 1
+    xor rbx, rbx
+    shrd rax, rbx, 1
+    call flag_barrier_ret
+    SAVE_FLAGS
+    CHECK_FLAGS_EQ (CF|ZF), (CF|ZF)
+
+    ;; ================================================================
+    ;; Extended SHLD tests (merged from test_updateflags_shld)
+    ;; ================================================================
+
+    ; shld16 count=0: no flags change
+    TEST_CASE tshld16_3
+    stc
+    mov ax, 0x1234
+    mov bx, 0x5678
+    shld ax, bx, 0
+    call flag_barrier_ret
+    SAVE_FLAGS
+    CHECK_FLAGS_EQ CF, CF
+
+    ; shld16 CF from bit(16-cnt): ax=0x1234, bx=0xABCD, count=4
+    ; CF = bit 12 of 0x1234 = (0x1234 >> 12) & 1 = 1
+    TEST_CASE tshld16_4
+    mov ax, 0x1234
+    mov bx, 0xABCD
+    shld ax, bx, 4
+    call flag_barrier_ret
+    SAVE_FLAGS
+    CHECK_FLAGS_EQ CF, CF
+
+    ; shld16 SF=1: ax=0x4000, bx=0, count=1 => res = 0x8000, SF=1, CF=0
+    TEST_CASE tshld16_5
+    mov ax, 0x4000
+    xor bx, bx
+    shld ax, bx, 1
+    call flag_barrier_ret
+    SAVE_FLAGS
+    CHECK_FLAGS_EQ (SF|CF), SF
+
+    ; shld16 result check: ax=0x8001, bx=0xC000, count=1
+    ; res = (0x8001 << 1) | (0xC000 >> 15) = 0x0002 | 0x0001 = 0x0003
+    TEST_CASE tshld16_r
+    mov ax, 0x8001
+    mov bx, 0xC000
+    shld ax, bx, 1
+    call flag_barrier_ret
+    CHECK_EQ_32 eax, 0x0003
+
+    ; shld16 zero result: ax=0x8000, bx=0, count=1 => 0, CF=1, ZF=1
+    TEST_CASE tshld16_z
+    mov ax, 0x8000
+    xor bx, bx
+    shld ax, bx, 1
+    call flag_barrier_ret
+    SAVE_FLAGS
+    CHECK_FLAGS_EQ (CF|ZF), (CF|ZF)
+
+    ; shld32 count=0: no flags change
+    TEST_CASE tshld32_3
+    stc
+    mov eax, 0x12345678
+    mov ebx, 0xABCDEF01
+    shld eax, ebx, 0
+    call flag_barrier_ret
+    SAVE_FLAGS
+    CHECK_FLAGS_EQ CF, CF
+
+    ; shld32 shift by 4 CF check: eax=0x12345678, ebx=0xABCDEF01, count=4
+    ; CF = bit 28 of 0x12345678 = 1
+    TEST_CASE tshld32_4
+    mov eax, 0x12345678
+    mov ebx, 0xABCDEF01
+    shld eax, ebx, 4
+    call flag_barrier_ret
+    SAVE_FLAGS
+    CHECK_FLAGS_EQ CF, CF
+
+    ; shld32 high bits from src: eax=0, ebx=0x80000001, count=1
+    ; res = (0 << 1) | (0x80000001 >> 31) = 0x00000001
+    ; CF=0 (bit 31 of 0 = 0), ZF=0 (res=1)
+    TEST_CASE tshld32_5
+    xor eax, eax
+    mov ebx, 0x80000001
+    shld eax, ebx, 1
+    call flag_barrier_ret
+    SAVE_FLAGS
+    CHECK_FLAGS_EQ (CF|ZF), 0
+
+    ; shld32 result check
+    TEST_CASE tshld32_r
+    mov eax, 0x80000001
+    mov ebx, 0xC0000000
+    shld eax, ebx, 1
+    call flag_barrier_ret
+    CHECK_EQ_32 eax, 0x00000003
+
+    ; shld32 zero result: eax=0x80000000, ebx=0, count=1 => 0, CF=1, ZF=1
+    TEST_CASE tshld32_z
+    mov eax, 0x80000000
+    xor ebx, ebx
+    shld eax, ebx, 1
+    call flag_barrier_ret
+    SAVE_FLAGS
+    CHECK_FLAGS_EQ (CF|ZF), (CF|ZF)
+
+    ; shld64 count=0: no flags change
+    TEST_CASE tshld64_3
+    stc
+    mov rax, 0x123456789ABCDEF0
+    mov rbx, 0xFEDCBA9876543210
+    shld rax, rbx, 0
+    call flag_barrier_ret
+    SAVE_FLAGS
+    CHECK_FLAGS_EQ CF, CF
+
+    ; shld64 shift by 8: rax=0xFF00000000000000, rbx=0xAB
+    ; CF = bit 56 of rax = 1
+    TEST_CASE tshld64_4
+    mov rax, 0xFF00000000000000
+    mov rbx, 0xAB
+    shld rax, rbx, 8
+    call flag_barrier_ret
+    SAVE_FLAGS
+    CHECK_FLAGS_EQ CF, CF
+
+    ; shld64 result check
+    TEST_CASE tshld64_r
+    mov rax, 0x8000000000000001
+    mov rbx, 0xC000000000000000
+    shld rax, rbx, 1
+    call flag_barrier_ret
+    CHECK_EQ_64 rax, 0x0000000000000003
+
+    ; shld64 zero result: rax=0x8000000000000000, rbx=0, count=1 => 0, CF=1, ZF=1
+    TEST_CASE tshld64_z
+    mov rax, 0x8000000000000000
+    xor rbx, rbx
+    shld rax, rbx, 1
     call flag_barrier_ret
     SAVE_FLAGS
     CHECK_FLAGS_EQ (CF|ZF), (CF|ZF)
