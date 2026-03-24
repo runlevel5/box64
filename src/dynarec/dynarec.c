@@ -105,12 +105,13 @@ void* LinkNext(x64emu_t* emu, uintptr_t addr, void* x2, uintptr_t* x3)
 // dynablock_t *father = block->father?block->father:block;
 #if defined(PPC64LE) && defined(BLOCK_CACHE_BITS)
     // Populate per-thread block dispatch cache for assembly fast-path in ppc64le_next.S.
-    // NEVERCLEAN blocks (always_test==1) are now also cached.  The assembly fast-path
-    // decrements a countdown on each cache hit; when it reaches 0 the slow path fires,
-    // which calls DBGetBlock to hash-validate the block and then resets the countdown.
-    // Hot-page blocks (always_test==2) are still excluded: they are transient and may
-    // flip to always_test==0 or get invalidated frequently.
-    if (block->always_test != 2) {
+    // Only cache fully validated (clean) blocks where always_test==0.
+    // NEVERCLEAN blocks (always_test==1) must NOT be cached because writes to
+    // their pages (e.g. memcpy to PROT_RWX pages) don't trigger SEGV or bump
+    // block_cache_generation, so stale entries would persist.
+    // Hot-page blocks (always_test==2) are also excluded: they are transient
+    // and may flip to always_test==0 or get invalidated frequently.
+    if (!block->always_test) {
         uint64_t global_gen = __atomic_load_n(&block_cache_generation, __ATOMIC_ACQUIRE);
         if (emu->block_cache_gen != global_gen) {
             // Generation mismatch: blocks were invalidated, flush entire cache
@@ -121,13 +122,6 @@ void* LinkNext(x64emu_t* emu, uintptr_t addr, void* x2, uintptr_t* x3)
         unsigned idx = ((uintptr_t)addr >> 1) & (BLOCK_CACHE_SIZE - 1);
         emu->block_cache[idx].x86_addr = addr;
         emu->block_cache[idx].native_addr = jblock;
-        // Reset the validation countdown for NEVERCLEAN blocks.
-        // Non-NEVERCLEAN blocks (always_test==0) don't need periodic revalidation,
-        // but setting the countdown is harmless — the assembly path checks it on
-        // every hit regardless (the cost is 3 extra instructions: ld + cmpdi + beq).
-        int validate_n = BOX64ENV(dynarec_neverclean_validate);
-        if (validate_n > 0)
-            emu->block_cache_validate_countdown = (uint64_t)validate_n;
     }
 #endif
     return jblock;

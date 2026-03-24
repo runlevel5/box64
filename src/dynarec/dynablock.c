@@ -412,14 +412,7 @@ dynablock_t* DBGetBlock(x64emu_t* emu, uintptr_t addr, int create, int is32bits)
         // Fast path only possible: compute hash for validation
         hash = X31_hash_code(db->x64_addr, db->x64_size);
         if (hash == db->hash) {
-// Block is still valid, no lock needed
-#ifdef BLOCK_CACHE_BITS
-            // Reset validation countdown so cache fast-path can serve
-            // this NEVERCLEAN block for another N hits before re-checking
-            int validate_n = BOX64ENV(dynarec_neverclean_validate);
-            if (validate_n > 0)
-                emu->block_cache_validate_countdown = (uint64_t)validate_n;
-#endif
+            // Block is still valid, no lock needed
             return db;
         }
         // Fall through to mutex section with already computed hash
