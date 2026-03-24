@@ -52,6 +52,7 @@ dynablock_t* getDB(uintptr_t idx);
 dynablock_t* getDBBlock(uintptr_t idx, void** jblock);
 dynablock_t* getDBnoTest(uintptr_t addr);   // return NULL if db need testing
 int getNeedTest(uintptr_t idx);
+dynablock_t* getDB_getNeedTest(uintptr_t idx, int* need_test);
 int addJumpTableIfDefault64(void* addr, void* jmp); // return 1 if write was succesfull
 int setJumpTableIfRef64(void* addr, void* jmp, void* ref); // return 1 if write was succesfull
 void setJumpTableDefault64(void* addr);
@@ -152,6 +153,9 @@ void getLockAddressRange(uintptr_t start, size_t size, uintptr_t addrs[]);   // 
 void CheckHotPage(uintptr_t addr, uint32_t prot);
 int isInHotPage(uintptr_t addr);
 int checkInHotPage(uintptr_t addr);
+#if defined(PPC64LE) && defined(BLOCK_CACHE_BITS)
+extern volatile uint64_t block_cache_generation;    // bumped on block invalidation, for dispatch cache
+#endif
 #endif
 
 // this will simulate an x86_64 version of the function (no tracking will done, but tracking will be used)
