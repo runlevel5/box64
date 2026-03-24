@@ -534,12 +534,98 @@ uintptr_t dynarec64_F20F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
         case 0x7C:
             INST_NAME("HADDPS Gx, Ex");
             nextop = F8;
-            DEFAULT;
+            GETGX(v0, 1);
+            GETEX(v1, 0, 0);
+            // HADDPS: result[0]=Gx[0]+Gx[1], result[1]=Gx[2]+Gx[3],
+            //         result[2]=Ex[0]+Ex[1], result[3]=Ex[2]+Ex[3]
+            // Strategy: shift each qword right by 32 to move odd float to even position,
+            // float-add, then pack low dwords from each qword.
+            q0 = fpu_get_scratch(dyn);
+            q1 = fpu_get_scratch(dyn);
+            d0 = fpu_get_scratch(dyn);
+            XXSPLTIB(VSXREG(d0), 32); // shift count = 32
+            VSRD(VRREG(q0), VRREG(v0), VRREG(d0)); // q0 = [Gx[1], 0, Gx[3], 0]
+            VSRD(VRREG(q1), VRREG(v1), VRREG(d0)); // q1 = [Ex[1], 0, Ex[3], 0]
+            if (!BOX64ENV(dynarec_fastnan)) {
+                d1 = fpu_get_scratch(dyn);
+                // Check if both inputs to each pair are ordered (not NaN)
+                XVCMPEQSP(VSXREG(d0), VSXREG(v0), VSXREG(v0));   // d0 = ordered mask for Gx/Ex originals
+                XVCMPEQSP(VSXREG(d1), VSXREG(q0), VSXREG(q0));   // d1 = ordered mask for shifted Gx
+                XXLAND(VSXREG(d0), VSXREG(d0), VSXREG(d1));       // d0 = both inputs ordered (for Gx)
+                {
+                    int d2 = fpu_get_scratch(dyn);
+                    XVCMPEQSP(VSXREG(d1), VSXREG(v1), VSXREG(v1));
+                    XVCMPEQSP(VSXREG(d2), VSXREG(q1), VSXREG(q1));
+                    XXLAND(VSXREG(d1), VSXREG(d1), VSXREG(d2));   // d1 = both inputs ordered (for Ex)
+                }
+            }
+            XVADDSP(VSXREG(q0), VSXREG(v0), VSXREG(q0)); // q0 lanes 0,2 = Gx horizontal sums
+            XVADDSP(VSXREG(q1), VSXREG(v1), VSXREG(q1)); // q1 lanes 0,2 = Ex horizontal sums
+            if (!BOX64ENV(dynarec_fastnan)) {
+                // Fix NaN sign for Gx sums
+                {
+                    int d2 = fpu_get_scratch(dyn);
+                    XVCMPEQSP(VSXREG(d2), VSXREG(q0), VSXREG(q0));   // d2 = result ordered
+                    XXLANDC(VSXREG(d0), VSXREG(d0), VSXREG(d2));       // inputs ordered AND result NaN
+                    XXSPLTIB(VSXREG(d2), 31);
+                    VSLW(VRREG(d0), VRREG(d0), VRREG(d2));             // shift to sign bit
+                    XXLOR(VSXREG(q0), VSXREG(q0), VSXREG(d0));        // set sign bit on new NaNs
+                    // Fix NaN sign for Ex sums
+                    XVCMPEQSP(VSXREG(d2), VSXREG(q1), VSXREG(q1));
+                    XXLANDC(VSXREG(d1), VSXREG(d1), VSXREG(d2));
+                    XXSPLTIB(VSXREG(d2), 31);
+                    VSLW(VRREG(d1), VRREG(d1), VRREG(d2));
+                    XXLOR(VSXREG(q1), VSXREG(q1), VSXREG(d1));
+                }
+            }
+            // Pack low dword from each qword: result = [Gx_hadd[0], Gx_hadd[1], Ex_hadd[0], Ex_hadd[1]]
+            VPKUDUM(VRREG(v0), VRREG(q1), VRREG(q0));
             break;
         case 0x7D:
             INST_NAME("HSUBPS Gx, Ex");
             nextop = F8;
-            DEFAULT;
+            GETGX(v0, 1);
+            GETEX(v1, 0, 0);
+            // HSUBPS: result[0]=Gx[0]-Gx[1], result[1]=Gx[2]-Gx[3],
+            //         result[2]=Ex[0]-Ex[1], result[3]=Ex[2]-Ex[3]
+            // Strategy: shift each qword right by 32 to move odd float to even position,
+            // float-subtract (original - shifted), then pack low dwords from each qword.
+            q0 = fpu_get_scratch(dyn);
+            q1 = fpu_get_scratch(dyn);
+            d0 = fpu_get_scratch(dyn);
+            XXSPLTIB(VSXREG(d0), 32); // shift count = 32
+            VSRD(VRREG(q0), VRREG(v0), VRREG(d0)); // q0 = [Gx[1], 0, Gx[3], 0]
+            VSRD(VRREG(q1), VRREG(v1), VRREG(d0)); // q1 = [Ex[1], 0, Ex[3], 0]
+            if (!BOX64ENV(dynarec_fastnan)) {
+                d1 = fpu_get_scratch(dyn);
+                XVCMPEQSP(VSXREG(d0), VSXREG(v0), VSXREG(v0));
+                XVCMPEQSP(VSXREG(d1), VSXREG(q0), VSXREG(q0));
+                XXLAND(VSXREG(d0), VSXREG(d0), VSXREG(d1));
+                {
+                    int d2 = fpu_get_scratch(dyn);
+                    XVCMPEQSP(VSXREG(d1), VSXREG(v1), VSXREG(v1));
+                    XVCMPEQSP(VSXREG(d2), VSXREG(q1), VSXREG(q1));
+                    XXLAND(VSXREG(d1), VSXREG(d1), VSXREG(d2));
+                }
+            }
+            XVSUBSP(VSXREG(q0), VSXREG(v0), VSXREG(q0)); // q0 lanes 0,2 = Gx horizontal subs
+            XVSUBSP(VSXREG(q1), VSXREG(v1), VSXREG(q1)); // q1 lanes 0,2 = Ex horizontal subs
+            if (!BOX64ENV(dynarec_fastnan)) {
+                {
+                    int d2 = fpu_get_scratch(dyn);
+                    XVCMPEQSP(VSXREG(d2), VSXREG(q0), VSXREG(q0));
+                    XXLANDC(VSXREG(d0), VSXREG(d0), VSXREG(d2));
+                    XXSPLTIB(VSXREG(d2), 31);
+                    VSLW(VRREG(d0), VRREG(d0), VRREG(d2));
+                    XXLOR(VSXREG(q0), VSXREG(q0), VSXREG(d0));
+                    XVCMPEQSP(VSXREG(d2), VSXREG(q1), VSXREG(q1));
+                    XXLANDC(VSXREG(d1), VSXREG(d1), VSXREG(d2));
+                    XXSPLTIB(VSXREG(d2), 31);
+                    VSLW(VRREG(d1), VRREG(d1), VRREG(d2));
+                    XXLOR(VSXREG(q1), VSXREG(q1), VSXREG(d1));
+                }
+            }
+            VPKUDUM(VRREG(v0), VRREG(q1), VRREG(q0));
             break;
         case 0xC2:
             INST_NAME("CMPSD Gx, Ex, Ib");
