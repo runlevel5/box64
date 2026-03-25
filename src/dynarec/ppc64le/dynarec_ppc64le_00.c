@@ -465,6 +465,29 @@ uintptr_t dynarec64_00(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             i64 = F32S;
             emit_and32c(dyn, ninst, rex, xRAX, i64, x3, x4);
             break;
+        case 0x27:
+            if (rex.is32bits) {
+                INST_NAME("DAA");
+                MESSAGE(LOG_DUMP, "Need Optimization (DAA)\n");
+                READFLAGS(X_AF | X_CF);
+                SETFLAGS(X_ALL, SF_SET_DF, NAT_FLAGS_NOFUSION);
+                BF_EXTRACT(x1, xRAX, 7, 0);
+                CALL_(const_daa8, x1, 0, x1, 0);
+                BF_INSERT(xRAX, x1, 7, 0);
+            } else {
+                INST_NAME("Illegal 27");
+                if (BOX64DRENV(dynarec_safeflags) > 1) {
+                    READFLAGS(X_PEND);
+                } else {
+                    SETFLAGS(X_ALL, SF_SET_NODF, NAT_FLAGS_NOFUSION);
+                }
+                GETIP(ip, x7);
+                BARRIER(BARRIER_FLOAT);
+                UDF();
+                *need_epilog = 1;
+                *ok = 0;
+            }
+            break;
         case 0x28:
             INST_NAME("SUB Eb, Gb");
             SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_FUSION);
@@ -514,6 +537,29 @@ uintptr_t dynarec64_00(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             break;
         case 0x2E:
             INST_NAME("CS:");
+            break;
+        case 0x2F:
+            if (rex.is32bits) {
+                INST_NAME("DAS");
+                MESSAGE(LOG_DUMP, "Need Optimization (DAS)\n");
+                READFLAGS(X_AF | X_CF);
+                SETFLAGS(X_ALL, SF_SET_DF, NAT_FLAGS_NOFUSION);
+                BF_EXTRACT(x1, xRAX, 7, 0);
+                CALL_(const_das8, x1, 0, x1, 0);
+                BF_INSERT(xRAX, x1, 7, 0);
+            } else {
+                INST_NAME("Illegal 2F");
+                if (BOX64DRENV(dynarec_safeflags) > 1) {
+                    READFLAGS(X_PEND);
+                } else {
+                    SETFLAGS(X_ALL, SF_SET_NODF, NAT_FLAGS_NOFUSION);
+                }
+                GETIP(ip, x7);
+                BARRIER(BARRIER_FLOAT);
+                UDF();
+                *need_epilog = 1;
+                *ok = 0;
+            }
             break;
         case 0x30:
             INST_NAME("XOR Eb, Gb");
@@ -567,6 +613,29 @@ uintptr_t dynarec64_00(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
         case 0x36:
             INST_NAME("SS:");
             break;
+        case 0x37:
+            if (rex.is32bits) {
+                INST_NAME("AAA");
+                MESSAGE(LOG_DUMP, "Need Optimization (AAA)\n");
+                READFLAGS(X_AF);
+                SETFLAGS(X_ALL, SF_SET_DF, NAT_FLAGS_NOFUSION);
+                BF_EXTRACT(x1, xRAX, 15, 0);
+                CALL_(const_aaa16, x1, 0, x1, 0);
+                BF_INSERT(xRAX, x1, 15, 0);
+            } else {
+                INST_NAME("Illegal 37");
+                if (BOX64DRENV(dynarec_safeflags) > 1) {
+                    READFLAGS(X_PEND);
+                } else {
+                    SETFLAGS(X_ALL, SF_SET_NODF, NAT_FLAGS_NOFUSION);
+                }
+                GETIP(ip, x7);
+                BARRIER(BARRIER_FLOAT);
+                UDF();
+                *need_epilog = 1;
+                *ok = 0;
+            }
+            break;
         case 0x38:
             INST_NAME("CMP Eb, Gb");
             SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_FUSION);
@@ -618,6 +687,29 @@ uintptr_t dynarec64_00(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 emit_cmp32(dyn, ninst, rex, xRAX, x2, x3, x4, x5, x6);
             } else
                 emit_cmp32_0(dyn, ninst, rex, 0xC0 /* fake nextop */, xRAX, x3, x4, x5);
+            break;
+        case 0x3F:
+            if (rex.is32bits) {
+                INST_NAME("AAS");
+                MESSAGE(LOG_DUMP, "Need Optimization (AAS)\n");
+                READFLAGS(X_AF);
+                SETFLAGS(X_ALL, SF_SET_DF, NAT_FLAGS_NOFUSION);
+                BF_EXTRACT(x1, xRAX, 15, 0);
+                CALL_(const_aas16, x1, 0, x1, 0);
+                BF_INSERT(xRAX, x1, 15, 0);
+            } else {
+                INST_NAME("Illegal 3F");
+                if (BOX64DRENV(dynarec_safeflags) > 1) {
+                    READFLAGS(X_PEND);
+                } else {
+                    SETFLAGS(X_ALL, SF_SET_NODF, NAT_FLAGS_NOFUSION);
+                }
+                GETIP(ip, x7);
+                BARRIER(BARRIER_FLOAT);
+                UDF();
+                *need_epilog = 1;
+                *ok = 0;
+            }
             break;
         case 0x40:
         case 0x41:
@@ -3019,6 +3111,52 @@ uintptr_t dynarec64_00(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                     break;
                 default:
                     DEFAULT;
+            }
+            break;
+        case 0xD4:
+            if (rex.is32bits) {
+                INST_NAME("AAM Ib");
+                SETFLAGS(X_ALL, SF_SET_DF, NAT_FLAGS_NOFUSION);
+                BF_EXTRACT(x1, xRAX, 7, 0);
+                u8 = F8;
+                MOV32w(x2, u8);
+                CALL_(const_aam16, x1, 0, x1, x2);
+                BF_INSERT(xRAX, x1, 15, 0);
+            } else {
+                INST_NAME("Illegal D4");
+                if (BOX64DRENV(dynarec_safeflags) > 1) {
+                    READFLAGS(X_PEND);
+                } else {
+                    SETFLAGS(X_ALL, SF_SET_NODF, NAT_FLAGS_NOFUSION);
+                }
+                GETIP(ip, x7);
+                BARRIER(BARRIER_FLOAT);
+                UDF();
+                *need_epilog = 1;
+                *ok = 0;
+            }
+            break;
+        case 0xD5:
+            if (rex.is32bits) {
+                INST_NAME("AAD Ib");
+                SETFLAGS(X_ALL, SF_SET_DF, NAT_FLAGS_NOFUSION);
+                BF_EXTRACT(x1, xRAX, 15, 0);
+                u8 = F8;
+                MOV32w(x2, u8);
+                CALL_(const_aad16, x1, 0, x1, x2);
+                BF_INSERT(xRAX, x1, 15, 0);
+            } else {
+                INST_NAME("Illegal D5");
+                if (BOX64DRENV(dynarec_safeflags) > 1) {
+                    READFLAGS(X_PEND);
+                } else {
+                    SETFLAGS(X_ALL, SF_SET_NODF, NAT_FLAGS_NOFUSION);
+                }
+                GETIP(ip, x7);
+                BARRIER(BARRIER_FLOAT);
+                UDF();
+                *need_epilog = 1;
+                *ok = 0;
             }
             break;
         case 0xD7:
