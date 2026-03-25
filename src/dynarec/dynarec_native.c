@@ -909,7 +909,10 @@ dynablock_t* FillBlock64(uintptr_t addr, int is32bits, int inst_max, int is_new)
         //protectDB(addr, end-addr);
     }
     if(getProtection(addr)&PROT_NEVERCLEAN) {
-        block->always_test = 1;
+        if(getProtection(addr)&PROT_NEVERCLEAN_LARGEPAGE)
+            block->always_test = 3;  // large-page: cacheable with countdown revalidation
+        else
+            block->always_test = 1;  // truly NEVERCLEAN: hash every time, not cacheable
     }
     else if(is_inhotpage)
         block->always_test = 2;

@@ -2398,7 +2398,7 @@ void protectDBJumpTable(uintptr_t addr, size_t size, void* jump, void* ref)
                         uintptr_t host_page = cur & ~(box64_pagesize - 1);
                         if (hostPageHasExternalWrite_locked(host_page, addr, addr + size)) {
                             dynarec_log(LOG_INFO, "protectDBJumpTable: mixed code+data host page %p, using always_test instead of mprotect\n", (void*)host_page);
-                            prot |= PROT_NEVERCLEAN;
+                            prot |= PROT_NEVERCLEAN | PROT_NEVERCLEAN_LARGEPAGE;
                         } else {
                             mprotect((void*)cur, bend - cur, prot & ~PROT_WRITE);
                         }
@@ -2451,7 +2451,7 @@ void protectDB(uintptr_t addr, uintptr_t size)
                         uintptr_t host_page = cur & ~(box64_pagesize - 1);
                         if (hostPageHasExternalWrite_locked(host_page, addr, addr + size)) {
                             dynarec_log(LOG_INFO, "protectDB: mixed code+data host page %p, using always_test instead of mprotect\n", (void*)host_page);
-                            prot |= PROT_NEVERCLEAN;
+                            prot |= PROT_NEVERCLEAN | PROT_NEVERCLEAN_LARGEPAGE;
                         } else {
                             mprotect((void*)cur, bend - cur, prot & ~PROT_WRITE);
                         }

@@ -404,7 +404,9 @@ dynablock_t* DBGetBlock(x64emu_t* emu, uintptr_t addr, int create, int is32bits)
 #ifdef PPC64LE
         // PPC64LE optimization: Skip expensive hash computation if we can't use fast path
         // Most blocks in hotpages will be invalidated anyway (97.7% always-dirty in PoE)
-        if (is_inhotpage || db->always_test != 1) {
+        // always_test==1 (NEVERCLEAN) and always_test==3 (NEVERCLEAN-largepage) can use
+        // the mutex-free fast path since they only need hash validation
+        if (is_inhotpage || (db->always_test != 1 && db->always_test != 3)) {
             // Cannot use fast path, go directly to mutex section
             goto skip_fastpath;
         }
@@ -449,7 +451,7 @@ dynablock_t* DBGetBlock(x64emu_t* emu, uintptr_t addr, int create, int is32bits)
                         db->always_test = 0;
                         protectDB((uintptr_t)db->x64_addr, db->x64_size);
                     }
-                    // always_test==1 (NEVERCLEAN): skip protectDB, the page has mixed
+                    // always_test==1 or 3 (NEVERCLEAN): skip protectDB, the page has mixed
                     // code+data and mprotect would strip writability from data regions
                 } else {
 #ifdef ARCH_NOP

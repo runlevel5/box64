@@ -105,13 +105,16 @@ void* LinkNext(x64emu_t* emu, uintptr_t addr, void* x2, uintptr_t* x3)
 // dynablock_t *father = block->father?block->father:block;
 #if defined(PPC64LE) && defined(BLOCK_CACHE_BITS)
     // Populate per-thread block dispatch cache for assembly fast-path in ppc64le_next.S.
-    // Only cache fully validated (clean) blocks where always_test==0.
+    // Cache clean blocks (always_test==0) and NEVERCLEAN-largepage blocks (always_test==3).
     // NEVERCLEAN blocks (always_test==1) must NOT be cached because writes to
     // their pages (e.g. memcpy to PROT_RWX pages) don't trigger SEGV or bump
     // block_cache_generation, so stale entries would persist.
     // Hot-page blocks (always_test==2) are also excluded: they are transient
     // and may flip to always_test==0 or get invalidated frequently.
-    if (!block->always_test) {
+    // NEVERCLEAN-largepage blocks (always_test==3) are cached with a countdown:
+    // every NEVERCLEAN_COUNTDOWN cache hits, the assembly falls through to the
+    // slow path which hash-validates the block and resets the countdown.
+    if (!block->always_test || block->always_test == 3) {
         uint64_t global_gen = __atomic_load_n(&block_cache_generation, __ATOMIC_ACQUIRE);
         if (emu->block_cache_gen != global_gen) {
             // Generation mismatch: blocks were invalidated, flush entire cache
@@ -122,6 +125,12 @@ void* LinkNext(x64emu_t* emu, uintptr_t addr, void* x2, uintptr_t* x3)
         unsigned idx = ((uintptr_t)addr >> 1) & (BLOCK_CACHE_SIZE - 1);
         emu->block_cache[idx].x86_addr = addr;
         emu->block_cache[idx].native_addr = jblock;
+#ifdef NEVERCLEAN_COUNTDOWN
+        // Reset countdown for periodic revalidation of NEVERCLEAN-largepage blocks.
+        // Clean blocks also go through countdown but the cost is negligible (1/N extra slow-path).
+        if (block->always_test == 3)
+            emu->block_cache_validate_countdown = NEVERCLEAN_COUNTDOWN;
+#endif
     }
 #endif
     return jblock;

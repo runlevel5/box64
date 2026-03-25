@@ -103,8 +103,12 @@ uintptr_t native_pass(dynarec_native_t* dyn, uintptr_t addr, int alternate, int 
             if(!(prot&PROT_READ) || !(prot&PROT_EXEC) || checkInHotPage(addr) || (addr>dyn->end)) {
                 stop_for_guard = 1;
             }
-            if(prot&PROT_NEVERCLEAN)
-                dyn->always_test = 1;
+            if(prot&PROT_NEVERCLEAN) {
+                if(prot&PROT_NEVERCLEAN_LARGEPAGE)
+                    dyn->always_test = 3;  // large-page NEVERCLEAN: cacheable with countdown
+                else
+                    dyn->always_test = 1;
+            }
         }
         if(stop_for_guard) {
             dynarec_log(LOG_INFO, "Stopping dynablock because of protection/hotpage/mmap/decode-window at %p -> %p inst=%d\n", (void*)dyn->start, (void*)addr, ninst);

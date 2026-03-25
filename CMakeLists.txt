@@ -403,6 +403,21 @@ else()
     set(DYNAREC OFF)
 endif()
 
+option(NEVERCLEAN_PROFILE "Enable NEVERCLEAN block profiling counters (debug)" OFF)
+if(NEVERCLEAN_PROFILE)
+    add_definitions(-DNEVERCLEAN_PROFILE)
+    message(STATUS "NEVERCLEAN profiling: enabled")
+endif()
+
+if(NOT DEFINED NEVERCLEAN_COUNTDOWN)
+    set(NEVERCLEAN_COUNTDOWN 1024)
+endif()
+set(NEVERCLEAN_COUNTDOWN ${NEVERCLEAN_COUNTDOWN} CACHE STRING "NEVERCLEAN largepage dispatch cache revalidation countdown (0=disable caching)")
+if(NEVERCLEAN_COUNTDOWN GREATER 0)
+    add_definitions(-DNEVERCLEAN_COUNTDOWN=${NEVERCLEAN_COUNTDOWN})
+    message(STATUS "NEVERCLEAN countdown: ${NEVERCLEAN_COUNTDOWN}")
+endif()
+
 set(BOX64_ROOT ${CMAKE_SOURCE_DIR})
 
 add_definitions(-std=gnu11 -funwind-tables -fvisibility=hidden)
@@ -1032,6 +1047,7 @@ if(DYNAREC)
         "${BOX64_ROOT}/src/dynarec/dynarec_native.c"
         "${BOX64_ROOT}/src/dynarec/dynarec_native_functions.c"
         "${BOX64_ROOT}/src/dynarec/dynacache_reloc.c"
+        "${BOX64_ROOT}/src/dynarec/neverclean_profile.c"
         "${BOX64_ROOT}/src/emu/x64test.c"
     )
 endif()
