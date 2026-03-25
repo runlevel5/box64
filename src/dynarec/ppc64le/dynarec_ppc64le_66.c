@@ -77,6 +77,16 @@ uintptr_t dynarec64_66(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             emit_add16(dyn, ninst, x1, x2, x3, x4, x5);
             BF_INSERT(xRAX, x1, 15, 0);
             break;
+        case 0x06:
+            INST_NAME("PUSH ES");
+            LHZ(x1, offsetof(x64emu_t, segs[_ES]), xEmu);
+            PUSH1_16(x1);
+            break;
+        case 0x07:
+            INST_NAME("POP ES");
+            POP1_16(x1);
+            STH(x1, offsetof(x64emu_t, segs[_ES]), xEmu);
+            break;
         case 0x09:
             INST_NAME("OR Ew, Gw");
             SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_FUSION);
@@ -164,6 +174,16 @@ uintptr_t dynarec64_66(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             MOV32w(x2, i32);
             emit_sbb16(dyn, ninst, x1, x2, x3, x4, x5);
             BF_INSERT(xRAX, x1, 15, 0);
+            break;
+        case 0x1E:
+            INST_NAME("PUSH DS");
+            LHZ(x1, offsetof(x64emu_t, segs[_DS]), xEmu);
+            PUSH1_16(x1);
+            break;
+        case 0x1F:
+            INST_NAME("POP DS");
+            POP1_16(x1);
+            STH(x1, offsetof(x64emu_t, segs[_DS]), xEmu);
             break;
         case 0x21:
             INST_NAME("AND Ew, Gw");
@@ -295,6 +315,42 @@ uintptr_t dynarec64_66(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             BF_EXTRACT(x1, gd, 15, 0);
             emit_dec16(dyn, ninst, x1, x2, x3, x4, x5);
             BF_INSERT(gd, x1, 15, 0);
+            break;
+        case 0x60:
+            if (rex.is32bits) {
+                INST_NAME("PUSHA 16bits (32bits)");
+                MR(x1, xRSP);
+                PUSH1_16(xRAX);
+                PUSH1_16(xRCX);
+                PUSH1_16(xRDX);
+                PUSH1_16(xRBX);
+                PUSH1_16(x1);
+                PUSH1_16(xRBP);
+                PUSH1_16(xRSI);
+                PUSH1_16(xRDI);
+            } else
+                return dynarec64_00(dyn, addr - 1, ip, ninst, rex, ok, need_epilog);
+            break;
+        case 0x61:
+            if (rex.is32bits) {
+                INST_NAME("POPA 16bits (32bits)");
+                POP1_16(x1);
+                BF_INSERT(xRDI, x1, 15, 0);
+                POP1_16(x1);
+                BF_INSERT(xRSI, x1, 15, 0);
+                POP1_16(x1);
+                BF_INSERT(xRBP, x1, 15, 0);
+                POP1_16(x1); // RSP ignored
+                POP1_16(x1);
+                BF_INSERT(xRBX, x1, 15, 0);
+                POP1_16(x1);
+                BF_INSERT(xRDX, x1, 15, 0);
+                POP1_16(x1);
+                BF_INSERT(xRCX, x1, 15, 0);
+                POP1_16(x1);
+                BF_INSERT(xRAX, x1, 15, 0);
+            } else
+                return dynarec64_00(dyn, addr - 1, ip, ninst, rex, ok, need_epilog);
             break;
         case 0x68:
             INST_NAME("PUSH Iw");

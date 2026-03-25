@@ -2734,6 +2734,22 @@ uintptr_t dynarec64_00(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 *ok = 0;
             }
             break;
+        case 0xCE:
+            if (!rex.is32bits) {
+                DEFAULT;
+            } else {
+                INST_NAME("INTO");
+                READFLAGS(X_OF);
+                GETIP(addr, x7);
+                ANDI(x1, xFlags, 1 << F_OF);
+                BEQZ_MARK(x1);
+                STORE_XEMU_CALL();
+                MOV32w(x1, 4);
+                CALL_S(const_native_int, -1, x1);
+                LOAD_XEMU_CALL();
+                MARK;
+            }
+            break;
         case 0xCF:
             INST_NAME("IRET");
             SETFLAGS(X_ALL, SF_SET_DF, NAT_FLAGS_NOFUSION); // Not a hack, EFLAGS are restored
