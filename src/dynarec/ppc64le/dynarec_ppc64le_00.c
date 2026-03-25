@@ -409,14 +409,6 @@ uintptr_t dynarec64_00(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 *need_epilog = 1;
                 *ok = 0;
             }
-            emit_add32(dyn, ninst, rex, ed, gd, x3, x4, x5);
-            WBACK;
-            break;
-            SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_FUSION);
-            nextop = F8;
-            GETGBEB(x1, x2, 0);
-            emit_add8(dyn, ninst, gd, ed, x4, x5);
-            GBBACK();
             break;
         case 0x20:
             INST_NAME("AND Eb, Gb");
