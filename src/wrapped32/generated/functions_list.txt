@@ -292,6 +292,8 @@
 #() WFEp -> WFEp
 #() WFpp -> WFpp
 #() uFEp -> uFEp
+#() uFEu -> uFEu
+#() uFEv -> uFEv
 #() uFii -> uFii
 #() uEiS -> uEiS
 #() uFWp -> uFWp
@@ -2784,6 +2786,11 @@ wrappedlibegl:
 - pFp:
   - eglGetProcAddress
 wrappedlibgl:
+- uFv:
+  - glGetError
+- uFu:
+  - glCheckFramebufferStatus
+  - glCheckFramebufferStatusEXT
 - iFi:
   - glXSwapIntervalMESA
 - pFp:
@@ -2793,6 +2800,7 @@ wrappedlibgl:
 - vFip:
   - glVDPAUMapSurfacesNV
   - glVDPAUUnmapSurfacesNV
+  - glStringMarkerGREMEDY
 - vFpp:
   - glDebugMessageCallback
   - glDebugMessageCallbackAMD

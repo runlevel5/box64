@@ -32,7 +32,14 @@ typedef void (*vFuuippp_t)(uint32_t, uint32_t, int32_t, void*, void*, void*);
 typedef void (*vFupupip_t)(uint32_t, void*, uint32_t, void*, int32_t, void*);
 typedef void (*vFppupui_t)(void*, void*, uint32_t, void*, uint32_t, int32_t);
 
+typedef uint32_t (*uFv_t)(void);
+typedef uint32_t (*uFu_t)(uint32_t);
+
 #define SUPER() ADDED_FUNCTIONS() \
+	GO(glGetError, uFv_t) \
+	GO(glCheckFramebufferStatus, uFu_t) \
+	GO(glCheckFramebufferStatusEXT, uFu_t) \
+	GO(glStringMarkerGREMEDY, vFip_t) \
 	GO(glXSwapIntervalMESA, iFi_t) \
 	GO(glGetVkProcAddrNV, pFp_t) \
 	GO(glXGetProcAddress, pFp_t) \
