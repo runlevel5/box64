@@ -269,6 +269,64 @@ endif()
 3. Hybrid approach requires zero new CI dependencies (pre-compiled binaries always work)
 4. Follows upstream's existing `add_test()` + `runTest.cmake` pattern exactly
 
+### Phase 9: 32-bit-Only Opcodes
+
+32-bit x86 instructions that are invalid in 64-bit long mode but required for 32-bit application emulation (BOX32). These opcodes exist only when `rex.is32bits` is true. Implemented on the `ppc64le-jit` branch.
+
+#### Implemented
+
+| Opcode | Mnemonic | File | Commit |
+|--------|----------|------|--------|
+| `66 0x40-0x47` | INC reg16 (short form) | `_66.c` | `e0fdf1bd3` |
+| `66 0x48-0x4F` | DEC reg16 (short form) | `_66.c` | `e0fdf1bd3` |
+| `0x27` | DAA | `_00.c` | `a128986ce` |
+| `0x2F` | DAS | `_00.c` | `a128986ce` |
+| `0x37` | AAA | `_00.c` | `a128986ce` |
+| `0x3F` | AAS | `_00.c` | `a128986ce` |
+| `0xD4` | AAM Ib | `_00.c` | `a128986ce` |
+| `0xD5` | AAD Ib | `_00.c` | `a128986ce` |
+| `0xCE` | INTO | `_00.c` | `10ff08cba` |
+| `66 0x06/0x07` | PUSH/POP ES (16-bit) | `_66.c` | `10ff08cba` |
+| `66 0x1E/0x1F` | PUSH/POP DS (16-bit) | `_66.c` | `10ff08cba` |
+| `66 0x60/0x61` | PUSHA/POPA (16-bit) | `_66.c` | `10ff08cba` |
+
+#### Already Implemented (pre-existing, tests are regression coverage)
+
+| Opcode | Mnemonic | File |
+|--------|----------|------|
+| `0x06/0x07` | PUSH/POP ES | `_00.c` |
+| `0x0E` | PUSH CS | `_00.c` |
+| `0x16/0x17` | PUSH/POP SS | `_00.c` |
+| `0x1E/0x1F` | PUSH/POP DS | `_00.c` (POP DS has a pre-existing dynarec bug — segfault) |
+| `0x40-0x47` | INC reg32 (short form) | `_00.c` |
+| `0x48-0x4F` | DEC reg32 (short form) | `_00.c` |
+| `0x60/0x61` | PUSHAD/POPAD | `_00.c` |
+
+#### Not Implementing (interpreter fallback)
+
+| Opcode | Mnemonic | Reason |
+|--------|----------|--------|
+| `0x62` | BOUND | Rarely used, no real-world demand |
+| `0x63` | ARPL | OS-level instruction, not used by applications |
+| `0x9A` | CALL FAR | Segmented mode, not used by modern 32-bit apps |
+| `0xEA` | JMP FAR | Segmented mode, not used by modern 32-bit apps |
+| `0xD6` | SALC | Undocumented, extremely rare |
+
+#### Known Bugs
+
+- **POP DS (0x1F) dynarec segfault**: The 32-bit `POP DS` instruction in `_00.c` crashes in dynarec mode with `SIGSEGV for accessing 0x6`. The generated PPC64LE instruction `STW r0, 6(r6)` executes with r6=0 instead of r31 (xEmu). This is a pre-existing bug not caused by Phase 9 changes. The interpreter handles POP DS correctly. Block is marked "always dirty" which may contribute to the register allocation issue.
+
+#### NASM Test Coverage
+
+| Test | Sub-tests | Status |
+|------|-----------|--------|
+| `test_32bit_incdec16` | 22 | PASS (dynarec == interpreter) |
+| `test_32bit_incdec32` | 20 | PASS (dynarec == interpreter) |
+| `test_32bit_bcd` | 22 | PASS (dynarec == interpreter) |
+| `test_32bit_into` | 4 | PASS (dynarec == interpreter) |
+| `test_32bit_pushad_popad` | 12 | PASS (dynarec == interpreter) |
+| `test_32bit_segment_push` | 8 | FAIL (POP DS pre-existing bug) |
+
 ## Upstream Style Reference
 
 ### Byte Opcode Pattern (manual inline, matching upstream ADD)
