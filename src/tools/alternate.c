@@ -28,6 +28,12 @@ static kh_alternate_t* my_alternates = NULL;
 // virtually all khash lookups on the hot path (>99.9% are misses).
 static uint64_t alternate_bloom[4] = { 0, 0, 0, 0 };
 
+// Per-address suppression: when set, getAlternate/hasAlternate will
+// return "no alternate" for this specific address. Used by hooks that
+// need to call through to the original emulated function via
+// RunFunctionFmt without triggering infinite recursion.
+static uintptr_t alternate_suppress = 0;
+
 static inline void bloom_set(uintptr_t key)
 {
     // Three independent hash probes from different bit ranges of the key.
@@ -55,6 +61,8 @@ int hasAlternate(void* addr)
 {
     if (!my_alternates)
         return 0;
+    if ((uintptr_t)addr == alternate_suppress)
+        return 0;
     if (!bloom_test((uintptr_t)addr))
         return 0;
     khint_t k = kh_get(alternate, my_alternates, (uintptr_t)addr);
@@ -66,6 +74,8 @@ int hasAlternate(void* addr)
 void* getAlternate(void* addr)
 {
     if (!my_alternates)
+        return addr;
+    if ((uintptr_t)addr == alternate_suppress)
         return addr;
     khint_t k = kh_get(alternate, my_alternates, (uintptr_t)addr);
     if (k != kh_end(my_alternates))
@@ -88,6 +98,17 @@ void addAlternate(void* addr, void* alt)
     kh_value(my_alternates, k).jump = AddAltJump(my_context->alternates, (uintptr_t)addr, (uintptr_t)alt);
 #endif
     bloom_set((uintptr_t)addr);
+}
+
+void suppressAlternate(void* addr)
+{
+    alternate_suppress = (uintptr_t)addr;
+}
+
+void unsuppressAlternate(void* addr)
+{
+    (void)addr;
+    alternate_suppress = 0;
 }
 
 void addCheckAlternate(void* addr, void* alt)
@@ -113,6 +134,8 @@ void cleanAlternate()
 uintptr_t getAlternateJump(void* addr, int is32bits)
 {
     if (!my_alternates)
+        return 0;
+    if ((uintptr_t)addr == alternate_suppress)
         return 0;
     khint_t k = kh_get(alternate, my_alternates, (uintptr_t)addr);
     if (k != kh_end(my_alternates)) {
