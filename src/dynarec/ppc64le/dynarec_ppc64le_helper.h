@@ -1486,6 +1486,14 @@
 #define CALLRET_LOOP()  NOP()
 #endif
 
+#ifndef IF_UNALIGNED
+#define IF_UNALIGNED(A) if(dyn->insts[ninst].unaligned)
+#endif
+
+#ifndef IF_ALIGNED
+#define IF_ALIGNED(A) if(!dyn->insts[ninst].unaligned)
+#endif
+
 #ifndef TABLE64
 #define TABLE64(A, V)
 #endif
