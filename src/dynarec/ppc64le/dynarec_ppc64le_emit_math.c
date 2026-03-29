@@ -43,18 +43,14 @@ void emit_add32(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, int s1, int s2, in
             ADD(s4, s4, s3);
             SRDI(s5, s5, 0x20);
             ADD(s5, s5, s4); // hi
-            SRADI(s5, s5, 0x20);
-            CMPDI(s5, 0);
-            BEQ(8);
-            ORI(xFlags, xFlags, 1 << F_CF);
+            SRDI(s5, s5, 0x20);
+            BF_INSERT(xFlags, s5, F_CF, F_CF);
         } else {
             ZEROUP2(s3, s1);
             ZEROUP2(s4, s2);
             ADD(s5, s3, s4);
             SRDI(s5, s5, 0x20);
-            CMPDI(s5, 0);
-            BEQ(8);
-            ORI(xFlags, xFlags, 1 << F_CF);
+            BF_INSERT(xFlags, s5, F_CF, F_CF);
         }
     }
     IFX (X_AF | X_OF) {
@@ -72,9 +68,8 @@ void emit_add32(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, int s1, int s2, in
         OR(s3, s3, s4);   // cc = (~res & (op1 | op2)) | (op1 & op2)
         IFX (X_AF) {
             ANDId(s4, s3, 0x08); // AF: cc & 0x08
-            CMPDI(s4, 0);
-            BEQ(8);
-            ORI(xFlags, xFlags, 1 << F_AF);
+            SRDI(s4, s4, 3);
+            BF_INSERT(xFlags, s4, F_AF, F_AF);
         }
         IFX (X_OF) {
             SRDI(s3, s3, rex.w ? 62 : 30);
@@ -95,9 +90,9 @@ void emit_add32(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, int s1, int s2, in
         emit_pf(dyn, ninst, s1, s3, s4);
     }
     IFX (X_ZF) {
-        CMPDI(s1, 0);
-        BNE(8);
-        ORI(xFlags, xFlags, 1 << F_ZF);
+        CNTLZD(s3, s1);
+        SRDI(s3, s3, 6);
+        BF_INSERT(xFlags, s3, F_ZF, F_ZF);
     }
     if (dyn->insts[ninst].nat_flags_fusion) {
         if (!rex.w) {
@@ -153,18 +148,14 @@ void emit_add32c(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, int s1, int64_t c
             ADD(s4, s4, s3);
             SRDI(s5, s5, 0x20);
             ADD(s5, s5, s4); // hi
-            SRADI(s5, s5, 0x20);
-            CMPDI(s5, 0);
-            BEQ(8);
-            ORI(xFlags, xFlags, 1 << F_CF);
+            SRDI(s5, s5, 0x20);
+            BF_INSERT(xFlags, s5, F_CF, F_CF);
         } else {
             ZEROUP2(s3, s1);
             ZEROUP2(s4, s2);
             ADD(s5, s3, s4);
             SRDI(s5, s5, 0x20);
-            CMPDI(s5, 0);
-            BEQ(8);
-            ORI(xFlags, xFlags, 1 << F_CF);
+            BF_INSERT(xFlags, s5, F_CF, F_CF);
         }
     }
     IFX (X_AF | X_OF) {
@@ -186,9 +177,8 @@ void emit_add32c(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, int s1, int64_t c
         OR(s3, s3, s4);   // cc = (~res & (op1 | op2)) | (op1 & op2)
         IFX (X_AF) {
             ANDId(s4, s3, 0x08); // AF: cc & 0x08
-            CMPDI(s4, 0);
-            BEQ(8);
-            ORI(xFlags, xFlags, 1 << F_AF);
+            SRDI(s4, s4, 3);
+            BF_INSERT(xFlags, s4, F_AF, F_AF);
         }
         IFX (X_OF) {
             SRDI(s3, s3, rex.w ? 62 : 30);
@@ -209,9 +199,9 @@ void emit_add32c(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, int s1, int64_t c
         emit_pf(dyn, ninst, s1, s3, s4);
     }
     IFX (X_ZF) {
-        CMPDI(s1, 0);
-        BNE(8);
-        ORI(xFlags, xFlags, 1 << F_ZF);
+        CNTLZD(s3, s1);
+        SRDI(s3, s3, 6);
+        BF_INSERT(xFlags, s3, F_ZF, F_ZF);
     }
     if (dyn->insts[ninst].nat_flags_fusion) {
         if (!rex.w) {
@@ -252,9 +242,8 @@ void emit_add8(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3, int s4
         OR(s3, s3, s4);   // cc = (~res & (op1 | op2)) | (op1 & op2)
         IFX (X_AF) {
             ANDId(s4, s3, 0x08); // AF: cc & 0x08
-            CMPDI(s4, 0);
-            BEQ(8);
-            ORI(xFlags, xFlags, 1 << F_AF);
+            SRDI(s4, s4, 3);
+            BF_INSERT(xFlags, s4, F_AF, F_AF);
         }
         IFX (X_OF) {
             SRDI(s3, s3, 6);
@@ -265,10 +254,8 @@ void emit_add8(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3, int s4
         }
     }
     IFX (X_CF) {
-        SRDI(s3, s1, 8);
-        CMPDI(s3, 0);
-        BEQ(8);
-        ORI(xFlags, xFlags, 1 << F_CF);
+        BF_EXTRACT(s3, s1, 8, 8);
+        BF_INSERT(xFlags, s3, F_CF, F_CF);
     }
     // d_add8 will use 16bits result to check for CF, so save 16bits and truncate after
     IFX (X_PEND) {
@@ -276,9 +263,9 @@ void emit_add8(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3, int s4
     }
     ANDId(s1, s1, 0xff);
     IFX (X_ZF) {
-        CMPDI(s1, 0);
-        BNE(8);
-        ORI(xFlags, xFlags, 1 << F_ZF);
+        CNTLZD(s3, s1);
+        SRDI(s3, s3, 6);
+        BF_INSERT(xFlags, s3, F_ZF, F_ZF);
     }
     IFX (X_SF) {
         BF_EXTRACT(s3, s1, 7, 7);
@@ -322,9 +309,8 @@ void emit_add8c(dynarec_ppc64le_t* dyn, int ninst, int s1, int32_t c, int s2, in
         OR(s3, s3, s4);   // cc = (~res & (op1 | op2)) | (op1 & op2)
         IFX (X_AF) {
             ANDId(s4, s3, 0x08); // AF: cc & 0x08
-            CMPDI(s4, 0);
-            BEQ(8);
-            ORI(xFlags, xFlags, 1 << F_AF);
+            SRDI(s4, s4, 3);
+            BF_INSERT(xFlags, s4, F_AF, F_AF);
         }
         IFX (X_OF) {
             SRDI(s3, s3, 6);
@@ -335,10 +321,8 @@ void emit_add8c(dynarec_ppc64le_t* dyn, int ninst, int s1, int32_t c, int s2, in
         }
     }
     IFX (X_CF) {
-        SRDI(s3, s1, 8);
-        CMPDI(s3, 0);
-        BEQ(8);
-        ORI(xFlags, xFlags, 1 << F_CF);
+        BF_EXTRACT(s3, s1, 8, 8);
+        BF_INSERT(xFlags, s3, F_CF, F_CF);
     }
     // d_add8 will use 16bits result to check for CF, so save 16bits and truncate after
     IFX (X_PEND) {
@@ -346,9 +330,9 @@ void emit_add8c(dynarec_ppc64le_t* dyn, int ninst, int s1, int32_t c, int s2, in
     }
     ANDId(s1, s1, 0xff);
     IFX (X_ZF) {
-        CMPDI(s1, 0);
-        BNE(8);
-        ORI(xFlags, xFlags, 1 << F_ZF);
+        CNTLZD(s3, s1);
+        SRDI(s3, s3, 6);
+        BF_INSERT(xFlags, s3, F_ZF, F_ZF);
     }
     IFX (X_SF) {
         BF_EXTRACT(s3, s1, 7, 7);
@@ -392,9 +376,8 @@ void emit_add16(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3, int s
         OR(s3, s3, s4);   // cc = (~res & (op1 | op2)) | (op1 & op2)
         IFX (X_AF) {
             ANDId(s4, s3, 0x08); // AF: cc & 0x08
-            CMPDI(s4, 0);
-            BEQ(8);
-            ORI(xFlags, xFlags, 1 << F_AF);
+            SRDI(s4, s4, 3);
+            BF_INSERT(xFlags, s4, F_AF, F_AF);
         }
         IFX (X_OF) {
             SRDI(s3, s3, 14);
@@ -406,18 +389,16 @@ void emit_add16(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3, int s
     }
 
     IFX (X_CF) {
-        SRDI(s3, s1, 16);
-        CMPDI(s3, 0);
-        BEQ(8);
-        ORI(xFlags, xFlags, 1 << F_CF);
+        BF_EXTRACT(s3, s1, 16, 16);
+        BF_INSERT(xFlags, s3, F_CF, F_CF);
     }
 
     BF_EXTRACT(s1, s1, 15, 0);
 
     IFX (X_ZF) {
-        CMPDI(s1, 0);
-        BNE(8);
-        ORI(xFlags, xFlags, 1 << F_ZF);
+        CNTLZD(s3, s1);
+        SRDI(s3, s3, 6);
+        BF_INSERT(xFlags, s3, F_ZF, F_ZF);
     }
     IFX (X_SF) {
         BF_EXTRACT(s3, s1, 15, 15);
@@ -461,9 +442,9 @@ void emit_sub8(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3, int s4
     }
     CALC_SUB_FLAGS(s5, s2, s1, s3, s4, 8);
     IFX (X_ZF) {
-        CMPDI(s1, 0);
-        BNE(8);
-        ORI(xFlags, xFlags, 1 << F_ZF);
+        CNTLZD(s3, s1);
+        SRDI(s3, s3, 6);
+        BF_INSERT(xFlags, s3, F_ZF, F_ZF);
     }
     IFX (X_PF) {
         emit_pf(dyn, ninst, s1, s3, s4);
@@ -512,9 +493,9 @@ void emit_sub16(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3, int s
 
     CALC_SUB_FLAGS(s5, s2, s1, s3, s4, 16);
     IFX (X_ZF) {
-        CMPDI(s1, 0);
-        BNE(8);
-        ORI(xFlags, xFlags, 1 << F_ZF);
+        CNTLZD(s3, s1);
+        SRDI(s3, s3, 6);
+        BF_INSERT(xFlags, s3, F_ZF, F_ZF);
     }
     IFX (X_PF) {
         emit_pf(dyn, ninst, s1, s3, s4);
@@ -556,9 +537,9 @@ void emit_sub32(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, int s1, int s2, in
     }
     CALC_SUB_FLAGS(s5, s2, s1, s3, s4, rex.w ? 64 : 32);
     IFX (X_ZF) {
-        CMPDI(s1, 0);
-        BNE(8);
-        ORI(xFlags, xFlags, 1 << F_ZF);
+        CNTLZD(s3, s1);
+        SRDI(s3, s3, 6);
+        BF_INSERT(xFlags, s3, F_ZF, F_ZF);
     }
     IFX (X_PF) {
         emit_pf(dyn, ninst, s1, s3, s4);
@@ -631,9 +612,9 @@ void emit_sub32c(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, int s1, int64_t c
     }
     CALC_SUB_FLAGS(s5, s2, s1, s3, s4, rex.w ? 64 : 32);
     IFX (X_ZF) {
-        CMPDI(s1, 0);
-        BNE(8);
-        ORI(xFlags, xFlags, 1 << F_ZF);
+        CNTLZD(s3, s1);
+        SRDI(s3, s3, 6);
+        BF_INSERT(xFlags, s3, F_ZF, F_ZF);
     }
     IFX (X_PF) {
         emit_pf(dyn, ninst, s1, s3, s4);
@@ -686,9 +667,9 @@ void emit_sbb8(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3, int s4
         BF_INSERT(xFlags, s3, F_SF, F_SF);
     }
     IFX (X_ZF) {
-        CMPDI(s1, 0);
-        BNE(8);
-        ORI(xFlags, xFlags, 1 << F_ZF);
+        CNTLZD(s3, s1);
+        SRDI(s3, s3, 6);
+        BF_INSERT(xFlags, s3, F_ZF, F_ZF);
     }
     IFX (X_PF) {
         emit_pf(dyn, ninst, s1, s3, s4);
@@ -740,9 +721,9 @@ void emit_sbb16(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3, int s
 
     CALC_SUB_FLAGS(s5, s2, s1, s3, s4, 16);
     IFX (X_ZF) {
-        CMPDI(s1, 0);
-        BNE(8);
-        ORI(xFlags, xFlags, 1 << F_ZF);
+        CNTLZD(s3, s1);
+        SRDI(s3, s3, 6);
+        BF_INSERT(xFlags, s3, F_ZF, F_ZF);
     }
     IFX (X_PF) {
         emit_pf(dyn, ninst, s1, s3, s4);
@@ -785,9 +766,9 @@ void emit_sbb32(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, int s1, int s2, in
     }
     CALC_SUB_FLAGS(s5, s2, s1, s3, s4, rex.w ? 64 : 32);
     IFX (X_ZF) {
-        CMPDI(s1, 0);
-        BNE(8);
-        ORI(xFlags, xFlags, 1 << F_ZF);
+        CNTLZD(s3, s1);
+        SRDI(s3, s3, 6);
+        BF_INSERT(xFlags, s3, F_ZF, F_ZF);
     }
     IFX (X_PF) {
         emit_pf(dyn, ninst, s1, s3, s4);
@@ -830,9 +811,10 @@ void emit_neg8(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3)
 
     CLEAR_FLAGS(s2);
     IFX (X_CF) {
-        CMPDI(s1, 0);
-        BEQ(8);
-        ORI(xFlags, xFlags, 1 << F_CF);
+        CNTLZD(s3, s1);
+        SRDI(s3, s3, 6);
+        XORI(s3, s3, 1);
+        BF_INSERT(xFlags, s3, F_CF, F_CF);
     }
 
     IFX (X_AF | X_OF) {
@@ -840,9 +822,8 @@ void emit_neg8(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3)
         IFX (X_AF) {
             /* af = bc & 0x8 */
             ANDId(s2, s3, 8);
-            CMPDI(s2, 0);
-            BEQ(8);
-            ORI(xFlags, xFlags, 1 << F_AF);
+            SRDI(s2, s2, 3);
+            BF_INSERT(xFlags, s2, F_AF, F_AF);
         }
         IFX (X_OF) {
             /* of = ((bc >> (width-2)) ^ (bc >> (width-1))) & 0x1; */
@@ -850,9 +831,7 @@ void emit_neg8(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3)
             SRDI(s3, s2, 1);
             XOR(s2, s2, s3);
             ANDId(s2, s2, 1);
-            CMPDI(s2, 0);
-            BEQ(8);
-            ORI(xFlags, xFlags, 1 << F_OF);
+            BF_INSERT(xFlags, s2, F_OF, F_OF);
         }
     }
     IFX (X_SF) {
@@ -863,9 +842,9 @@ void emit_neg8(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3)
         emit_pf(dyn, ninst, s1, s3, s2);
     }
     IFX (X_ZF) {
-        CMPDI(s1, 0);
-        BNE(8);
-        ORI(xFlags, xFlags, 1 << F_ZF);
+        CNTLZD(s3, s1);
+        SRDI(s3, s3, 6);
+        BF_INSERT(xFlags, s3, F_ZF, F_ZF);
     }
     if (dyn->insts[ninst].nat_flags_fusion && dyn->insts[ninst].nat_flags_needsign) {
         EXTSB(s1, s1);
@@ -896,9 +875,10 @@ void emit_neg32(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, int s1, int s2, in
 
     CLEAR_FLAGS(s2);
     IFX (X_CF) {
-        CMPDI(s1, 0);
-        BEQ(8);
-        ORI(xFlags, xFlags, 1 << F_CF);
+        CNTLZD(s3, s1);
+        SRDI(s3, s3, 6);
+        XORI(s3, s3, 1);
+        BF_INSERT(xFlags, s3, F_CF, F_CF);
     }
 
     IFX (X_AF | X_OF) {
@@ -906,9 +886,8 @@ void emit_neg32(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, int s1, int s2, in
         IFX (X_AF) {
             /* af = bc & 0x8 */
             ANDId(s2, s3, 8);
-            CMPDI(s2, 0);
-            BEQ(8);
-            ORI(xFlags, xFlags, 1 << F_AF);
+            SRDI(s2, s2, 3);
+            BF_INSERT(xFlags, s2, F_AF, F_AF);
         }
         IFX (X_OF) {
             /* of = ((bc >> (width-2)) ^ (bc >> (width-1))) & 0x1; */
@@ -916,9 +895,7 @@ void emit_neg32(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, int s1, int s2, in
             SRDI(s3, s2, 1);
             XOR(s2, s2, s3);
             ANDId(s2, s2, 1);
-            CMPDI(s2, 0);
-            BEQ(8);
-            ORI(xFlags, xFlags, 1 << F_OF);
+            BF_INSERT(xFlags, s2, F_OF, F_OF);
         }
     }
     IFX (X_SF) {
@@ -932,9 +909,9 @@ void emit_neg32(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, int s1, int s2, in
         emit_pf(dyn, ninst, s1, s3, s2);
     }
     IFX (X_ZF) {
-        CMPDI(s1, 0);
-        BNE(8);
-        ORI(xFlags, xFlags, 1 << F_ZF);
+        CNTLZD(s3, s1);
+        SRDI(s3, s3, 6);
+        BF_INSERT(xFlags, s3, F_ZF, F_ZF);
     }
     if (dyn->insts[ninst].nat_flags_fusion) {
         if (!rex.w) {
@@ -973,9 +950,10 @@ void emit_neg16(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3)
     }
 
     IFX (X_CF) {
-        CMPDI(s1, 0);
-        BEQ(8);
-        ORI(xFlags, xFlags, 1 << F_CF);
+        CNTLZD(s3, s1);
+        SRDI(s3, s3, 6);
+        XORI(s3, s3, 1);
+        BF_INSERT(xFlags, s3, F_CF, F_CF);
     }
 
     IFX (X_AF | X_OF) {
@@ -983,9 +961,8 @@ void emit_neg16(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3)
         IFX (X_AF) {
             /* af = bc & 0x8 */
             ANDId(s2, s3, 8);
-            CMPDI(s2, 0);
-            BEQ(8);
-            ORI(xFlags, xFlags, 1 << F_AF);
+            SRDI(s2, s2, 3);
+            BF_INSERT(xFlags, s2, F_AF, F_AF);
         }
         IFX (X_OF) {
             /* of = ((bc >> (width-2)) ^ (bc >> (width-1))) & 0x1; */
@@ -993,9 +970,7 @@ void emit_neg16(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3)
             SRDI(s3, s2, 1);
             XOR(s2, s2, s3);
             ANDId(s2, s2, 1);
-            CMPDI(s2, 0);
-            BEQ(8);
-            ORI(xFlags, xFlags, 1 << F_OF);
+            BF_INSERT(xFlags, s2, F_OF, F_OF);
         }
     }
     IFX (X_SF) {
@@ -1006,9 +981,9 @@ void emit_neg16(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3)
         emit_pf(dyn, ninst, s1, s3, s2);
     }
     IFX (X_ZF) {
-        CMPDI(s1, 0);
-        BNE(8);
-        ORI(xFlags, xFlags, 1 << F_ZF);
+        CNTLZD(s3, s1);
+        SRDI(s3, s3, 6);
+        BF_INSERT(xFlags, s3, F_ZF, F_ZF);
     }
     if (dyn->insts[ninst].nat_flags_fusion && dyn->insts[ninst].nat_flags_needsign) {
         EXTSH(s1, s1);
@@ -1047,9 +1022,8 @@ void emit_adc8(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3, int s4
         OR(s3, s3, s5);   // cc = (~res & (op1 | op2)) | (op1 & op2)
         IFX (X_AF) {
             ANDId(s4, s3, 0x08); // AF: cc & 0x08
-            CMPDI(s4, 0);
-            BEQ(8);
-            ORI(xFlags, xFlags, 1 << F_AF);
+            SRDI(s4, s4, 3);
+            BF_INSERT(xFlags, s4, F_AF, F_AF);
         }
         IFX (X_OF) {
             SRDI(s3, s3, 6);
@@ -1060,18 +1034,16 @@ void emit_adc8(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3, int s4
         }
     }
     IFX (X_CF) {
-        SRDI(s3, s1, 8);
-        CMPDI(s3, 0);
-        BEQ(8);
-        ORI(xFlags, xFlags, 1 << F_CF);
+        BF_EXTRACT(s3, s1, 8, 8);
+        BF_INSERT(xFlags, s3, F_CF, F_CF);
     }
 
     ANDId(s1, s1, 0xff); // unneeded?
 
     IFX (X_ZF) {
-        CMPDI(s1, 0);
-        BNE(8);
-        ORI(xFlags, xFlags, 1 << F_ZF);
+        CNTLZD(s3, s1);
+        SRDI(s3, s3, 6);
+        BF_INSERT(xFlags, s3, F_ZF, F_ZF);
     }
     IFX (X_SF) {
         BF_EXTRACT(s3, s1, 7, 7);
@@ -1124,9 +1096,8 @@ void emit_adc16(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3, int s
         OR(s3, s3, s5);   // cc = (~res & (op1 | op2)) | (op1 & op2)
         IFX (X_AF) {
             ANDId(s4, s3, 0x08); // AF: cc & 0x08
-            CMPDI(s4, 0);
-            BEQ(8);
-            ORI(xFlags, xFlags, 1 << F_AF);
+            SRDI(s4, s4, 3);
+            BF_INSERT(xFlags, s4, F_AF, F_AF);
         }
         IFX (X_OF) {
             SRDI(s3, s3, 14);
@@ -1137,18 +1108,16 @@ void emit_adc16(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3, int s
         }
     }
     IFX (X_CF) {
-        SRDI(s3, s1, 16);
-        CMPDI(s3, 0);
-        BEQ(8);
-        ORI(xFlags, xFlags, 1 << F_CF);
+        BF_EXTRACT(s3, s1, 16, 16);
+        BF_INSERT(xFlags, s3, F_CF, F_CF);
     }
 
     BF_EXTRACT(s1, s1, 15, 0);  // unneeded?
 
     IFX (X_ZF) {
-        CMPDI(s1, 0);
-        BNE(8);
-        ORI(xFlags, xFlags, 1 << F_ZF);
+        CNTLZD(s3, s1);
+        SRDI(s3, s3, 6);
+        BF_INSERT(xFlags, s3, F_ZF, F_ZF);
     }
     IFX (X_SF) {
         BF_EXTRACT(s3, s1, 15, 15);
@@ -1187,7 +1156,7 @@ void emit_adc32(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, int s1, int s2, in
             ADD(s4, s4, s3);
             SRDI(s5, s5, 0x20);
             ADD(s5, s5, s4); // hi
-            SRADI(s6, s5, 0x20);
+            SRDI(s6, s5, 0x20);
         } else {
             ZEROUP2(s3, s1);
             ZEROUP2(s4, s2);
@@ -1212,18 +1181,15 @@ void emit_adc32(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, int s1, int s2, in
 
     CLEAR_FLAGS(s3);
     IFX (X_CF) {
-        CMPDI(s6, 0);
-        BEQ(8);
-        ORI(xFlags, xFlags, 1 << F_CF);
+        BF_INSERT(xFlags, s6, F_CF, F_CF);
     }
     IFX (X_AF | X_OF) {
         ANDC(s3, s4, s1); // s3 = ~res & (op1 | op2)
         OR(s3, s3, s5);   // cc = (~res & (op1 | op2)) | (op1 & op2)
         IFX (X_AF) {
             ANDId(s4, s3, 0x08); // AF: cc & 0x08
-            CMPDI(s4, 0);
-            BEQ(8);
-            ORI(xFlags, xFlags, 1 << F_AF);
+            SRDI(s4, s4, 3);
+            BF_INSERT(xFlags, s4, F_AF, F_AF);
         }
         IFX (X_OF) {
             SRDI(s3, s3, rex.w ? 62 : 30);
@@ -1244,9 +1210,9 @@ void emit_adc32(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, int s1, int s2, in
         emit_pf(dyn, ninst, s1, s3, s4);
     }
     IFX (X_ZF) {
-        CMPDI(s1, 0);
-        BNE(8);
-        ORI(xFlags, xFlags, 1 << F_ZF);
+        CNTLZD(s3, s1);
+        SRDI(s3, s3, 6);
+        BF_INSERT(xFlags, s3, F_ZF, F_ZF);
     }
     if (dyn->insts[ninst].nat_flags_fusion) {
         if (!rex.w) {
@@ -1286,9 +1252,8 @@ void emit_inc8(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3, int s4
         OR(s3, s3, s4);   // cc = (~res & (op1 | op2)) | (op1 & op2)
         IFX (X_AF) {
             ANDId(s2, s3, 0x08); // AF: cc & 0x08
-            CMPDI(s2, 0);
-            BEQ(8);
-            ORI(xFlags, xFlags, 1 << F_AF);
+            SRDI(s2, s2, 3);
+            BF_INSERT(xFlags, s2, F_AF, F_AF);
         }
         IFX (X_OF) {
             SRDI(s3, s3, 6);
@@ -1307,9 +1272,9 @@ void emit_inc8(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3, int s4
         emit_pf(dyn, ninst, s1, s3, s2);
     }
     IFX (X_ZF) {
-        CMPDI(s1, 0);
-        BNE(8);
-        ORI(xFlags, xFlags, 1 << F_ZF);
+        CNTLZD(s3, s1);
+        SRDI(s3, s3, 6);
+        BF_INSERT(xFlags, s3, F_ZF, F_ZF);
     }
     if (dyn->insts[ninst].nat_flags_fusion && dyn->insts[ninst].nat_flags_needsign) {
         EXTSB(s1, s1);
@@ -1340,9 +1305,8 @@ void emit_inc16(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3, int s
         OR(s3, s3, s4);   // cc = (~res & (op1 | op2)) | (op1 & op2)
         IFX (X_AF) {
             ANDId(s4, s3, 0x08); // AF: cc & 0x08
-            CMPDI(s4, 0);
-            BEQ(8);
-            ORI(xFlags, xFlags, 1 << F_AF);
+            SRDI(s4, s4, 3);
+            BF_INSERT(xFlags, s4, F_AF, F_AF);
         }
         IFX (X_OF) {
             SRDI(s3, s3, 14);
@@ -1356,9 +1320,9 @@ void emit_inc16(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3, int s
     BF_EXTRACT(s1, s1, 15, 0);
 
     IFX (X_ZF) {
-        CMPDI(s1, 0);
-        BNE(8);
-        ORI(xFlags, xFlags, 1 << F_ZF);
+        CNTLZD(s3, s1);
+        SRDI(s3, s3, 6);
+        BF_INSERT(xFlags, s3, F_ZF, F_ZF);
     }
     IFX (X_SF) {
         BF_EXTRACT(s3, s1, 15, 15);
@@ -1396,9 +1360,8 @@ void emit_inc32(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, int s1, int s2, in
         OR(s3, s3, s5);   // cc = (~res & (op1 | op2)) | (op1 & op2)
         IFX (X_AF) {
             ANDId(s2, s3, 0x08); // AF: cc & 0x08
-            CMPDI(s2, 0);
-            BEQ(8);
-            ORI(xFlags, xFlags, 1 << F_AF);
+            SRDI(s2, s2, 3);
+            BF_INSERT(xFlags, s2, F_AF, F_AF);
         }
         IFX (X_OF) {
             SRDI(s3, s3, rex.w ? 62 : 30);
@@ -1419,9 +1382,9 @@ void emit_inc32(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, int s1, int s2, in
         emit_pf(dyn, ninst, s1, s3, s2);
     }
     IFX (X_ZF) {
-        CMPDI(s1, 0);
-        BNE(8);
-        ORI(xFlags, xFlags, 1 << F_ZF);
+        CNTLZD(s3, s1);
+        SRDI(s3, s3, 6);
+        BF_INSERT(xFlags, s3, F_ZF, F_ZF);
     }
     if (dyn->insts[ninst].nat_flags_fusion) {
         if (!rex.w) {
@@ -1462,9 +1425,8 @@ void emit_dec8(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3, int s4
         OR(s3, s3, s4);  // cc = (res & (~op1 | op2)) | (~op1 & op2)
         IFX (X_AF) {
             ANDId(s2, s3, 0x08); // AF: cc & 0x08
-            CMPDI(s2, 0);
-            BEQ(8);
-            ORI(xFlags, xFlags, 1 << F_AF);
+            SRDI(s2, s2, 3);
+            BF_INSERT(xFlags, s2, F_AF, F_AF);
         }
         IFX (X_OF) {
             SRDI(s3, s3, 6);
@@ -1483,9 +1445,9 @@ void emit_dec8(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3, int s4
         emit_pf(dyn, ninst, s1, s3, s2);
     }
     IFX (X_ZF) {
-        CMPDI(s1, 0);
-        BNE(8);
-        ORI(xFlags, xFlags, 1 << F_ZF);
+        CNTLZD(s3, s1);
+        SRDI(s3, s3, 6);
+        BF_INSERT(xFlags, s3, F_ZF, F_ZF);
     }
     if (dyn->insts[ninst].nat_flags_fusion && dyn->insts[ninst].nat_flags_needsign) {
         EXTSB(s1, s1);
@@ -1517,9 +1479,8 @@ void emit_dec16(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3, int s
         OR(s3, s3, s5);  // cc = (res & (~op1 | op2)) | (~op1 & op2)
         IFX (X_AF) {
             ANDId(s2, s3, 0x08); // AF: cc & 0x08
-            CMPDI(s2, 0);
-            BEQ(8);
-            ORI(xFlags, xFlags, 1 << F_AF);
+            SRDI(s2, s2, 3);
+            BF_INSERT(xFlags, s2, F_AF, F_AF);
         }
         IFX (X_OF) {
             SRDI(s3, s3, 14);
@@ -1537,9 +1498,9 @@ void emit_dec16(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3, int s
         emit_pf(dyn, ninst, s1, s3, s2);
     }
     IFX (X_ZF) {
-        CMPDI(s1, 0);
-        BNE(8);
-        ORI(xFlags, xFlags, 1 << F_ZF);
+        CNTLZD(s3, s1);
+        SRDI(s3, s3, 6);
+        BF_INSERT(xFlags, s3, F_ZF, F_ZF);
     }
     if (dyn->insts[ninst].nat_flags_fusion && dyn->insts[ninst].nat_flags_needsign) {
         EXTSH(s1, s1);
@@ -1570,9 +1531,8 @@ void emit_dec32(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, int s1, int s2, in
         OR(s3, s3, s5);  // cc = (res & (~op1 | op2)) | (~op1 & op2)
         IFX (X_AF) {
             ANDId(s2, s3, 0x08); // AF: cc & 0x08
-            CMPDI(s2, 0);
-            BEQ(8);
-            ORI(xFlags, xFlags, 1 << F_AF);
+            SRDI(s2, s2, 3);
+            BF_INSERT(xFlags, s2, F_AF, F_AF);
         }
         IFX (X_OF) {
             SRDI(s3, s3, rex.w ? 62 : 30);
@@ -1591,9 +1551,9 @@ void emit_dec32(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, int s1, int s2, in
         emit_pf(dyn, ninst, s1, s3, s2);
     }
     IFX (X_ZF) {
-        CMPDI(s1, 0);
-        BNE(8);
-        ORI(xFlags, xFlags, 1 << F_ZF);
+        CNTLZD(s3, s1);
+        SRDI(s3, s3, 6);
+        BF_INSERT(xFlags, s3, F_ZF, F_ZF);
     }
     if (dyn->insts[ninst].nat_flags_fusion) {
         if (!rex.w) {
