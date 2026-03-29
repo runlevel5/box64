@@ -84,9 +84,8 @@ void emit_add32(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, int s1, int s2, in
         }
     }
     IFX (X_SF) {
-        SRDI(s3, s1, rex.w ? 56 : 24);
-        ANDId(s3, s3, 1 << F_SF);
-        OR(xFlags, xFlags, s3);
+        BF_EXTRACT(s3, s1, rex.w ? 63 : 31, rex.w ? 63 : 31);
+        BF_INSERT(xFlags, s3, F_SF, F_SF);
     }
     if (!rex.w) {
         ZEROUP(s1);
@@ -186,9 +185,8 @@ void emit_add32c(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, int s1, int64_t c
         }
     }
     IFX (X_SF) {
-        SRDI(s3, s1, rex.w ? 56 : 24);
-        ANDId(s3, s3, 1 << F_SF);
-        OR(xFlags, xFlags, s3);
+        BF_EXTRACT(s3, s1, rex.w ? 63 : 31, rex.w ? 63 : 31);
+        BF_INSERT(xFlags, s3, F_SF, F_SF);
     }
     if (!rex.w) {
         ZEROUP(s1);
@@ -256,8 +254,8 @@ void emit_add8(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3, int s4
         ORI(xFlags, xFlags, 1 << F_ZF);
     }
     IFX (X_SF) {
-        ANDId(s3, s1, 1 << F_SF);
-        OR(xFlags, xFlags, s3);
+        BF_EXTRACT(s3, s1, 7, 7);
+        BF_INSERT(xFlags, s3, F_SF, F_SF);
     }
     IFX (X_PF) {
         emit_pf(dyn, ninst, s1, s3, s4);
@@ -322,8 +320,8 @@ void emit_add8c(dynarec_ppc64le_t* dyn, int ninst, int s1, int32_t c, int s2, in
         ORI(xFlags, xFlags, 1 << F_ZF);
     }
     IFX (X_SF) {
-        ANDId(s3, s1, 1 << F_SF);
-        OR(xFlags, xFlags, s3);
+        BF_EXTRACT(s3, s1, 7, 7);
+        BF_INSERT(xFlags, s3, F_SF, F_SF);
     }
     IFX (X_PF) {
         emit_pf(dyn, ninst, s1, s3, s4);
@@ -387,9 +385,8 @@ void emit_add16(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3, int s
         ORI(xFlags, xFlags, 1 << F_ZF);
     }
     IFX (X_SF) {
-        SRDI(s3, s1, 15 - F_SF);
-        ANDId(s3, s3, 1 << F_SF);
-        OR(xFlags, xFlags, s3);
+        BF_EXTRACT(s3, s1, 15, 15);
+        BF_INSERT(xFlags, s3, F_SF, F_SF);
     }
     IFX (X_PF) {
         emit_pf(dyn, ninst, s1, s3, s4);
@@ -417,8 +414,8 @@ void emit_sub8(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3, int s4
     SUB(s1, s1, s2);
     ANDId(s1, s1, 0xff);
     IFX (X_SF) {
-        ANDId(s3, s1, 1 << F_SF);
-        OR(xFlags, xFlags, s3);
+        BF_EXTRACT(s3, s1, 7, 7);
+        BF_INSERT(xFlags, s3, F_SF, F_SF);
     }
     IFX (X_PEND) {
         STB(s1, offsetof(x64emu_t, res), xEmu);
@@ -465,9 +462,8 @@ void emit_sub16(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3, int s
 
     CLEAR_FLAGS(s3);
     IFX (X_SF) {
-        SRDI(s3, s1, 15 - F_SF);
-        ANDId(s3, s3, 1 << F_SF);
-        OR(xFlags, xFlags, s3);
+        BF_EXTRACT(s3, s1, 15, 15);
+        BF_INSERT(xFlags, s3, F_SF, F_SF);
     }
     BF_EXTRACT(s1, s1, 15, 0);
 
@@ -505,9 +501,8 @@ void emit_sub32(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, int s1, int s2, in
         SDxw(s1, xEmu, offsetof(x64emu_t, res));
     }
     IFX (X_SF) {
-        SRDI(s3, s1, rex.w ? 56 : 24);
-        ANDId(s3, s3, 1 << F_SF);
-        OR(xFlags, xFlags, s3);
+        BF_EXTRACT(s3, s1, rex.w ? 63 : 31, rex.w ? 63 : 31);
+        BF_INSERT(xFlags, s3, F_SF, F_SF);
     }
     if (!rex.w) {
         ZEROUP(s1);
@@ -568,9 +563,8 @@ void emit_sub32c(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, int s1, int64_t c
         SDxw(s1, xEmu, offsetof(x64emu_t, res));
     }
     IFX (X_SF) {
-        SRDI(s3, s1, rex.w ? 56 : 24);
-        ANDId(s3, s3, 1 << F_SF);
-        OR(xFlags, xFlags, s3);
+        BF_EXTRACT(s3, s1, rex.w ? 63 : 31, rex.w ? 63 : 31);
+        BF_INSERT(xFlags, s3, F_SF, F_SF);
     }
     if (!rex.w) {
         ZEROUP(s1);
@@ -615,8 +609,8 @@ void emit_sbb8(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3, int s4
 
     CALC_SUB_FLAGS(s5, s2, s1, s3, s4, 8);
     IFX (X_SF) {
-        ANDId(s3, s1, 1 << F_SF);
-        OR(xFlags, xFlags, s3);
+        BF_EXTRACT(s3, s1, 7, 7);
+        BF_INSERT(xFlags, s3, F_SF, F_SF);
     }
     IFX (X_ZF) {
         CMPDI(s1, 0);
@@ -658,9 +652,8 @@ void emit_sbb16(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3, int s
 
     CLEAR_FLAGS(s3);
     IFX (X_SF) {
-        SRDI(s3, s1, 15 - F_SF);
-        ANDId(s3, s3, 1 << F_SF);
-        OR(xFlags, xFlags, s3);
+        BF_EXTRACT(s3, s1, 15, 15);
+        BF_INSERT(xFlags, s3, F_SF, F_SF);
     }
     BF_EXTRACT(s1, s1, 15, 0);
 
@@ -702,9 +695,8 @@ void emit_sbb32(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, int s1, int s2, in
 
     CLEAR_FLAGS(s3);
     IFX (X_SF) {
-        SRDI(s3, s1, rex.w ? 56 : 24);
-        ANDId(s3, s3, 1 << F_SF);
-        OR(xFlags, xFlags, s3);
+        BF_EXTRACT(s3, s1, rex.w ? 63 : 31, rex.w ? 63 : 31);
+        BF_INSERT(xFlags, s3, F_SF, F_SF);
     }
     if (!rex.w) ZEROUP(s1);
     IFX (X_PEND) {
@@ -770,8 +762,8 @@ void emit_neg8(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3)
         }
     }
     IFX (X_SF) {
-        ANDId(s3, s1, 1 << F_SF); // 1<<F_SF is sign bit, so just mask
-        OR(xFlags, xFlags, s3);
+        BF_EXTRACT(s3, s1, 7, 7);
+        BF_INSERT(xFlags, s3, F_SF, F_SF);
     }
     IFX (X_PF) {
         emit_pf(dyn, ninst, s1, s3, s2);
@@ -832,9 +824,8 @@ void emit_neg32(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, int s1, int s2, in
         }
     }
     IFX (X_SF) {
-        SRDI(s3, s1, rex.w ? 56 : 24);
-        ANDId(s3, s3, 1 << F_SF);
-        OR(xFlags, xFlags, s3);
+        BF_EXTRACT(s3, s1, rex.w ? 63 : 31, rex.w ? 63 : 31);
+        BF_INSERT(xFlags, s3, F_SF, F_SF);
     }
     if (!rex.w) {
         ZEROUP(s1);
@@ -897,9 +888,8 @@ void emit_neg16(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3)
         }
     }
     IFX (X_SF) {
-        SRDI(s3, s1, 15 - F_SF); // put sign bit in place
-        ANDId(s3, s3, 1 << F_SF);   // 1<<F_SF is sign bit, so just mask
-        OR(xFlags, xFlags, s3);
+        BF_EXTRACT(s3, s1, 15, 15);
+        BF_INSERT(xFlags, s3, F_SF, F_SF);
     }
     IFX (X_PF) {
         emit_pf(dyn, ninst, s1, s3, s2);
@@ -969,8 +959,8 @@ void emit_adc8(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3, int s4
         ORI(xFlags, xFlags, 1 << F_ZF);
     }
     IFX (X_SF) {
-        ANDId(s3, s1, 1 << F_SF);
-        OR(xFlags, xFlags, s3);
+        BF_EXTRACT(s3, s1, 7, 7);
+        BF_INSERT(xFlags, s3, F_SF, F_SF);
     }
     IFX (X_PF) {
         emit_pf(dyn, ninst, s1, s3, s4);
@@ -1042,9 +1032,8 @@ void emit_adc16(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3, int s
         ORI(xFlags, xFlags, 1 << F_ZF);
     }
     IFX (X_SF) {
-        SRDI(s3, s1, 15 - F_SF);
-        ANDId(s3, s3, 1 << F_SF);
-        OR(xFlags, xFlags, s3);
+        BF_EXTRACT(s3, s1, 15, 15);
+        BF_INSERT(xFlags, s3, F_SF, F_SF);
     }
     IFX (X_PF) {
         emit_pf(dyn, ninst, s1, s3, s4);
@@ -1122,9 +1111,8 @@ void emit_adc32(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, int s1, int s2, in
         }
     }
     IFX (X_SF) {
-        SRDI(s3, s1, rex.w ? 56 : 24);
-        ANDId(s3, s3, 1 << F_SF);
-        OR(xFlags, xFlags, s3);
+        BF_EXTRACT(s3, s1, rex.w ? 63 : 31, rex.w ? 63 : 31);
+        BF_INSERT(xFlags, s3, F_SF, F_SF);
     }
     if (!rex.w) {
         ZEROUP(s1);
@@ -1175,8 +1163,8 @@ void emit_inc8(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3, int s4
         }
     }
     IFX (X_SF) {
-        ANDId(s2, s1, 1 << F_SF);
-        OR(xFlags, xFlags, s2);
+        BF_EXTRACT(s2, s1, 7, 7);
+        BF_INSERT(xFlags, s2, F_SF, F_SF);
     }
     ANDId(s1, s1, 0xff);
     IFX (X_PF) {
@@ -1233,9 +1221,8 @@ void emit_inc16(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3, int s
         ORI(xFlags, xFlags, 1 << F_ZF);
     }
     IFX (X_SF) {
-        SRDI(s3, s1, 15 - F_SF);
-        ANDId(s3, s3, 1 << F_SF);
-        OR(xFlags, xFlags, s3);
+        BF_EXTRACT(s3, s1, 15, 15);
+        BF_INSERT(xFlags, s3, F_SF, F_SF);
     }
     IFX (X_PF) {
         emit_pf(dyn, ninst, s1, s3, s4);
@@ -1278,9 +1265,8 @@ void emit_inc32(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, int s1, int s2, in
         }
     }
     IFX (X_SF) {
-        SRDI(s3, s1, rex.w ? 56 : 24);
-        ANDId(s3, s3, 1 << F_SF);
-        OR(xFlags, xFlags, s3);
+        BF_EXTRACT(s3, s1, rex.w ? 63 : 31, rex.w ? 63 : 31);
+        BF_INSERT(xFlags, s3, F_SF, F_SF);
     }
     if (!rex.w) {
         ZEROUP(s1);
@@ -1332,8 +1318,8 @@ void emit_dec8(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3, int s4
         }
     }
     IFX (X_SF) {
-        ANDId(s2, s1, 1 << F_SF);
-        OR(xFlags, xFlags, s2);
+        BF_EXTRACT(s2, s1, 7, 7);
+        BF_INSERT(xFlags, s2, F_SF, F_SF);
     }
     ANDId(s1, s1, 0xff);
     IFX (X_PF) {
@@ -1383,9 +1369,8 @@ void emit_dec16(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3, int s
         }
     }
     IFX (X_SF) {
-        SRDI(s3, s1, 15 - F_SF);
-        ANDId(s3, s3, 1 << F_SF);
-        OR(xFlags, xFlags, s3);
+        BF_EXTRACT(s3, s1, 15, 15);
+        BF_INSERT(xFlags, s3, F_SF, F_SF);
     }
     IFX (X_PF) {
         emit_pf(dyn, ninst, s1, s3, s2);
@@ -1433,9 +1418,8 @@ void emit_dec32(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, int s1, int s2, in
         }
     }
     IFX (X_SF) {
-        SRDI(s3, s1, rex.w ? 56 : 24);
-        ANDId(s3, s3, 1 << F_SF);
-        OR(xFlags, xFlags, s3);
+        BF_EXTRACT(s3, s1, rex.w ? 63 : 31, rex.w ? 63 : 31);
+        BF_INSERT(xFlags, s3, F_SF, F_SF);
     }
     if (!rex.w) ZEROUP(s1);
     IFX (X_PF) {
