@@ -694,7 +694,6 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_FUSION);
                 GETGD;
                 addr = geted(dyn, addr, ninst, nextop, &wback, x2, x1, &fixedaddress, rex, LOCK_LOCK, NO_DISP, 0);
-                RESTORE_EFLAGS(x5);
                 // x7 = gd + CF (safe: x7 not clobbered by LOCK macros)
                 BF_EXTRACT(x5, xFlags, F_CF, F_CF);
                 ADD(x7, gd, x5); // x7 = gd + CF
@@ -757,7 +756,6 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_FUSION);
                 GETGD;
                 addr = geted(dyn, addr, ninst, nextop, &wback, x2, x1, &fixedaddress, rex, LOCK_LOCK, NO_DISP, 0);
-                RESTORE_EFLAGS(x5);
                 // x7 = gd + CF (safe: x7 not clobbered by LOCK macros)
                 BF_EXTRACT(x5, xFlags, F_CF, F_CF);
                 ADD(x7, gd, x5); // x7 = gd + CF
@@ -1188,7 +1186,6 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                             i64 = F32S;
                         else
                             i64 = F8S;
-                        RESTORE_EFLAGS(x5);
                         BF_EXTRACT(x5, xFlags, F_CF, F_CF);
                         MOV64x(x7, i64);
                         ADD(x7, x7, x5); // x7 = imm + CF
@@ -1256,7 +1253,6 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                             i64 = F32S;
                         else
                             i64 = F8S;
-                        RESTORE_EFLAGS(x5);
                         BF_EXTRACT(x5, xFlags, F_CF, F_CF);
                         MOV64x(x7, i64);
                         ADD(x7, x7, x5); // x7 = imm + CF
