@@ -218,12 +218,11 @@ int Table64(dynarec_ppc64le_t* dyn, uint64_t val, int pass); // add a value to t
 
 void CreateJmpNext(void* addr, void* next);
 
-#define GO_TRACE(A, B, s0)       \
-    GETIP(addr, s0);             \
-    MV(x1, xRIP);                \
-    STORE_XEMU_CALL();           \
-    MOV64x(x2, B);               \
-    CALL(const_##A, -1, x1, x2); \
-    LOAD_XEMU_CALL()
+#define GO_TRACE(A, B, s0) \
+    GETIP(addr, s0);       \
+    MV(x1, xRIP);          \
+    STORE_XEMU_CALL();     \
+    MOV64x(x2, B);         \
+    CALL(const_##A, -1, x1, x2)
 
 #endif //__DYNAREC_PPC64LE_PRIVATE_H_
