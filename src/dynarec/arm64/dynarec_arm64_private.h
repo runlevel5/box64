@@ -81,6 +81,8 @@ typedef struct neoncache_s {
     uint16_t            ymm_used;       // mask of the ymm regs used in this opcode
     uint16_t            ymm_write;      // 1bit of ymmXX removed write
     uint16_t            ymm_removed;    // 1bit if ymmXX was removed
+    uint16_t            xmm_needed;     // 1bit for xmmXX were value is needed
+    uint16_t            ymm_needed;     // 1bit for ymmXX were value is needed 
     uint16_t            xmm_unneeded;   // 1bit for xmmXX were value is not needed
     uint16_t            ymm_unneeded;   // 1bit for ymmXX were value is not needed 
     uint64_t            ymm_regs;       // 4bits (0-15) position of 16 ymmXX regs removed
@@ -135,6 +137,7 @@ typedef struct instruction_arm64_s {
     unsigned            normal_carry:1;
     unsigned            normal_carry_before:1;
     unsigned            invert_carry:1; // this opcode force an inverted carry
+    unsigned            df_needed:1;
     unsigned            df_notneeded:1;
     unsigned            unaligned:1;    // this opcode can be re-generated for unaligned special case
     unsigned            x87precision:1; // this opcode can handle x87pc
