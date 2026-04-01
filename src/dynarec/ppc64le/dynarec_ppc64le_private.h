@@ -124,6 +124,7 @@ typedef struct instruction_ppc64le_s {
     uint8_t will_read : 1;  // [strongmem] will read from memory
     uint8_t last_write : 1; // [strongmem] the last write in a SEQ
     uint8_t lock : 1;       // [strongmem] lock semantic
+    uint8_t df_needed : 1;
     uint8_t df_notneeded : 1;
     uint8_t nat_flags_fusion : 1;
     uint8_t nat_flags_nofusion : 1;
@@ -131,7 +132,6 @@ typedef struct instruction_ppc64le_s {
     uint8_t nat_flags_sign : 1;
     uint8_t nat_flags_sf : 1;
     uint8_t nat_flags_needsign : 1;
-    uint8_t nat_flags_needcarry : 1;
     uint8_t no_scratch_usage : 1; // this opcode does not use scratch register
     uint8_t nat_flags_op1;
     uint8_t nat_flags_op2;
