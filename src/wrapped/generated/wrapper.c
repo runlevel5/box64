@@ -15887,6 +15887,7 @@ int isSimpleWrapper(wrapper_t fun) {
 	if (fun == &uFu) return 17;
 	if (fun == &uFU) return 1;
 	if (fun == &uFd) return 2;
+	if (fun == &uFl) return 1;
 	if (fun == &uFL) return 1;
 	if (fun == &uFp) return 1;
 	if (fun == &UFv) return 1;
@@ -15955,7 +15956,6 @@ int isSimpleWrapper(wrapper_t fun) {
 	if (fun == &vFuL) return 17;
 	if (fun == &vFup) return 17;
 	if (fun == &vFUu) return 33;
-	if (fun == &vFfi) return 18;
 	if (fun == &vFfC) return 2;
 	if (fun == &vFff) return 3;
 	if (fun == &vFfp) return 2;
@@ -16032,10 +16032,13 @@ int isSimpleWrapper(wrapper_t fun) {
 	if (fun == &CFuu) return 49;
 	if (fun == &CFuU) return 17;
 	if (fun == &CFpi) return 33;
+	if (fun == &CFpC) return 1;
 	if (fun == &CFpu) return 33;
+	if (fun == &CFpU) return 1;
 	if (fun == &CFpL) return 1;
 	if (fun == &CFpp) return 1;
 	if (fun == &WFpi) return 33;
+	if (fun == &WFpW) return 1;
 	if (fun == &WFpp) return 1;
 	if (fun == &uFii) return 49;
 	if (fun == &uFiu) return 49;
@@ -16069,15 +16072,18 @@ int isSimpleWrapper(wrapper_t fun) {
 	if (fun == &fFif) return -18;
 	if (fun == &fFfi) return -18;
 	if (fun == &fFff) return -3;
+	if (fun == &fFfl) return -2;
 	if (fun == &fFfp) return -2;
 	if (fun == &fFpi) return -33;
 	if (fun == &fFpu) return -33;
+	if (fun == &fFpf) return -2;
 	if (fun == &fFpL) return -1;
 	if (fun == &fFpp) return -1;
 	if (fun == &dFid) return -18;
 	if (fun == &dFud) return -18;
 	if (fun == &dFdi) return -18;
 	if (fun == &dFdd) return -3;
+	if (fun == &dFdl) return -2;
 	if (fun == &dFdp) return -2;
 	if (fun == &dFll) return -1;
 	if (fun == &dFpi) return -33;
@@ -16115,6 +16121,7 @@ int isSimpleWrapper(wrapper_t fun) {
 	if (fun == &pFWW) return 1;
 	if (fun == &pFui) return 49;
 	if (fun == &pFuu) return 49;
+	if (fun == &pFud) return 18;
 	if (fun == &pFul) return 17;
 	if (fun == &pFuL) return 17;
 	if (fun == &pFup) return 17;
@@ -16200,7 +16207,6 @@ int isSimpleWrapper(wrapper_t fun) {
 	if (fun == &vFllp) return 1;
 	if (fun == &vFlpp) return 1;
 	if (fun == &vFLup) return 33;
-	if (fun == &vFLpi) return 65;
 	if (fun == &vFLpL) return 1;
 	if (fun == &vFLpp) return 1;
 	if (fun == &vFpcu) return 97;
@@ -16294,6 +16300,7 @@ int isSimpleWrapper(wrapper_t fun) {
 	if (fun == &iFupp) return 17;
 	if (fun == &iFUpp) return 1;
 	if (fun == &iFfff) return 4;
+	if (fun == &iFLip) return 33;
 	if (fun == &iFLpi) return 65;
 	if (fun == &iFLpL) return 1;
 	if (fun == &iFLpp) return 1;
@@ -16322,6 +16329,7 @@ int isSimpleWrapper(wrapper_t fun) {
 	if (fun == &iFpuC) return 33;
 	if (fun == &iFpuu) return 97;
 	if (fun == &iFpuU) return 33;
+	if (fun == &iFpuf) return 34;
 	if (fun == &iFpul) return 33;
 	if (fun == &iFpuL) return 33;
 	if (fun == &iFpup) return 33;
@@ -16348,7 +16356,6 @@ int isSimpleWrapper(wrapper_t fun) {
 	if (fun == &iFppW) return 1;
 	if (fun == &iFppu) return 65;
 	if (fun == &iFppU) return 1;
-	if (fun == &iFppf) return 2;
 	if (fun == &iFppd) return 2;
 	if (fun == &iFppl) return 1;
 	if (fun == &iFppL) return 1;
@@ -16413,6 +16420,7 @@ int isSimpleWrapper(wrapper_t fun) {
 	if (fun == &uFpff) return 3;
 	if (fun == &uFpli) return 65;
 	if (fun == &uFplu) return 65;
+	if (fun == &uFpLi) return 65;
 	if (fun == &uFpLu) return 65;
 	if (fun == &uFpLL) return 1;
 	if (fun == &uFpLp) return 1;
@@ -16422,6 +16430,7 @@ int isSimpleWrapper(wrapper_t fun) {
 	if (fun == &uFppL) return 1;
 	if (fun == &uFppp) return 1;
 	if (fun == &UFpup) return 33;
+	if (fun == &UFpUU) return 1;
 	if (fun == &UFppi) return 65;
 	if (fun == &fFuii) return -113;
 	if (fun == &fFupf) return -18;
@@ -16429,7 +16438,6 @@ int isSimpleWrapper(wrapper_t fun) {
 	if (fun == &fFffp) return -3;
 	if (fun == &fFlpl) return -1;
 	if (fun == &fFppi) return -65;
-	if (fun == &fFppL) return -1;
 	if (fun == &fFppp) return -1;
 	if (fun == &dFuud) return -50;
 	if (fun == &dFddd) return -4;
@@ -16527,7 +16535,7 @@ int isSimpleWrapper(wrapper_t fun) {
 	if (fun == &pFLLp) return 1;
 	if (fun == &pFLpi) return 65;
 	if (fun == &pFLpp) return 1;
-	if (fun == &pFpcU) return 33;
+	if (fun == &pFpcL) return 33;
 	if (fun == &pFpii) return 97;
 	if (fun == &pFpiu) return 97;
 	if (fun == &pFpif) return 34;
@@ -16542,6 +16550,7 @@ int isSimpleWrapper(wrapper_t fun) {
 	if (fun == &pFpui) return 97;
 	if (fun == &pFpuu) return 97;
 	if (fun == &pFpuf) return 34;
+	if (fun == &pFpud) return 34;
 	if (fun == &pFpul) return 33;
 	if (fun == &pFpuL) return 33;
 	if (fun == &pFpup) return 33;
@@ -16696,6 +16705,7 @@ int isSimpleWrapper(wrapper_t fun) {
 	if (fun == &vFpLpu) return 129;
 	if (fun == &vFpLpL) return 1;
 	if (fun == &vFpLpp) return 1;
+	if (fun == &vFppww) return 193;
 	if (fun == &vFppii) return 193;
 	if (fun == &vFppiu) return 193;
 	if (fun == &vFppid) return 66;
@@ -16785,6 +16795,7 @@ int isSimpleWrapper(wrapper_t fun) {
 	if (fun == &iFpiiC) return 97;
 	if (fun == &iFpiiu) return 225;
 	if (fun == &iFpiid) return 98;
+	if (fun == &iFpiil) return 97;
 	if (fun == &iFpiiL) return 97;
 	if (fun == &iFpiip) return 97;
 	if (fun == &iFpiIi) return 161;
@@ -16824,6 +16835,7 @@ int isSimpleWrapper(wrapper_t fun) {
 	if (fun == &iFpuul) return 97;
 	if (fun == &iFpuuL) return 97;
 	if (fun == &iFpuup) return 97;
+	if (fun == &iFpuUi) return 161;
 	if (fun == &iFpufp) return 34;
 	if (fun == &iFpuLi) return 161;
 	if (fun == &iFpuLL) return 33;
@@ -16836,6 +16848,8 @@ int isSimpleWrapper(wrapper_t fun) {
 	if (fun == &iFpupp) return 33;
 	if (fun == &iFpUup) return 65;
 	if (fun == &iFpUUu) return 129;
+	if (fun == &iFpUUp) return 1;
+	if (fun == &iFpUpu) return 129;
 	if (fun == &iFpUpp) return 1;
 	if (fun == &iFpfii) return 98;
 	if (fun == &iFpfff) return 4;
@@ -16859,7 +16873,6 @@ int isSimpleWrapper(wrapper_t fun) {
 	if (fun == &iFpLLL) return 1;
 	if (fun == &iFpLLp) return 1;
 	if (fun == &iFpLpi) return 129;
-	if (fun == &iFpLpu) return 129;
 	if (fun == &iFpLpf) return 2;
 	if (fun == &iFpLpd) return 2;
 	if (fun == &iFpLpL) return 1;
@@ -16883,6 +16896,7 @@ int isSimpleWrapper(wrapper_t fun) {
 	if (fun == &iFppul) return 65;
 	if (fun == &iFppuL) return 65;
 	if (fun == &iFppup) return 65;
+	if (fun == &iFppUi) return 129;
 	if (fun == &iFppUU) return 1;
 	if (fun == &iFppUp) return 1;
 	if (fun == &iFppdi) return 66;
@@ -16901,6 +16915,8 @@ int isSimpleWrapper(wrapper_t fun) {
 	if (fun == &iFpppC) return 1;
 	if (fun == &iFpppu) return 129;
 	if (fun == &iFpppU) return 1;
+	if (fun == &iFpppd) return 2;
+	if (fun == &iFpppl) return 1;
 	if (fun == &iFpppL) return 1;
 	if (fun == &iFpppp) return 1;
 	if (fun == &IFIIIu) return 129;
@@ -16915,7 +16931,9 @@ int isSimpleWrapper(wrapper_t fun) {
 	if (fun == &CFppip) return 65;
 	if (fun == &uFiiii) return 241;
 	if (fun == &uFiiuu) return 241;
+	if (fun == &uFiipp) return 49;
 	if (fun == &uFifff) return 20;
+	if (fun == &uFippp) return 17;
 	if (fun == &uFuipi) return 177;
 	if (fun == &uFuuuu) return 241;
 	if (fun == &uFuupp) return 49;
@@ -16936,7 +16954,9 @@ int isSimpleWrapper(wrapper_t fun) {
 	if (fun == &uFLpUp) return 1;
 	if (fun == &uFLppp) return 1;
 	if (fun == &uFpiii) return 225;
+	if (fun == &uFpiiu) return 225;
 	if (fun == &uFpiip) return 97;
+	if (fun == &uFpiup) return 97;
 	if (fun == &uFpipi) return 161;
 	if (fun == &uFpipu) return 161;
 	if (fun == &uFpipL) return 33;
@@ -16984,6 +17004,7 @@ int isSimpleWrapper(wrapper_t fun) {
 	if (fun == &UFppii) return 193;
 	if (fun == &UFppip) return 65;
 	if (fun == &UFppuu) return 193;
+	if (fun == &dFppdd) return -3;
 	if (fun == &dFpppp) return -1;
 	if (fun == &lFiiLu) return 177;
 	if (fun == &lFiipL) return 49;
@@ -17018,6 +17039,7 @@ int isSimpleWrapper(wrapper_t fun) {
 	if (fun == &LFippp) return 17;
 	if (fun == &LFuipL) return 49;
 	if (fun == &LFpipl) return 33;
+	if (fun == &LFpipL) return 33;
 	if (fun == &LFpCii) return 193;
 	if (fun == &LFpupL) return 33;
 	if (fun == &LFplLL) return 1;
@@ -17068,8 +17090,8 @@ int isSimpleWrapper(wrapper_t fun) {
 	if (fun == &pFffff) return 5;
 	if (fun == &pFdipp) return 18;
 	if (fun == &pFdddd) return 5;
-	if (fun == &pFlfff) return 4;
 	if (fun == &pFLiip) return 97;
+	if (fun == &pFLupp) return 33;
 	if (fun == &pFLLup) return 65;
 	if (fun == &pFLLLL) return 1;
 	if (fun == &pFLLpp) return 1;
@@ -17087,7 +17109,6 @@ int isSimpleWrapper(wrapper_t fun) {
 	if (fun == &pFpipi) return 161;
 	if (fun == &pFpipu) return 161;
 	if (fun == &pFpipd) return 34;
-	if (fun == &pFpipL) return 33;
 	if (fun == &pFpipp) return 33;
 	if (fun == &pFpCip) return 65;
 	if (fun == &pFpCuu) return 193;
@@ -17226,7 +17247,9 @@ int isSimpleWrapper(wrapper_t fun) {
 	if (fun == &vFlplpl) return 1;
 	if (fun == &vFLpppi) return 257;
 	if (fun == &vFLpppp) return 1;
+	if (fun == &vFpwwip) return 225;
 	if (fun == &vFpwwWW) return 97;
+	if (fun == &vFpwiip) return 225;
 	if (fun == &vFpiiii) return 481;
 	if (fun == &vFpiiiu) return 481;
 	if (fun == &vFpiiip) return 225;
@@ -17357,6 +17380,7 @@ int isSimpleWrapper(wrapper_t fun) {
 	if (fun == &iFuupup) return 177;
 	if (fun == &iFuuppp) return 49;
 	if (fun == &iFupupp) return 81;
+	if (fun == &iFuppip) return 145;
 	if (fun == &iFuppLp) return 17;
 	if (fun == &iFupppp) return 17;
 	if (fun == &iFLppip) return 129;
@@ -17365,7 +17389,6 @@ int isSimpleWrapper(wrapper_t fun) {
 	if (fun == &iFpwwww) return 481;
 	if (fun == &iFpwppp) return 33;
 	if (fun == &iFpiiii) return 481;
-	if (fun == &iFpiiiu) return 481;
 	if (fun == &iFpiiiL) return 225;
 	if (fun == &iFpiiip) return 225;
 	if (fun == &iFpiiui) return 481;
@@ -17375,6 +17398,7 @@ int isSimpleWrapper(wrapper_t fun) {
 	if (fun == &iFpiuwp) return 225;
 	if (fun == &iFpiuuu) return 481;
 	if (fun == &iFpiuLi) return 353;
+	if (fun == &iFpiupi) return 353;
 	if (fun == &iFpiupp) return 97;
 	if (fun == &iFpiUpi) return 289;
 	if (fun == &iFpiLip) return 161;
@@ -17406,10 +17430,10 @@ int isSimpleWrapper(wrapper_t fun) {
 	if (fun == &iFpuuLp) return 97;
 	if (fun == &iFpuupi) return 353;
 	if (fun == &iFpuupp) return 97;
+	if (fun == &iFpuUup) return 161;
 	if (fun == &iFpuUpU) return 33;
 	if (fun == &iFpulup) return 161;
 	if (fun == &iFpulpp) return 33;
-	if (fun == &iFpuLup) return 161;
 	if (fun == &iFpuLpL) return 33;
 	if (fun == &iFpuLpp) return 33;
 	if (fun == &iFpupui) return 417;
@@ -17425,6 +17449,7 @@ int isSimpleWrapper(wrapper_t fun) {
 	if (fun == &iFpUiip) return 193;
 	if (fun == &iFpffff) return 5;
 	if (fun == &iFpffpp) return 3;
+	if (fun == &iFpdddd) return 5;
 	if (fun == &iFplupp) return 65;
 	if (fun == &iFplluu) return 385;
 	if (fun == &iFpLiup) return 193;
@@ -17460,6 +17485,7 @@ int isSimpleWrapper(wrapper_t fun) {
 	if (fun == &iFppIII) return 1;
 	if (fun == &iFppWpp) return 1;
 	if (fun == &iFppuwp) return 193;
+	if (fun == &iFppuii) return 449;
 	if (fun == &iFppuip) return 193;
 	if (fun == &iFppuuu) return 449;
 	if (fun == &iFppuuf) return 194;
@@ -17475,6 +17501,7 @@ int isSimpleWrapper(wrapper_t fun) {
 	if (fun == &iFpplii) return 385;
 	if (fun == &iFppllp) return 1;
 	if (fun == &iFpplpp) return 1;
+	if (fun == &iFppLii) return 385;
 	if (fun == &iFppLiL) return 129;
 	if (fun == &iFppLup) return 129;
 	if (fun == &iFppLLi) return 257;
@@ -17500,12 +17527,11 @@ int isSimpleWrapper(wrapper_t fun) {
 	if (fun == &iFppppL) return 1;
 	if (fun == &iFppppp) return 1;
 	if (fun == &IFpLIII) return 1;
-	if (fun == &IFppIII) return 1;
 	if (fun == &uFiuuuu) return 497;
 	if (fun == &uFiuppi) return 305;
 	if (fun == &uFipupp) return 81;
-	if (fun == &uFipLpp) return 17;
 	if (fun == &uFuiiii) return 497;
+	if (fun == &uFupLpp) return 17;
 	if (fun == &uFULCLL) return 1;
 	if (fun == &uFULWLL) return 1;
 	if (fun == &uFULuLL) return 65;
@@ -17523,6 +17549,7 @@ int isSimpleWrapper(wrapper_t fun) {
 	if (fun == &uFpuupu) return 353;
 	if (fun == &uFpuupp) return 97;
 	if (fun == &uFpupuu) return 417;
+	if (fun == &uFpupLp) return 33;
 	if (fun == &uFpuppp) return 33;
 	if (fun == &uFpULuU) return 129;
 	if (fun == &uFpUppp) return 1;
@@ -17543,6 +17570,7 @@ int isSimpleWrapper(wrapper_t fun) {
 	if (fun == &uFppLLu) return 257;
 	if (fun == &uFppLLp) return 1;
 	if (fun == &uFppLpu) return 257;
+	if (fun == &uFppLpL) return 1;
 	if (fun == &uFppLpp) return 1;
 	if (fun == &uFpppip) return 129;
 	if (fun == &uFpppuu) return 385;
@@ -17557,6 +17585,7 @@ int isSimpleWrapper(wrapper_t fun) {
 	if (fun == &fFlplpl) return -1;
 	if (fun == &fFppppL) return -1;
 	if (fun == &dFlplpl) return -1;
+	if (fun == &dFppddd) return -4;
 	if (fun == &dFppppL) return -1;
 	if (fun == &lFipiIi) return 337;
 	if (fun == &lFipili) return 337;
@@ -17602,6 +17631,7 @@ int isSimpleWrapper(wrapper_t fun) {
 	if (fun == &pFipipp) return 81;
 	if (fun == &pFuiiii) return 497;
 	if (fun == &pFuiiiu) return 497;
+	if (fun == &pFuiipi) return 369;
 	if (fun == &pFuiupp) return 113;
 	if (fun == &pFuuiip) return 241;
 	if (fun == &pFuuupu) return 369;
@@ -17702,7 +17732,6 @@ int isSimpleWrapper(wrapper_t fun) {
 	if (fun == &vFuiuiii) return 1009;
 	if (fun == &vFuiuiiC) return 497;
 	if (fun == &vFuiuiil) return 497;
-	if (fun == &vFuiuiip) return 497;
 	if (fun == &vFuiuiuu) return 1009;
 	if (fun == &vFuiuiuU) return 497;
 	if (fun == &vFuiuCip) return 369;
@@ -17759,6 +17788,7 @@ int isSimpleWrapper(wrapper_t fun) {
 	if (fun == &vFpiiipp) return 225;
 	if (fun == &vFpiiuuu) return 993;
 	if (fun == &vFpiilli) return 609;
+	if (fun == &vFpiipii) return 865;
 	if (fun == &vFpiippi) return 609;
 	if (fun == &vFpiippp) return 97;
 	if (fun == &vFpiLppi) return 545;
@@ -17768,6 +17798,7 @@ int isSimpleWrapper(wrapper_t fun) {
 	if (fun == &vFpuiiii) return 993;
 	if (fun == &vFpuiiiu) return 993;
 	if (fun == &vFpuiipp) return 225;
+	if (fun == &vFpuuiii) return 993;
 	if (fun == &vFpuuuiu) return 993;
 	if (fun == &vFpuuuuu) return 993;
 	if (fun == &vFpuuuup) return 481;
@@ -17781,13 +17812,13 @@ int isSimpleWrapper(wrapper_t fun) {
 	if (fun == &vFpupupu) return 673;
 	if (fun == &vFpuppuu) return 801;
 	if (fun == &vFpupppp) return 33;
+	if (fun == &vFpUUUUu) return 513;
 	if (fun == &vFpdddii) return 100;
 	if (fun == &vFpddddd) return 6;
 	if (fun == &vFpddddp) return 5;
 	if (fun == &vFpLiiii) return 961;
 	if (fun == &vFpLiiiL) return 449;
 	if (fun == &vFpLiipi) return 705;
-	if (fun == &vFpLLLLu) return 513;
 	if (fun == &vFpLpLLL) return 1;
 	if (fun == &vFpLpppi) return 513;
 	if (fun == &vFppiiii) return 961;
@@ -17817,7 +17848,6 @@ int isSimpleWrapper(wrapper_t fun) {
 	if (fun == &vFpplppp) return 1;
 	if (fun == &vFppLppi) return 513;
 	if (fun == &vFppLppp) return 1;
-	if (fun == &vFpppiii) return 897;
 	if (fun == &vFpppiip) return 385;
 	if (fun == &vFpppiui) return 897;
 	if (fun == &vFpppiff) return 131;
@@ -17884,6 +17914,7 @@ int isSimpleWrapper(wrapper_t fun) {
 	if (fun == &iFpiCCpu) return 545;
 	if (fun == &iFpiuuup) return 481;
 	if (fun == &iFpiuupp) return 225;
+	if (fun == &iFpiupip) return 353;
 	if (fun == &iFpipipi) return 673;
 	if (fun == &iFpipipp) return 161;
 	if (fun == &iFpipupp) return 161;
@@ -17898,7 +17929,7 @@ int isSimpleWrapper(wrapper_t fun) {
 	if (fun == &iFpWCupp) return 129;
 	if (fun == &iFpWpppp) return 1;
 	if (fun == &iFpuiCpp) return 97;
-	if (fun == &iFpuiLpp) return 97;
+	if (fun == &iFpuiUpp) return 97;
 	if (fun == &iFpuippp) return 97;
 	if (fun == &iFpuuuii) return 993;
 	if (fun == &iFpuuuuu) return 993;
@@ -17910,7 +17941,7 @@ int isSimpleWrapper(wrapper_t fun) {
 	if (fun == &iFpuupuu) return 865;
 	if (fun == &iFpuuppu) return 609;
 	if (fun == &iFpuuppp) return 97;
-	if (fun == &iFpuLuLu) return 673;
+	if (fun == &iFpuUuUu) return 673;
 	if (fun == &iFpuLLpp) return 33;
 	if (fun == &iFpupupi) return 673;
 	if (fun == &iFpupupp) return 161;
@@ -17918,6 +17949,7 @@ int isSimpleWrapper(wrapper_t fun) {
 	if (fun == &iFpupLpp) return 33;
 	if (fun == &iFpupppu) return 545;
 	if (fun == &iFpupppp) return 33;
+	if (fun == &iFpUUUUu) return 513;
 	if (fun == &iFpdpipp) return 66;
 	if (fun == &iFpLiiiL) return 449;
 	if (fun == &iFpLiiip) return 449;
@@ -17928,7 +17960,6 @@ int isSimpleWrapper(wrapper_t fun) {
 	if (fun == &iFpLuupp) return 193;
 	if (fun == &iFpLupip) return 321;
 	if (fun == &iFpLuppp) return 65;
-	if (fun == &iFpLLLLu) return 513;
 	if (fun == &iFpLLLLL) return 1;
 	if (fun == &iFpLLLLp) return 1;
 	if (fun == &iFpLLppp) return 1;
@@ -17940,7 +17971,9 @@ int isSimpleWrapper(wrapper_t fun) {
 	if (fun == &iFpLpppp) return 1;
 	if (fun == &iFppiiii) return 961;
 	if (fun == &iFppiiip) return 449;
+	if (fun == &iFppiiuu) return 961;
 	if (fun == &iFppiipi) return 705;
+	if (fun == &iFppiipL) return 193;
 	if (fun == &iFppiipp) return 193;
 	if (fun == &iFppiuii) return 961;
 	if (fun == &iFppiupp) return 193;
@@ -17957,11 +17990,11 @@ int isSimpleWrapper(wrapper_t fun) {
 	if (fun == &iFppuiii) return 961;
 	if (fun == &iFppuipp) return 193;
 	if (fun == &iFppuIII) return 65;
+	if (fun == &iFppuIup) return 321;
 	if (fun == &iFppuuLp) return 193;
 	if (fun == &iFppuupL) return 193;
 	if (fun == &iFppuupp) return 193;
 	if (fun == &iFppufff) return 68;
-	if (fun == &iFppulup) return 321;
 	if (fun == &iFppulll) return 65;
 	if (fun == &iFppuLpp) return 65;
 	if (fun == &iFppupip) return 321;
@@ -17989,6 +18022,7 @@ int isSimpleWrapper(wrapper_t fun) {
 	if (fun == &iFpppipu) return 641;
 	if (fun == &iFpppipp) return 129;
 	if (fun == &iFpppuii) return 897;
+	if (fun == &iFpppuip) return 385;
 	if (fun == &iFpppuuu) return 897;
 	if (fun == &iFpppuup) return 385;
 	if (fun == &iFpppuLp) return 129;
@@ -18027,8 +18061,10 @@ int isSimpleWrapper(wrapper_t fun) {
 	if (fun == &uFpuuupp) return 225;
 	if (fun == &uFpuuppp) return 97;
 	if (fun == &uFpuUppp) return 33;
+	if (fun == &uFpupuup) return 417;
 	if (fun == &uFpupupu) return 673;
 	if (fun == &uFpupupp) return 161;
+	if (fun == &uFpupppu) return 545;
 	if (fun == &uFpupppp) return 33;
 	if (fun == &uFppiiii) return 961;
 	if (fun == &uFppiuup) return 449;
@@ -18061,10 +18097,11 @@ int isSimpleWrapper(wrapper_t fun) {
 	if (fun == &lFppLipp) return 129;
 	if (fun == &lFpppLpp) return 1;
 	if (fun == &LFpipipi) return 673;
+	if (fun == &LFpuuupL) return 225;
 	if (fun == &LFplplpl) return 1;
 	if (fun == &LFpLippp) return 65;
 	if (fun == &LFpLLLLL) return 1;
-	if (fun == &LFppipLp) return 65;
+	if (fun == &LFppupLp) return 65;
 	if (fun == &LFpplplp) return 1;
 	if (fun == &LFppLLpL) return 1;
 	if (fun == &LFppLpLi) return 513;
@@ -18090,7 +18127,6 @@ int isSimpleWrapper(wrapper_t fun) {
 	if (fun == &pFpiiuuu) return 993;
 	if (fun == &pFpiipip) return 353;
 	if (fun == &pFpiippp) return 97;
-	if (fun == &pFpiuuup) return 481;
 	if (fun == &pFpidddd) return 37;
 	if (fun == &pFpiLLLL) return 33;
 	if (fun == &pFpipipL) return 161;
@@ -18103,6 +18139,7 @@ int isSimpleWrapper(wrapper_t fun) {
 	if (fun == &pFpuuuup) return 481;
 	if (fun == &pFpuuupu) return 737;
 	if (fun == &pFpupuui) return 929;
+	if (fun == &pFpupuuu) return 929;
 	if (fun == &pFpupuup) return 417;
 	if (fun == &pFpuppip) return 289;
 	if (fun == &pFpupppp) return 33;
@@ -18117,6 +18154,7 @@ int isSimpleWrapper(wrapper_t fun) {
 	if (fun == &pFpLpppp) return 1;
 	if (fun == &pFppiiii) return 961;
 	if (fun == &pFppiiup) return 449;
+	if (fun == &pFppiipi) return 705;
 	if (fun == &pFppiipp) return 193;
 	if (fun == &pFppiIll) return 65;
 	if (fun == &pFppiCCC) return 65;
@@ -18170,6 +18208,7 @@ int isSimpleWrapper(wrapper_t fun) {
 	if (fun == &iFpiiffff) return 101;
 	if (fun == &iFppppdpu) return 514;
 	if (fun == &pFifffppp) return 20;
+	if (fun == &pFudddduu) return 117;
 	if (fun == &pFfiiiiid) return 499;
 	if (fun == &pFduuulul) return 370;
 	if (fun == &pFpiiiiid) return 994;
@@ -18180,6 +18219,7 @@ int isSimpleWrapper(wrapper_t fun) {
 	if (fun == &vFuuufffff) return 118;
 	if (fun == &vFffffffff) return 9;
 	if (fun == &vFpudddddd) return 39;
+	if (fun == &pFpudddduu) return 229;
 	if (fun == &vFuffffffff) return 25;
 	if (fun == &vFffCCCCfff) return 6;
 	if (fun == &vFppddddudd) return 71;
