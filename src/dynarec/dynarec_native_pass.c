@@ -188,7 +188,7 @@ uintptr_t native_pass(dynarec_native_t* dyn, uintptr_t addr, int alternate, int 
             }
             ENDPREFIX;
         }
-        #elif defined(RV64)
+        #elif defined(RV64) || defined(PPC64LE)
         if(!ninst) {
             if (BOX64DRENV(dynarec_callret) >= 2)
                 doEnterBlock(dyn, 0, x1, x2, x3);
