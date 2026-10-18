@@ -133,6 +133,7 @@ typedef struct instruction_ppc64le_s {
     uint8_t             nat_flags_sf:1;
     uint8_t             nat_flags_needsign:1;
     uint8_t             nat_flags_needcarry:1;
+    uint8_t             nat_flags_op32:1;   // the fused compare operands are 32-bit values (use cmpw/cmplw)
     uint8_t             no_scratch_usage:1;  // this opcode does not use scratch register
     uint8_t             nat_flags_op1;
     uint8_t             nat_flags_op2;
