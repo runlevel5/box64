@@ -188,10 +188,16 @@ uintptr_t native_pass(dynarec_native_t* dyn, uintptr_t addr, int alternate, int 
             }
             ENDPREFIX;
         }
-        #elif defined(RV64) || defined(PPC64LE)
+        #elif defined(RV64)
         if(!ninst) {
             if (BOX64DRENV(dynarec_callret) >= 2)
                 doEnterBlock(dyn, 0, x1, x2, x3);
+        }
+        #elif defined(PPC64LE)
+        if(!ninst) {
+            if (BOX64DRENV(dynarec_callret) >= 2)
+                doEnterBlock(dyn, 0, x1, x2, x3);
+            ENDPREFIX;
         }
         #endif
         fpu_propagate_stack(dyn, ninst);
