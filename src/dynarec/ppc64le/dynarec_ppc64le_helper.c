@@ -208,7 +208,7 @@ uintptr_t geted(dynarec_ppc64le_t* dyn, uintptr_t addr, int ninst, uint8_t nexto
             if (i64 >= -32768 && i64 <= 32767) {
                 if ((nextop & 7) == 4) {
                     if (sib_reg != 4) {
-                        SLADDy(scratch, TO_NAT(sib_reg), TO_NAT(sib_reg2), sib >> 6);
+                        SLADD_notrunc(scratch, TO_NAT(sib_reg), TO_NAT(sib_reg2), sib >> 6); // ADDIy truncates
                         SCRATCH_USAGE(1);
                     } else {
                         scratch = TO_NAT(sib_reg2);
@@ -223,7 +223,7 @@ uintptr_t geted(dynarec_ppc64le_t* dyn, uintptr_t addr, int ninst, uint8_t nexto
                 SCRATCH_USAGE(1);
                 if ((nextop & 7) == 4) {
                     if (sib_reg != 4) {
-                        ADDy(scratch, scratch, TO_NAT(sib_reg2));
+                        ADD(scratch, scratch, TO_NAT(sib_reg2)); // SLADDy truncates
                         SLADDy(ret, TO_NAT(sib_reg), scratch, sib >> 6);
                     } else {
                         PASS3(int tmp = TO_NAT(sib_reg2));
