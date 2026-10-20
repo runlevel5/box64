@@ -232,8 +232,7 @@
 #define SLLIy(Rd, Rs, imm)              \
     do {                                \
         if (rex.is32bits || rex.is67) { \
-            SLWI(Rd, Rs, imm);          \
-            ZEROUP(Rd);                 \
+            SLWI(Rd, Rs, imm); /* rlwinm: already zero-extended */ \
         } else                          \
             SLDI(Rd, Rs, imm);          \
     } while (0)
@@ -246,52 +245,47 @@
 #define SLADDy(rd, rj, rk, imm)                                   \
     do {                                                          \
         if ((imm) == 0) {                                         \
-            if (rex.is32bits || rex.is67) {                       \
-                ADD(rd, rj, rk);                                  \
-                ZEROUP(rd);                                       \
-            } else {                                              \
-                ADD(rd, rj, rk);                                  \
-            }                                                     \
+            ADD(rd, rj, rk);                                      \
         } else if ((rd) == (rk)) {                                \
             /* rd==rk: shift rj into r0 to avoid clobbering rk */ \
-            if (rex.is32bits || rex.is67) {                       \
-                SLWI(0, rj, imm);                                 \
-                ADD(rd, 0, rk);                                   \
-                ZEROUP(rd);                                       \
-            } else {                                              \
-                SLDI(0, rj, imm);                                 \
-                ADD(rd, 0, rk);                                   \
-            }                                                     \
+            SLDI(0, rj, imm);                                     \
+            ADD(rd, 0, rk);                                       \
         } else {                                                  \
-            if (rex.is32bits || rex.is67) {                       \
-                SLWI(rd, rj, imm);                                \
-                ADD(rd, rd, rk);                                  \
-                ZEROUP(rd);                                       \
-            } else {                                              \
-                SLDI(rd, rj, imm);                                \
-                ADD(rd, rd, rk);                                  \
-            }                                                     \
+            SLDI(rd, rj, imm);                                    \
+            ADD(rd, rd, rk);                                      \
         }                                                         \
+        if ((rex.is32bits || rex.is67) && !dyn->geted_notrunc)    \
+            ZEROUP(rd);                                           \
+    } while (0)
+
+// SLADD without the 32-bit truncation: for an intermediate value that a later y-op truncates anyway
+#define SLADD_notrunc(rd, rj, rk, imm) \
+    do {                               \
+        if ((imm) == 0) {              \
+            ADD(rd, rj, rk);           \
+        } else if ((rd) == (rk)) {     \
+            SLDI(0, rj, imm);          \
+            ADD(rd, 0, rk);            \
+        } else {                       \
+            SLDI(rd, rj, imm);         \
+            ADD(rd, rd, rk);           \
+        }                              \
     } while (0)
 
 // ADDy: add, conditional 32/64
 #define ADDy(rd, rj, rk)                \
     do {                                \
-        if (rex.is32bits || rex.is67) { \
-            ADD(rd, rj, rk);            \
+        ADD(rd, rj, rk);                \
+        if ((rex.is32bits || rex.is67) && !dyn->geted_notrunc) \
             ZEROUP(rd);                 \
-        } else                          \
-            ADD(rd, rj, rk);            \
     } while (0)
 
 // ADDIy: addi, conditional 32/64
 #define ADDIy(rd, rj, imm)              \
     do {                                \
-        if (rex.is32bits || rex.is67) { \
-            ADDI(rd, rj, imm);          \
+        ADDI(rd, rj, imm);              \
+        if ((rex.is32bits || rex.is67) && !dyn->geted_notrunc) \
             ZEROUP(rd);                 \
-        } else                          \
-            ADDI(rd, rj, imm);          \
     } while (0)
 
 // ADDxREGy: add, sign-extending rk from 32-bit first if needed (for seg+offset in 32-bit mode)
@@ -327,9 +321,148 @@
     } while (0)
 
 // ========================================================================
+// Upper-32 tracking (see updateUpperLiveness in dynarec_ppc64le_functions.c)
+// A handler that calls UP32_AGNOSTIC() promises that it marks every GPR whose
+// upper 32 bits it reads (UP32_READ / MARKREGs) and every GPR it writes
+// (UP32_WRITE32 / UP32_WRITE64 / MARKREGd, or ZEROUP32_RESULT), and that its
+// own computations never depend on the upper 32 bits of a 32-bit operand.
+// Other handlers are assumed to read the upper bits of every GPR, so the
+// zero-up of a 32-bit write is only skipped when it is provably unobserved.
+// ========================================================================
+#if STEP == 0
+#define UP32_AGNOSTIC() dyn->insts[ninst].up32_agnostic = 1
+#define UP32_READ(r)                                                                \
+    do {                                                                            \
+        if (IS_GPR(r)) dyn->insts[ninst].up32_read |= (uint16_t)(1 << (TO_X64(r))); \
+    } while (0)
+#define UP32_WRITE64(r)                                                                \
+    do {                                                                               \
+        if (IS_GPR(r)) dyn->insts[ninst].up32_write64 |= (uint16_t)(1 << (TO_X64(r))); \
+    } while (0)
+#define UP32_WRITE32(r)                                                     \
+    do {                                                                    \
+        if (IS_GPR(r)) {                                                    \
+            UP32_WRITE64(r);                                                \
+            dyn->insts[ninst].up32_write32 |= (uint16_t)(1 << (TO_X64(r))); \
+        }                                                                   \
+    } while (0)
+#define UP32_READALL()                                   \
+    do {                                                 \
+        dyn->insts[ninst].up32_read |= (uint16_t)0xFFFF; \
+        dyn->insts[ninst].up32_agnostic = 0;             \
+    } while (0)
+#else
+#define UP32_AGNOSTIC() ((void)0)
+#define UP32_READ(r)    ((void)(r))
+#define UP32_WRITE64(r) ((void)(r))
+#define UP32_WRITE32(r) ((void)(r))
+#define UP32_READALL()  ((void)0)
+#endif
+
+#if STEP == 1
+#define UP32_ZERO(r)                                                                \
+    do {                                                                            \
+        if (IS_GPR(r)) dyn->insts[ninst].up32_zero |= (uint16_t)(1 << (TO_X64(r))); \
+    } while (0)
+#else
+#define UP32_ZERO(r) ((void)(r))
+#endif
+
+#define ZEROUP_RESULT(r) \
+    do {                 \
+        ZEROUP(r);       \
+        UP32_ZERO(r);    \
+    } while (0)
+
+// r is written as a 32-bit (rex.w==0) or 64-bit result
+#define MARKREGd(r)          \
+    do {                     \
+        if (rex.w)           \
+            UP32_WRITE64(r); \
+        else                 \
+            UP32_WRITE32(r); \
+    } while (0)
+// same, for the is32bits/64bits (z) width
+#define MARKREGdz(r)         \
+    do {                     \
+        if (!rex.is32bits)   \
+            UP32_WRITE64(r); \
+        else                 \
+            UP32_WRITE32(r); \
+    } while (0)
+// r is read as a 64-bit source (its upper bits matter) only when rex.w
+#define MARKREGs(r)              \
+    do {                         \
+        if (rex.w) UP32_READ(r); \
+    } while (0)
+#define MARKREGsz(r)                     \
+    do {                                 \
+        if (!rex.is32bits) UP32_READ(r); \
+    } while (0)
+#define MARKREGsd(r) \
+    do {             \
+        MARKREGs(r); \
+        MARKREGd(r); \
+    } while (0)
+#define MARKREGsdz(r) \
+    do {              \
+        MARKREGsz(r); \
+        MARKREGdz(r); \
+    } while (0)
+
+// does the 32-bit result in r still need its zero-up? (scratch registers: always)
+#define NEED_ZEROUP32(r) \
+    (!(IS_GPR(r)) || !((dyn->insts[ninst].up32_skip >> (TO_X64(r))) & 1))
+#define NEED_ZEROUP(r) (!rex.w && NEED_ZEROUP32(r))
+
+// r holds a 32-bit result whose upper bits may be garbage: zero them unless unobserved
+#define ZEROUP32_RESULT(r)                      \
+    do {                                        \
+        UP32_WRITE32(r);                        \
+        if (NEED_ZEROUP32(r)) ZEROUP_RESULT(r); \
+    } while (0)
+// r holds a 32-bit result that is already zero-extended (rlwinm, lwz, ...): just record it
+#define ZEROUP32_CLEAN(r) \
+    do {                  \
+        UP32_WRITE32(r);  \
+        UP32_ZERO(r);     \
+    } while (0)
+
+// ZF from a 32/64-bit result without depending on the upper bits of a 32-bit one
+#define CNTLZxw(rd, rs)      \
+    do {                     \
+        if (rex.w)           \
+            CNTLZD(rd, rs);  \
+        else                 \
+            CNTLZW(rd, rs);  \
+    } while (0)
+#define SET_ZF_FROM_RESULTxw(res, scratch)           \
+    do {                                             \
+        CNTLZxw(scratch, res);                       \
+        SRDI(scratch, scratch, rex.w ? 6 : 5);       \
+        BF_INSERT(xFlags, scratch, F_ZF, F_ZF);      \
+    } while (0)
+
+// ========================================================================
 // GETGD    get x64 register in gd
 // ========================================================================
-#define GETGD gd = TO_NAT(((nextop & 0x38) >> 3) + (rex.r << 3));
+#define GETGDw gd = TO_NAT(((nextop & 0x38) >> 3) + (rex.r << 3))
+#define GETGDs        \
+    do {              \
+        GETGDw;       \
+        MARKREGs(gd); \
+    } while (0)
+#define GETGD GETGDs;
+#define GETGDd        \
+    do {              \
+        GETGDw;       \
+        MARKREGd(gd); \
+    } while (0)
+#define GETGDsd       \
+    do {              \
+        GETGDw;       \
+        MARKREGsd(gd); \
+    } while (0)
 // GETVD    get x64 register in vd
 #define GETVD vd = TO_NAT(vex.v)
 
@@ -343,6 +476,7 @@
 #define GETED(D)                                                                                      \
     if (MODREG) {                                                                                     \
         ed = TO_NAT((nextop & 7) + (rex.b << 3));                                                     \
+        MARKREGs(ed);                                                                                 \
         wback = 0;                                                                                    \
     } else {                                                                                          \
         SMREAD();                                                                                     \
@@ -350,6 +484,13 @@
         LDxw(x1, wback, fixedaddress);                                                                \
         ed = x1;                                                                                      \
     }
+
+// GETED for an operand that is also written back as a result
+#define GETEDsd(D)                \
+    do {                          \
+        GETED(D);                 \
+        if (MODREG) MARKREGd(ed); \
+    } while (0)
 
 #define GETEDz(D)                                                                                     \
     if (MODREG) {                                                                                     \
@@ -366,6 +507,7 @@
 #define GETEDH(hint, ret, D)                                                                             \
     if (MODREG) {                                                                                        \
         ed = TO_NAT((nextop & 7) + (rex.b << 3));                                                        \
+        MARKREGs(ed);                                                                                    \
         wback = 0;                                                                                       \
     } else {                                                                                             \
         SMREAD();                                                                                        \
@@ -376,6 +518,7 @@
 #define GETEDW(hint, ret, D)                                                                             \
     if (MODREG) {                                                                                        \
         ed = TO_NAT((nextop & 7) + (rex.b << 3));                                                        \
+        MARKREGs(ed);                                                                                    \
         MV(ret, ed);                                                                                     \
         wback = 0;                                                                                       \
     } else {                                                                                             \
@@ -944,6 +1087,7 @@
 #define GETED(D)                                                                                      \
     if (MODREG) {                                                                                     \
         ed = TO_NAT((nextop & 7) + (rex.b << 3));                                                     \
+        MARKREGs(ed);                                                                                 \
         wback = 0;                                                                                    \
     } else {                                                                                          \
         SMREAD();                                                                                     \
@@ -1425,6 +1569,7 @@
     do {                                                                    \
         dyn->insts[dyn->insts[ninst].nat_next_inst].nat_flags_op1 = op1;    \
         dyn->insts[dyn->insts[ninst].nat_next_inst].nat_flags_op2 = op2;    \
+        dyn->insts[dyn->insts[ninst].nat_next_inst].nat_flags_op32 = 0;     \
         if (dyn->insts[ninst + 1].no_scratch_usage && IS_GPR(op1)) {        \
             MV(s1, op1);                                                    \
             dyn->insts[dyn->insts[ninst].nat_next_inst].nat_flags_op1 = s1; \
@@ -1433,6 +1578,14 @@
             MV(s2, op2);                                                    \
             dyn->insts[dyn->insts[ninst].nat_next_inst].nat_flags_op2 = s2; \
         }                                                                   \
+    } while (0)
+
+// Same, for 32-bit operands: the fused jump compares the low words with cmpw/cmplw,
+// so the operands need no sign/zero extension and their upper bits don't matter.
+#define NAT_FLAGS_OPS32(op1, op2, s1, s2)                                   \
+    do {                                                                    \
+        NAT_FLAGS_OPS(op1, op2, s1, s2);                                    \
+        dyn->insts[dyn->insts[ninst].nat_next_inst].nat_flags_op32 = 1;     \
     } while (0)
 
 #define NAT_FLAGS_ENABLE_CARRY() dyn->insts[ninst].nat_flags_carry = 1
@@ -1822,9 +1975,9 @@ void jump_to_epilog(dynarec_ppc64le_t* dyn, uintptr_t ip, int reg, int ninst);
 void jump_to_epilog_fast(dynarec_ppc64le_t* dyn, uintptr_t ip, int reg, int ninst);
 void jump_to_next(dynarec_ppc64le_t* dyn, uintptr_t ip, int reg, int ninst, int is32bits);
 void ret_to_next(dynarec_ppc64le_t* dyn, uintptr_t ip, int ninst, rex_t rex);
-// Enter a block (atomic increment of in_used)
+// Enter a block (per-thread in_used counter)
 void doEnterBlock(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3);
-// Leave a block (atomic decrement of in_used)
+// Leave a block (per-thread in_used counter)
 void doLeaveBlock(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3);
 void iret_to_next(dynarec_ppc64le_t* dyn, uintptr_t ip, int ninst, int is32bits, int is64bits);
 void call_c(dynarec_ppc64le_t* dyn, int ninst, ppc64le_consts_t fnc, int reg, int ret, int saveflags, int save_reg, int arg1, int arg2, int arg3, int arg4, int arg5, int arg6);
@@ -2232,6 +2385,27 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
         else               \
             CMPLD(r1, r2); \
     } while (0)
+// Width-aware variants: compare the low 32 bits (cmpw/cmplw) when w32 is set
+#define NATCMP_S(r1, r2, w32)        \
+    do {                             \
+        if (w32) {                   \
+            if ((r2) == xZR)         \
+                CMPWI(r1, 0);        \
+            else                     \
+                CMPW(r1, r2);        \
+        } else                       \
+            CMPD_ZR(r1, r2);         \
+    } while (0)
+#define NATCMP_U(r1, r2, w32)        \
+    do {                             \
+        if (w32) {                   \
+            if ((r2) == xZR)         \
+                CMPLWI(r1, 0);       \
+            else                     \
+                CMPLW(r1, r2);       \
+        } else                       \
+            CMPLD_ZR(r1, r2);        \
+    } while (0)
 
 // --- 3-arg B##COND##_safe: always 3 instructions ---
 // Pattern: CMPD/CMPLD + near(Bcond+NOP) or far(inv_Bcond+B)
@@ -2373,68 +2547,79 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
 // Pattern: CMPD/CMPLD + Bcond
 // imm is offset from start of this macro to target. Bcond at +4, so offset = imm-4.
 
-#define BEQ_(r1, r2, imm) \
+#define BEQ_w(r1, r2, imm, w32) \
     do {                  \
-        CMPD_ZR(r1, r2);  \
+        NATCMP_S(r1, r2, w32);  \
         BEQ((imm) - 4);   \
     } while (0)
+#define BEQ_(r1, r2, imm) BEQ_w(r1, r2, imm, 0)
 
-#define BNE_(r1, r2, imm) \
+#define BNE_w(r1, r2, imm, w32) \
     do {                  \
-        CMPD_ZR(r1, r2);  \
+        NATCMP_S(r1, r2, w32);  \
         BNE((imm) - 4);   \
     } while (0)
+#define BNE_(r1, r2, imm) BNE_w(r1, r2, imm, 0)
 
-#define BLT_(r1, r2, imm) \
+#define BLT_w(r1, r2, imm, w32) \
     do {                  \
-        CMPD_ZR(r1, r2);  \
+        NATCMP_S(r1, r2, w32);  \
         BLT((imm) - 4);   \
     } while (0)
+#define BLT_(r1, r2, imm) BLT_w(r1, r2, imm, 0)
 
-#define BGE_(r1, r2, imm) \
+#define BGE_w(r1, r2, imm, w32) \
     do {                  \
-        CMPD_ZR(r1, r2);  \
+        NATCMP_S(r1, r2, w32);  \
         BGE((imm) - 4);   \
     } while (0)
+#define BGE_(r1, r2, imm) BGE_w(r1, r2, imm, 0)
 
-#define BGT_(r1, r2, imm) \
+#define BGT_w(r1, r2, imm, w32) \
     do {                  \
-        CMPD_ZR(r1, r2);  \
+        NATCMP_S(r1, r2, w32);  \
         BGT((imm) - 4);   \
     } while (0)
+#define BGT_(r1, r2, imm) BGT_w(r1, r2, imm, 0)
 
-#define BLE_(r1, r2, imm) \
+#define BLE_w(r1, r2, imm, w32) \
     do {                  \
-        CMPD_ZR(r1, r2);  \
+        NATCMP_S(r1, r2, w32);  \
         BLE((imm) - 4);   \
     } while (0)
+#define BLE_(r1, r2, imm) BLE_w(r1, r2, imm, 0)
 
 // Unsigned variants use CMPLD
-#define BLTU_(r1, r2, imm) \
+#define BLTU_w(r1, r2, imm, w32) \
     do {                   \
-        CMPLD_ZR(r1, r2);  \
+        NATCMP_U(r1, r2, w32);  \
         BLT((imm) - 4);    \
     } while (0)
+#define BLTU_(r1, r2, imm) BLTU_w(r1, r2, imm, 0)
 
-#define BGEU_(r1, r2, imm) \
+#define BGEU_w(r1, r2, imm, w32) \
     do {                   \
-        CMPLD_ZR(r1, r2);  \
+        NATCMP_U(r1, r2, w32);  \
         BGE((imm) - 4);    \
     } while (0)
+#define BGEU_(r1, r2, imm) BGEU_w(r1, r2, imm, 0)
 
-#define BGTU_(r1, r2, imm) \
+#define BGTU_w(r1, r2, imm, w32) \
     do {                   \
-        CMPLD_ZR(r1, r2);  \
+        NATCMP_U(r1, r2, w32);  \
         BGT((imm) - 4);    \
     } while (0)
+#define BGTU_(r1, r2, imm) BGTU_w(r1, r2, imm, 0)
 
-#define BLEU_(r1, r2, imm) \
+#define BLEU_w(r1, r2, imm, w32) \
     do {                   \
-        CMPLD_ZR(r1, r2);  \
+        NATCMP_U(r1, r2, w32);  \
         BLE((imm) - 4);    \
     } while (0)
+#define BLEU_(r1, r2, imm) BLEU_w(r1, r2, imm, 0)
 
 // B__: unconditional placeholder (dead code). Must be 2 instructions.
+#define B__w(a, b, imm, w32) B__(a, b, imm)
 #define B__(a, b, imm) \
     do {               \
         NOP();         \
@@ -2452,9 +2637,9 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
 //   direct   condition: SETBC  (bit ? 1 : 0)
 //   inverted condition: SETBCR (bit ? 0 : 1)
 // Direct conditions: extract the relevant bit
-#define SLT_(dst, r1, r2)                \
+#define SLT_w(dst, r1, r2, w32)                \
     do {                                 \
-        CMPD_ZR(r1, r2);                 \
+        NATCMP_S(r1, r2, w32);                 \
         if (cpuext.isa31) {              \
             SETBC(dst, BI(CR0, CR_LT));  \
         } else {                         \
@@ -2462,10 +2647,11 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             RLWINM(dst, dst, 1, 31, 31); \
         }                                \
     } while (0)
+#define SLT_(dst, r1, r2) SLT_w(dst, r1, r2, 0)
 
-#define SGT_(dst, r1, r2)                \
+#define SGT_w(dst, r1, r2, w32)                \
     do {                                 \
-        CMPD_ZR(r1, r2);                 \
+        NATCMP_S(r1, r2, w32);                 \
         if (cpuext.isa31) {              \
             SETBC(dst, BI(CR0, CR_GT));  \
         } else {                         \
@@ -2473,10 +2659,11 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             RLWINM(dst, dst, 2, 31, 31); \
         }                                \
     } while (0)
+#define SGT_(dst, r1, r2) SGT_w(dst, r1, r2, 0)
 
-#define SEQ_(dst, r1, r2)                \
+#define SEQ_w(dst, r1, r2, w32)                \
     do {                                 \
-        CMPD_ZR(r1, r2);                 \
+        NATCMP_S(r1, r2, w32);                 \
         if (cpuext.isa31) {              \
             SETBC(dst, BI(CR0, CR_EQ));  \
         } else {                         \
@@ -2484,11 +2671,12 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             RLWINM(dst, dst, 3, 31, 31); \
         }                                \
     } while (0)
+#define SEQ_(dst, r1, r2) SEQ_w(dst, r1, r2, 0)
 
 // Inverted conditions: extract the opposite bit and XOR with 1
-#define SGE_(dst, r1, r2)                \
+#define SGE_w(dst, r1, r2, w32)                \
     do {                                 \
-        CMPD_ZR(r1, r2);                 \
+        NATCMP_S(r1, r2, w32);                 \
         if (cpuext.isa31) {              \
             SETBCR(dst, BI(CR0, CR_LT)); \
         } else {                         \
@@ -2497,10 +2685,11 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             XORI(dst, dst, 1);           \
         }                                \
     } while (0)
+#define SGE_(dst, r1, r2) SGE_w(dst, r1, r2, 0)
 
-#define SLE_(dst, r1, r2)                \
+#define SLE_w(dst, r1, r2, w32)                \
     do {                                 \
-        CMPD_ZR(r1, r2);                 \
+        NATCMP_S(r1, r2, w32);                 \
         if (cpuext.isa31) {              \
             SETBCR(dst, BI(CR0, CR_GT)); \
         } else {                         \
@@ -2509,10 +2698,11 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             XORI(dst, dst, 1);           \
         }                                \
     } while (0)
+#define SLE_(dst, r1, r2) SLE_w(dst, r1, r2, 0)
 
-#define SNE_(dst, r1, r2)                \
+#define SNE_w(dst, r1, r2, w32)                \
     do {                                 \
-        CMPD_ZR(r1, r2);                 \
+        NATCMP_S(r1, r2, w32);                 \
         if (cpuext.isa31) {              \
             SETBCR(dst, BI(CR0, CR_EQ)); \
         } else {                         \
@@ -2521,11 +2711,12 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             XORI(dst, dst, 1);           \
         }                                \
     } while (0)
+#define SNE_(dst, r1, r2) SNE_w(dst, r1, r2, 0)
 
 // Unsigned variants use CMPLD
-#define SLTU_(dst, r1, r2)               \
+#define SLTU_w(dst, r1, r2, w32)               \
     do {                                 \
-        CMPLD_ZR(r1, r2);                \
+        NATCMP_U(r1, r2, w32);                \
         if (cpuext.isa31) {              \
             SETBC(dst, BI(CR0, CR_LT));  \
         } else {                         \
@@ -2533,10 +2724,11 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             RLWINM(dst, dst, 1, 31, 31); \
         }                                \
     } while (0)
+#define SLTU_(dst, r1, r2) SLTU_w(dst, r1, r2, 0)
 
-#define SGTU_(dst, r1, r2)               \
+#define SGTU_w(dst, r1, r2, w32)               \
     do {                                 \
-        CMPLD_ZR(r1, r2);                \
+        NATCMP_U(r1, r2, w32);                \
         if (cpuext.isa31) {              \
             SETBC(dst, BI(CR0, CR_GT));  \
         } else {                         \
@@ -2544,10 +2736,11 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             RLWINM(dst, dst, 2, 31, 31); \
         }                                \
     } while (0)
+#define SGTU_(dst, r1, r2) SGTU_w(dst, r1, r2, 0)
 
-#define SGEU_(dst, r1, r2)               \
+#define SGEU_w(dst, r1, r2, w32)               \
     do {                                 \
-        CMPLD_ZR(r1, r2);                \
+        NATCMP_U(r1, r2, w32);                \
         if (cpuext.isa31) {              \
             SETBCR(dst, BI(CR0, CR_LT)); \
         } else {                         \
@@ -2556,10 +2749,11 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             XORI(dst, dst, 1);           \
         }                                \
     } while (0)
+#define SGEU_(dst, r1, r2) SGEU_w(dst, r1, r2, 0)
 
-#define SLEU_(dst, r1, r2)               \
+#define SLEU_w(dst, r1, r2, w32)               \
     do {                                 \
-        CMPLD_ZR(r1, r2);                \
+        NATCMP_U(r1, r2, w32);                \
         if (cpuext.isa31) {              \
             SETBCR(dst, BI(CR0, CR_GT)); \
         } else {                         \
@@ -2568,8 +2762,10 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             XORI(dst, dst, 1);           \
         }                                \
     } while (0)
+#define SLEU_(dst, r1, r2) SLEU_w(dst, r1, r2, 0)
 
 // S__: unconditional placeholder (dead code). Sets dst=1 unconditionally.
+#define S__w(dst, r1, r2, w32) S__(dst, r1, r2)
 #define S__(dst, r1, r2) \
     do {                 \
         LI(dst, 1);      \
@@ -2582,81 +2778,117 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
 // (x86 regs map to GPR14-29, scratch GPR3-8,10-11), so this is safe.
 
 // Signed conditions: use CMPD_ZR (handles xZR==r0 safely)
-#define MVEQ_(dst, src, r1, r2)              \
+#define MVEQ_w(dst, src, r1, r2, w32)              \
     do {                                     \
-        CMPD_ZR(r1, r2);                     \
+        NATCMP_S(r1, r2, w32);                     \
         ISEL(dst, src, dst, BI(CR0, CR_EQ)); \
     } while (0)
+#define MVEQ_(dst, src, r1, r2) MVEQ_w(dst, src, r1, r2, 0)
 
-#define MVNE_(dst, src, r1, r2)              \
+#define MVNE_w(dst, src, r1, r2, w32)              \
     do {                                     \
-        CMPD_ZR(r1, r2);                     \
+        NATCMP_S(r1, r2, w32);                     \
         ISEL(dst, dst, src, BI(CR0, CR_EQ)); \
     } while (0)
+#define MVNE_(dst, src, r1, r2) MVNE_w(dst, src, r1, r2, 0)
 
-#define MVLT_(dst, src, r1, r2)              \
+#define MVLT_w(dst, src, r1, r2, w32)              \
     do {                                     \
-        CMPD_ZR(r1, r2);                     \
+        NATCMP_S(r1, r2, w32);                     \
         ISEL(dst, src, dst, BI(CR0, CR_LT)); \
     } while (0)
+#define MVLT_(dst, src, r1, r2) MVLT_w(dst, src, r1, r2, 0)
 
-#define MVGE_(dst, src, r1, r2)              \
+#define MVGE_w(dst, src, r1, r2, w32)              \
     do {                                     \
-        CMPD_ZR(r1, r2);                     \
+        NATCMP_S(r1, r2, w32);                     \
         ISEL(dst, dst, src, BI(CR0, CR_LT)); \
     } while (0)
+#define MVGE_(dst, src, r1, r2) MVGE_w(dst, src, r1, r2, 0)
 
-#define MVGT_(dst, src, r1, r2)              \
+#define MVGT_w(dst, src, r1, r2, w32)              \
     do {                                     \
-        CMPD_ZR(r1, r2);                     \
+        NATCMP_S(r1, r2, w32);                     \
         ISEL(dst, src, dst, BI(CR0, CR_GT)); \
     } while (0)
+#define MVGT_(dst, src, r1, r2) MVGT_w(dst, src, r1, r2, 0)
 
-#define MVLE_(dst, src, r1, r2)              \
+#define MVLE_w(dst, src, r1, r2, w32)              \
     do {                                     \
-        CMPD_ZR(r1, r2);                     \
+        NATCMP_S(r1, r2, w32);                     \
         ISEL(dst, dst, src, BI(CR0, CR_GT)); \
     } while (0)
+#define MVLE_(dst, src, r1, r2) MVLE_w(dst, src, r1, r2, 0)
 
 // Unsigned conditions: use CMPLD_ZR
-#define MVLTU_(dst, src, r1, r2)             \
+#define MVLTU_w(dst, src, r1, r2, w32)             \
     do {                                     \
-        CMPLD_ZR(r1, r2);                    \
+        NATCMP_U(r1, r2, w32);                    \
         ISEL(dst, src, dst, BI(CR0, CR_LT)); \
     } while (0)
+#define MVLTU_(dst, src, r1, r2) MVLTU_w(dst, src, r1, r2, 0)
 
-#define MVGEU_(dst, src, r1, r2)             \
+#define MVGEU_w(dst, src, r1, r2, w32)             \
     do {                                     \
-        CMPLD_ZR(r1, r2);                    \
+        NATCMP_U(r1, r2, w32);                    \
         ISEL(dst, dst, src, BI(CR0, CR_LT)); \
     } while (0)
+#define MVGEU_(dst, src, r1, r2) MVGEU_w(dst, src, r1, r2, 0)
 
-#define MVGTU_(dst, src, r1, r2)             \
+#define MVGTU_w(dst, src, r1, r2, w32)             \
     do {                                     \
-        CMPLD_ZR(r1, r2);                    \
+        NATCMP_U(r1, r2, w32);                    \
         ISEL(dst, src, dst, BI(CR0, CR_GT)); \
     } while (0)
+#define MVGTU_(dst, src, r1, r2) MVGTU_w(dst, src, r1, r2, 0)
 
-#define MVLEU_(dst, src, r1, r2)             \
+#define MVLEU_w(dst, src, r1, r2, w32)             \
     do {                                     \
-        CMPLD_ZR(r1, r2);                    \
+        NATCMP_U(r1, r2, w32);                    \
         ISEL(dst, dst, src, BI(CR0, CR_GT)); \
     } while (0)
+#define MVLEU_(dst, src, r1, r2) MVLEU_w(dst, src, r1, r2, 0)
 
 // Unconditional: always move (dead code path, kept for macro expansion)
 #define MV__(dst, src, r1, r2) MR(dst, src)
+#define MV__w(dst, src, r1, r2, w32) MR(dst, src)
+
+// Fused compare+branch: signed/unsigned compare of the recorded operands, 32-bit (cmpw/cmplw)
+// when the producer was a 32-bit operation, then the conditional branch (3 instructions).
+#define BCOND_nat(CMP, BYES, BNO, r1, r2, imm, w32) \
+    do {                                            \
+        CMP(r1, r2, w32);                           \
+        if ((imm) > -0x7000 && (imm) < 0x7000) {    \
+            BYES((imm) - 4);                        \
+            NOP();                                  \
+        } else {                                    \
+            BNO(2 * 4);                             \
+            B((imm) - 8);                           \
+        }                                           \
+    } while (0)
+#define BEQ_safe_nat(r1, r2, imm, w32)  BCOND_nat(NATCMP_S, BEQ, BNE, r1, r2, imm, w32)
+#define BNE_safe_nat(r1, r2, imm, w32)  BCOND_nat(NATCMP_S, BNE, BEQ, r1, r2, imm, w32)
+#define BLT_safe_nat(r1, r2, imm, w32)  BCOND_nat(NATCMP_S, BLT, BGE, r1, r2, imm, w32)
+#define BGE_safe_nat(r1, r2, imm, w32)  BCOND_nat(NATCMP_S, BGE, BLT, r1, r2, imm, w32)
+#define BGT_safe_nat(r1, r2, imm, w32)  BCOND_nat(NATCMP_S, BGT, BLE, r1, r2, imm, w32)
+#define BLE_safe_nat(r1, r2, imm, w32)  BCOND_nat(NATCMP_S, BLE, BGT, r1, r2, imm, w32)
+#define BLTU_safe_nat(r1, r2, imm, w32) BCOND_nat(NATCMP_U, BLT, BGE, r1, r2, imm, w32)
+#define BGEU_safe_nat(r1, r2, imm, w32) BCOND_nat(NATCMP_U, BGE, BLT, r1, r2, imm, w32)
+#define BGTU_safe_nat(r1, r2, imm, w32) BCOND_nat(NATCMP_U, BGT, BLE, r1, r2, imm, w32)
+#define BLEU_safe_nat(r1, r2, imm, w32) BCOND_nat(NATCMP_U, BLE, BGT, r1, r2, imm, w32)
+#define B__safe_nat(r1, r2, imm, w32)   B__safe(r1, r2, imm) // conditions without native fusion
 
 #define NATIVEJUMP_safe(COND, val) \
-    B##COND##_safe(dyn->insts[ninst].nat_flags_op1, dyn->insts[ninst].nat_flags_op2, val);
+    B##COND##_safe_nat(dyn->insts[ninst].nat_flags_op1, dyn->insts[ninst].nat_flags_op2, val, dyn->insts[ninst].nat_flags_op32);
 
 #define NATIVEJUMP(COND, val) \
-    B##COND##_(dyn->insts[ninst].nat_flags_op1, dyn->insts[ninst].nat_flags_op2, val);
+    B##COND##_w(dyn->insts[ninst].nat_flags_op1, dyn->insts[ninst].nat_flags_op2, val, dyn->insts[ninst].nat_flags_op32);
 
 #define NATIVESET(COND, rd) \
-    S##COND##_(rd, dyn->insts[ninst].nat_flags_op1, dyn->insts[ninst].nat_flags_op2);
+    S##COND##_w(rd, dyn->insts[ninst].nat_flags_op1, dyn->insts[ninst].nat_flags_op2, dyn->insts[ninst].nat_flags_op32);
 
 #define NATIVEMV(COND, rd, rs) \
-    MV##COND##_(rd, rs, dyn->insts[ninst].nat_flags_op1, dyn->insts[ninst].nat_flags_op2);
+    MV##COND##_w(rd, rs, dyn->insts[ninst].nat_flags_op1, dyn->insts[ninst].nat_flags_op2, dyn->insts[ninst].nat_flags_op32);
 
 // ========================================================================
 // NOTEST / SKIPTEST / GOTEST

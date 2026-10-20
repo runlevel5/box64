@@ -55,6 +55,12 @@ uintptr_t geted(dynarec_ppc64le_t* dyn, uintptr_t addr, int ninst, uint8_t nexto
     uint8_t ret = x2;
     *fixaddress = 0;
     if (hint > 0) ret = hint;
+    // upper-32 tracking: a register used as the address itself must be clean (UP32_READ); one that
+    // only feeds a computed address needs it only when the computation is not truncated to 32 bits
+#define UP32_ADDR_READ(r)                                     \
+    do {                                                      \
+        if (!(rex.is32bits || rex.is67)) UP32_READ(r);        \
+    } while (0)
     // i12 is the alignment mask: 0 = no inline displacement, 3 = DS-form, 15 = DQ-form
     int align_mask = i12;
     int maxval = 32767;  // PPC64LE ADDI has 16-bit signed immediate
@@ -69,14 +75,17 @@ uintptr_t geted(dynarec_ppc64le_t* dyn, uintptr_t addr, int ninst, uint8_t nexto
                 int64_t tmp = F32S;
                 if (sib_reg != 4) {
                     if (tmp && ((tmp < -32768) || (tmp > maxval) || !align_mask || (tmp & align_mask))) {
+                        UP32_ADDR_READ(TO_NAT(sib_reg));
                         MOV64y(scratch, tmp);
                         SLADDy(ret, TO_NAT(sib_reg), scratch, sib >> 6);
                         SCRATCH_USAGE(1);
                     } else {
                         if (sib >> 6) {
+                            UP32_ADDR_READ(TO_NAT(sib_reg));
                             SLLIy(ret, TO_NAT(sib_reg), (sib >> 6));
                             if (!IS_GPR(ret)) SCRATCH_USAGE(1);
                         } else {
+                            UP32_READ(TO_NAT(sib_reg));
                             ret = TO_NAT(sib_reg);
                         }
                         *fixaddress = tmp;
@@ -103,9 +112,12 @@ uintptr_t geted(dynarec_ppc64le_t* dyn, uintptr_t addr, int ninst, uint8_t nexto
                 }
             } else {
                 if (sib_reg != 4) {
+                    UP32_ADDR_READ(TO_NAT(sib_reg));
+                    UP32_ADDR_READ(TO_NAT(sib_reg2));
                     SLADDy(ret, TO_NAT(sib_reg), TO_NAT(sib_reg2), sib >> 6);
                     if (!IS_GPR(ret)) SCRATCH_USAGE(1);
                 } else {
+                    UP32_READ(TO_NAT(sib_reg2));
                     ret = TO_NAT(sib_reg2);
                 }
             }
@@ -171,6 +183,7 @@ uintptr_t geted(dynarec_ppc64le_t* dyn, uintptr_t addr, int ninst, uint8_t nexto
                 if (!IS_GPR(ret)) SCRATCH_USAGE(1);
             }
         } else {
+            UP32_READ(TO_NAT((nextop & 7) + (rex.b << 3)));
             ret = TO_NAT((nextop & 7) + (rex.b << 3));
         }
     } else {
@@ -190,19 +203,26 @@ uintptr_t geted(dynarec_ppc64le_t* dyn, uintptr_t addr, int ninst, uint8_t nexto
             *fixaddress = i64;
             if ((nextop & 7) == 4) {
                 if (sib_reg != 4) {
+                    UP32_ADDR_READ(TO_NAT(sib_reg));
+                    UP32_ADDR_READ(TO_NAT(sib_reg2));
                     SLADDy(ret, TO_NAT(sib_reg), TO_NAT(sib_reg2), sib >> 6);
                     if (!IS_GPR(ret)) SCRATCH_USAGE(1);
                 } else {
+                    UP32_READ(TO_NAT(sib_reg2));
                     ret = TO_NAT(sib_reg2);
                 }
             } else {
+                UP32_READ(TO_NAT((nextop & 0x07) + (rex.b << 3)));
                 ret = TO_NAT((nextop & 0x07) + (rex.b << 3));
             }
         } else {
+            // every path below computes the address, truncated to 32 bits in 32-bit addressing
+            if ((nextop & 7) == 4 && sib_reg != 4) UP32_ADDR_READ(TO_NAT(sib_reg));
+            UP32_ADDR_READ(TO_NAT(sib_reg2));
             if (i64 >= -32768 && i64 <= 32767) {
                 if ((nextop & 7) == 4) {
                     if (sib_reg != 4) {
-                        SLADDy(scratch, TO_NAT(sib_reg), TO_NAT(sib_reg2), sib >> 6);
+                        SLADD_notrunc(scratch, TO_NAT(sib_reg), TO_NAT(sib_reg2), sib >> 6); // ADDIy truncates
                         SCRATCH_USAGE(1);
                     } else {
                         scratch = TO_NAT(sib_reg2);
@@ -217,7 +237,7 @@ uintptr_t geted(dynarec_ppc64le_t* dyn, uintptr_t addr, int ninst, uint8_t nexto
                 SCRATCH_USAGE(1);
                 if ((nextop & 7) == 4) {
                     if (sib_reg != 4) {
-                        ADDy(scratch, scratch, TO_NAT(sib_reg2));
+                        ADD(scratch, scratch, TO_NAT(sib_reg2)); // SLADDy truncates
                         SLADDy(ret, TO_NAT(sib_reg), scratch, sib >> 6);
                     } else {
                         PASS3(int tmp = TO_NAT(sib_reg2));
@@ -245,6 +265,7 @@ uintptr_t geted(dynarec_ppc64le_t* dyn, uintptr_t addr, int ninst, uint8_t nexto
     }
     *ed = ret;
     return addr;
+#undef UP32_ADDR_READ
 }
 
 uintptr_t geted16(dynarec_ppc64le_t* dyn, uintptr_t addr, int ninst, uint8_t nextop, uint8_t* ed, uint8_t hint, uint8_t scratch, int64_t* fixaddress, rex_t rex, int i12)
@@ -446,39 +467,45 @@ void jump_to_epilog_fast(dynarec_ppc64le_t* dyn, uintptr_t ip, int reg, int nins
     BCTR();
 }
 
-// Enter a block: atomic increment of the dynablock in_used counter.
+// Enter a block: increment this thread's in_used counter of the block (blocks with a call site only).
 // The dynablock_t* is stored right before the start of the block; reach it PC-relative.
 void doEnterBlock(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3)
 {
-    MAYUSE(s3);
+    if (!dyn->track_inuse) return;
     MESSAGE(LOG_DUMP, "doEnter --------\n");
     int delta = -(dyn->native_size + sizeof(void*)) - 4; // from the MFLR below (BCL+4) to the dynablock_t*
     BCL(20, 31, 4);
     MFLR(s1);
     ADDIS(s1, s1, PPC64_HI16(delta));
     LD(s1, PPC64_LO16(delta), s1);
-    ADDI(s1, s1, offsetof(dynablock_t, in_used));
-    LWARX(s2, 0, s1);
+    // per-thread counter: emu->inuse_counts[db->in_used] (in_used holds the block's counter index on PPC64LE)
+    LWZ(s2, offsetof(dynablock_t, in_used), s1);
+    LD(s3, offsetof(x64emu_t, inuse_counts), xEmu);
+    SLDI(s2, s2, 2);
+    ADD(s3, s3, s2);
+    LWZ(s2, 0, s3);
     ADDI(s2, s2, 1);
-    STWCXd(s2, 0, s1);
-    BNE(-3 * 4);
+    STW(s2, 0, s3);
     MESSAGE(LOG_DUMP, "-------- doEnter\n");
 }
-// Leave a block: atomic decrement of in_used
+// Leave a block: decrement this thread's in_used counter of the block
 void doLeaveBlock(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3)
 {
-    MAYUSE(s3);
+    if (!dyn->track_inuse) return;
     MESSAGE(LOG_DUMP, "doLeave --------\n");
     int delta = -(dyn->native_size + sizeof(void*)) - 4;
     BCL(20, 31, 4);
     MFLR(s1);
     ADDIS(s1, s1, PPC64_HI16(delta));
     LD(s1, PPC64_LO16(delta), s1);
-    ADDI(s1, s1, offsetof(dynablock_t, in_used));
-    LWARX(s2, 0, s1);
+    // per-thread counter: emu->inuse_counts[db->in_used] (in_used holds the block's counter index on PPC64LE)
+    LWZ(s2, offsetof(dynablock_t, in_used), s1);
+    LD(s3, offsetof(x64emu_t, inuse_counts), xEmu);
+    SLDI(s2, s2, 2);
+    ADD(s3, s3, s2);
+    LWZ(s2, 0, s3);
     ADDI(s2, s2, -1);
-    STWCXd(s2, 0, s1);
-    BNE(-3 * 4);
+    STW(s2, 0, s3);
     MESSAGE(LOG_DUMP, "-------- doLeave\n");
 }
 
@@ -759,7 +786,10 @@ void call_c(dynarec_ppc64le_t* dyn, int ninst, ppc64le_consts_t fnc, int reg, in
 void call_n(dynarec_ppc64le_t* dyn, int ninst, void* fnc, int w)
 {
     MAYUSE(fnc);
+    UP32_READALL();
+    UP32_READALL();
     CHECK_DFNONE(1);
+    STD(xFlags, offsetof(x64emu_t, eflags), xEmu);
     fpu_pushcache(dyn, ninst, x3, 1);
     // Save x86 regs that the native function might modify via re-entrant emulation.
     // On PPC64LE, x86 regs are in callee-saved r14-r29, so the native function preserves
@@ -807,6 +837,7 @@ void call_n(dynarec_ppc64le_t* dyn, int ninst, void* fnc, int w)
     LD(xRBP, offsetof(x64emu_t, regs[_BP]), xEmu);
     LD(xRBX, offsetof(x64emu_t, regs[_BX]), xEmu);
     fpu_popcache(dyn, ninst, x3, 1);
+    LD(xFlags, offsetof(x64emu_t, eflags), xEmu);
     NATIVE_RESTORE_X87PC();
     // SET_NODF();
 }

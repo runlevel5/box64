@@ -483,6 +483,7 @@ set(ELFLOADER_SRC
     "${BOX64_ROOT}/src/tools/cleanup.c"
     "${BOX64_ROOT}/src/tools/cpumask.c"
     "${BOX64_ROOT}/src/tools/gdbjit.c"
+    "${BOX64_ROOT}/src/tools/unityhooks.c"
     "${BOX64_ROOT}/src/tools/fileutils.c"
     "${BOX64_ROOT}/src/tools/pathcoll.c"
     "${BOX64_ROOT}/src/tools/rbtree.c"
@@ -505,6 +506,7 @@ endif()
 if(BOX32)
     list(APPEND ELFLOADER_SRC
         "${BOX64_ROOT}/src/box32.c"
+        "${BOX64_ROOT}/src/tools/gamehooks32.c"
         "${BOX64_ROOT}/src/elfs/elfhash32.c"
         "${BOX64_ROOT}/src/elfs/elfloader32.c"
         "${BOX64_ROOT}/src/elfs/elfparser32.c"

@@ -152,8 +152,11 @@ void emit_xor32(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, int s1, int s2, in
         BF_EXTRACT(s3, s1, rex.w ? 63 : 31, rex.w ? 63 : 31);
         BF_INSERT(xFlags, s3, F_SF, F_SF);
     }
-    if (!rex.w && s1 != s2) {
-        ZEROUP(s1);
+    if (!rex.w) {
+        if (s1 != s2)
+            ZEROUP32_RESULT(s1);
+        else
+            ZEROUP32_CLEAN(s1); // xor reg,reg: zero
     }
 
     IFX (X_PEND) {
@@ -161,21 +164,15 @@ void emit_xor32(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, int s1, int s2, in
     }
 
     IFX (X_ZF) {
-        CNTLZD(s3, s1);
-        SRDI(s3, s3, 6);
+        CNTLZxw(s3, s1);
+        SRDI(s3, s3, rex.w ? 6 : 5);
         BF_INSERT(xFlags, s3, F_ZF, F_ZF);
     }
     IFX (X_PF) {
         emit_pf(dyn, ninst, s1, s3, s4);
     }
     if (dyn->insts[ninst].nat_flags_fusion && !rex.w) {
-        if (dyn->insts[ninst].nat_flags_needsign) {
-            SEXT_W(s3, s1);
-            NAT_FLAGS_OPS(s3, xZR, s4, xZR);
-        } else {
-            ZEROUP2(s3, s1);
-            NAT_FLAGS_OPS(s3, xZR, s4, xZR);
-        }
+        NAT_FLAGS_OPS32(s1, xZR, s3, xZR);
     }
     if (dyn->insts[ninst].nat_flags_fusion && rex.w) NAT_FLAGS_OPS(s1, xZR, s3, xZR);
 }
@@ -204,30 +201,22 @@ void emit_xor32c(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, int s1, int64_t c
         BF_EXTRACT(s3, s1, rex.w ? 63 : 31, rex.w ? 63 : 31);
         BF_INSERT(xFlags, s3, F_SF, F_SF);
     }
-    if (!rex.w) {
-        ZEROUP(s1);
-    }
+    if (!rex.w) ZEROUP32_RESULT(s1);
 
     IFX (X_PEND) {
         SDxw(s1, xEmu, offsetof(x64emu_t, res));
     }
 
     IFX (X_ZF) {
-        CNTLZD(s3, s1);
-        SRDI(s3, s3, 6);
+        CNTLZxw(s3, s1);
+        SRDI(s3, s3, rex.w ? 6 : 5);
         BF_INSERT(xFlags, s3, F_ZF, F_ZF);
     }
     IFX (X_PF) {
         emit_pf(dyn, ninst, s1, s3, s4);
     }
     if (dyn->insts[ninst].nat_flags_fusion && !rex.w) {
-        if (dyn->insts[ninst].nat_flags_needsign) {
-            SEXT_W(s3, s1);
-            NAT_FLAGS_OPS(s3, xZR, s4, xZR);
-        } else {
-            ZEROUP2(s3, s1);
-            NAT_FLAGS_OPS(s3, xZR, s4, xZR);
-        }
+        NAT_FLAGS_OPS32(s1, xZR, s3, xZR);
     }
     if (dyn->insts[ninst].nat_flags_fusion && rex.w) NAT_FLAGS_OPS(s1, xZR, s3, xZR);
 }
@@ -352,7 +341,7 @@ void emit_and32(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, int s1, int s2, in
     NAT_FLAGS_ENABLE_SIGN();
 
     AND(s1, s1, s2); // res = s1 & s2
-    if (!rex.w) ZEROUP(s1);
+    if (!rex.w) ZEROUP32_RESULT(s1);
 
     IFX (X_PEND) {
         SDxw(s1, xEmu, offsetof(x64emu_t, res));
@@ -364,20 +353,15 @@ void emit_and32(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, int s1, int s2, in
         BF_INSERT(xFlags, s3, F_SF, F_SF);
     }
     IFX (X_ZF) {
-        CNTLZD(s3, s1);
-        SRDI(s3, s3, 6);
+        CNTLZxw(s3, s1);
+        SRDI(s3, s3, rex.w ? 6 : 5);
         BF_INSERT(xFlags, s3, F_ZF, F_ZF);
     }
     IFX (X_PF) {
         emit_pf(dyn, ninst, s1, s3, s4);
     }
     if (dyn->insts[ninst].nat_flags_fusion && !rex.w) {
-        if (dyn->insts[ninst].nat_flags_needsign) {
-            SEXT_W(s3, s1);
-            NAT_FLAGS_OPS(s3, xZR, s4, xZR);
-        } else {
-            NAT_FLAGS_OPS(s1, xZR, s3, xZR);
-        }
+        NAT_FLAGS_OPS32(s1, xZR, s3, xZR);
     }
     if (dyn->insts[ninst].nat_flags_fusion && rex.w) NAT_FLAGS_OPS(s1, xZR, s3, xZR);
 }
@@ -399,6 +383,7 @@ void emit_and32c(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, int s1, int64_t c
         MOV64xw(s3, c);
         AND(s1, s1, s3); // res = s1 & s2
     }
+    if (!rex.w) ZEROUP32_CLEAN(s1); // andi. or and with a zero-extended mask: the upper bits are zero
 
     IFX (X_PEND) {
         SDxw(s1, xEmu, offsetof(x64emu_t, res));
@@ -410,20 +395,15 @@ void emit_and32c(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, int s1, int64_t c
         BF_INSERT(xFlags, s3, F_SF, F_SF);
     }
     IFX (X_ZF) {
-        CNTLZD(s3, s1);
-        SRDI(s3, s3, 6);
+        CNTLZxw(s3, s1);
+        SRDI(s3, s3, rex.w ? 6 : 5);
         BF_INSERT(xFlags, s3, F_ZF, F_ZF);
     }
     IFX (X_PF) {
         emit_pf(dyn, ninst, s1, s3, s4);
     }
     if (dyn->insts[ninst].nat_flags_fusion && !rex.w) {
-        if (dyn->insts[ninst].nat_flags_needsign) {
-            SEXT_W(s3, s1);
-            NAT_FLAGS_OPS(s3, xZR, s4, xZR);
-        } else {
-            NAT_FLAGS_OPS(s1, xZR, s3, xZR);
-        }
+        NAT_FLAGS_OPS32(s1, xZR, s3, xZR);
     }
     if (dyn->insts[ninst].nat_flags_fusion && rex.w) NAT_FLAGS_OPS(s1, xZR, s3, xZR);
 }
@@ -532,23 +512,17 @@ void emit_or32(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, int s1, int s2, int
         BF_INSERT(xFlags, s3, F_SF, F_SF);
     }
 
-    if (!rex.w) ZEROUP(s1);
+    if (!rex.w) ZEROUP32_RESULT(s1);
     IFX (X_ZF) {
-        CNTLZD(s3, s1);
-        SRDI(s3, s3, 6);
+        CNTLZxw(s3, s1);
+        SRDI(s3, s3, rex.w ? 6 : 5);
         BF_INSERT(xFlags, s3, F_ZF, F_ZF);
     }
     IFX (X_PF) {
         emit_pf(dyn, ninst, s1, s3, s4);
     }
     if (dyn->insts[ninst].nat_flags_fusion && !rex.w) {
-        if (dyn->insts[ninst].nat_flags_needsign) {
-            SEXT_W(s3, s1);
-            NAT_FLAGS_OPS(s3, xZR, s4, xZR);
-        } else {
-            ZEROUP2(s3, s1);
-            NAT_FLAGS_OPS(s3, xZR, s4, xZR);
-        }
+        NAT_FLAGS_OPS32(s1, xZR, s3, xZR);
     }
     if (dyn->insts[ninst].nat_flags_fusion && rex.w) NAT_FLAGS_OPS(s1, xZR, s3, xZR);
 }
@@ -581,26 +555,18 @@ void emit_or32c(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, int s1, int64_t c,
         BF_EXTRACT(s3, s1, rex.w ? 63 : 31, rex.w ? 63 : 31);
         BF_INSERT(xFlags, s3, F_SF, F_SF);
     }
-    if (!rex.w) {
-        ZEROUP(s1);
-    }
+    if (!rex.w) ZEROUP32_RESULT(s1);
 
     IFX (X_ZF) {
-        CNTLZD(s3, s1);
-        SRDI(s3, s3, 6);
+        CNTLZxw(s3, s1);
+        SRDI(s3, s3, rex.w ? 6 : 5);
         BF_INSERT(xFlags, s3, F_ZF, F_ZF);
     }
     IFX (X_PF) {
         emit_pf(dyn, ninst, s1, s3, s4);
     }
     if (dyn->insts[ninst].nat_flags_fusion && !rex.w) {
-        if (dyn->insts[ninst].nat_flags_needsign) {
-            SEXT_W(s3, s1);
-            NAT_FLAGS_OPS(s3, xZR, s4, xZR);
-        } else {
-            ZEROUP2(s3, s1);
-            NAT_FLAGS_OPS(s3, xZR, s4, xZR);
-        }
+        NAT_FLAGS_OPS32(s1, xZR, s3, xZR);
     }
     if (dyn->insts[ninst].nat_flags_fusion && rex.w) NAT_FLAGS_OPS(s1, xZR, s3, xZR);
 }

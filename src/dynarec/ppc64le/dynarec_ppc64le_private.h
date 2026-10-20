@@ -133,6 +133,7 @@ typedef struct instruction_ppc64le_s {
     uint8_t             nat_flags_sf:1;
     uint8_t             nat_flags_needsign:1;
     uint8_t             nat_flags_needcarry:1;
+    uint8_t             nat_flags_op32:1;   // the fused compare operands are 32-bit values (use cmpw/cmplw)
     uint8_t             no_scratch_usage:1;  // this opcode does not use scratch register
     uint8_t             nat_flags_op1;
     uint8_t             nat_flags_op2;
@@ -143,6 +144,15 @@ typedef struct instruction_ppc64le_s {
     unsigned            fpu_used:1; // any xmm/ymm/x87/mmx reg used
     unsigned            fpupurge:1;   // this opcode will purge all fpu regs
     uint16_t            nat_next_inst;
+    // upper-32 tracking (see updateUpperLiveness): an audited ("agnostic") instruction only reads the upper
+    // 32 bits of the GPRs in up32_read; any other instruction is assumed to read them all.
+    uint8_t             up32_agnostic:1;  // the instruction marked its upper-32 reads and 32-bit writes
+    uint16_t            up32_read;        // GPRs whose upper 32 bits are read by this instruction
+    uint16_t            up32_write64;     // GPRs written as 64-bit (upper 32 become defined)
+    uint16_t            up32_write32;     // GPRs written as 32-bit (subset of up32_write64)
+    uint16_t            up32_zero;        // GPRs guaranteed zero-extended at instruction exit
+    uint16_t            up32_skip;        // GPRs whose zero-up after a 32-bit write can be skipped
+    uint16_t            up32_pending;     // GPRs whose upper 32 bits are stale at entry
     flagcache_t         f_exit;     // flags status at end of instruction
     vmxcache_t          v;          // vmxcache at end of instruction (but before poping)
     flagcache_t         f_entry;    // flags status before the instruction begin
@@ -150,6 +160,7 @@ typedef struct instruction_ppc64le_s {
 } instruction_ppc64le_t;
 
 typedef struct dynarec_ppc64le_s {
+    uint8_t             geted_notrunc:1;  // geted: don't truncate a computed 32-bit address (caller zero-ups the result)
     instruction_ppc64le_t* insts;
     int32_t size;
     int32_t cap;
@@ -196,6 +207,7 @@ typedef struct dynarec_ppc64le_s {
     uint8_t use_xmm : 1;
     uint8_t use_ymm : 1;
     uint8_t is_file_mapped : 1; // if the memory is a mapped file (probably binary, not a memory)
+    uint8_t track_inuse : 1;    // the block contains a call site: count it in dynablock in_used (enter/leave)
     void* gdbjit_block;
     uint32_t need_x87check; // needs x87 precision control check if non-null, or 0 if not
     uint32_t need_dump;     // need to dump the block

@@ -7,6 +7,11 @@
 
 #define BOX64ENV(name)   (box64env.name)
 #define BOX64DRENV(name) ((dyn->env && dyn->env->is_##name##_overridden) ? dyn->env->name : box64env.name)
+// BigBlock level for the block being built: when a JIT runtime that patches its generated code was
+// detected (MonoBleedingEdge), blocks in anonymous memory (the JIT code) are kept small, file-backed
+// code (the program and its libraries) keeps the configured level.
+extern int box64_jit_anon_nobigblock;
+#define BOX64DRBIGBLOCK() ((box64_jit_anon_nobigblock && !dyn->is_file_mapped) ? 0 : BOX64DRENV(dynarec_bigblock))
 #define SET_BOX64ENV(name, value)            \
     do {                                     \
         box64env.name = (value);             \
@@ -78,6 +83,7 @@ extern char* ftrace_name;
     BOOLEAN(BOX64_DYNAREC_VOLATILE_METADATA, dynarec_volatile_metadata, 1, 0, 1) \
     BOOLEAN(BOX64_DYNAREC_WAIT, dynarec_wait, 1, 1, 0)                           \
     INTEGER(BOX64_DYNAREC_WEAKBARRIER, dynarec_weakbarrier, 1, 0, 2, 1, 2)       \
+    BOOLEAN(BOX64_DYNAREC_SEQENDBARRIER, dynarec_seqendbarrier, 1, 0, 1)         \
     INTEGER(BOX64_DYNAREC_X87DOUBLE, dynarec_x87double, 0, 0, 2, 1, 2)           \
     BOOLEAN(BOX64_DYNAREC_INTERP_SIGNAL, dynarec_interp_signal, 0, 0, 0)         \
     BOOLEAN(BOX64_NODYNAREC_DELAY, nodynarec_delay, 0, 1, 0)                     \
@@ -92,6 +98,7 @@ extern char* ftrace_name;
     BOOLEAN(BOX64_EXIT, exit, 0, 0, 0)                                           \
     BOOLEAN(BOX64_FIX_64BIT_INODES, fix_64bit_inodes, 0, 0, 0)                   \
     BOOLEAN(BOX64_FORCE_LD_PRELOAD, force_ld_preload, 0, 0, 0)                   \
+    BOOLEAN(BOX64_GL_NOERROR, gl_noerror, 0, 0, 0)                               \
     BOOLEAN(BOX64_IGNOREINT3, ignoreint3, 0, 0, 1)                               \
     STRING(BOX64_INSERT_ARGS, insert_args, 0, 0)                                 \
     BOOLEAN(BOX64_INPROCESSGPU, inprocessgpu, 0, 0, 0)                           \
@@ -143,6 +150,10 @@ extern char* ftrace_name;
     STRING(BOX64_TRACE, trace, 0, 0)                                             \
     BOOLEAN(BOX64_UNITY, unity, 0, 0, 0)                                         \
     BOOLEAN(BOX64_UNITYPLAYER, unityplayer, 1, 0, 0)                             \
+    BOOLEAN(BOX64_GAMEHOOKS, gamehooks, 1, 0, 0)                                 \
+    INTEGER(BOX64_UNITYHOOKS, unityhooks, 1, 0, 2, 0, 0)                         \
+    BOOLEAN(BOX64_DYNAREC_JITPAGES, dynarec_jitpages, 0, 0, 0)                   \
+    BOOLEAN(BOX64_DYNAREC_INUSE_ALL, dynarec_inuse_all, 0, 0, 0)                 \
     BOOLEAN(BOX64_WRAP_EGL, wrap_egl, 0, 0, 0)                                   \
     BOOLEAN(BOX64_X11GLX, x11glx, 1, 0, 0)                                       \
     BOOLEAN(BOX64_X11SYNC, x11sync, 0, 0, 0)                                     \
@@ -188,12 +199,20 @@ extern char* ftrace_name;
 #endif
 
 
+#ifdef PPC64LE
+#define ENVSUPER6() \
+    BOOLEAN(BOX64_DYNAREC_PPC64LE_UP32, dynarec_ppc64le_up32, 1, 1, 1)
+#else
+#define ENVSUPER6()
+#endif
+
 #define ENVSUPER() \
     ENVSUPER1()    \
     ENVSUPER2()    \
     ENVSUPER3()    \
     ENVSUPER4()    \
-    ENVSUPER5()
+    ENVSUPER5()    \
+    ENVSUPER6()
 
 typedef struct box64env_s {
 #define INTEGER(NAME, name, default, min, max, wine, dynacache) int name;

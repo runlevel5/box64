@@ -76,6 +76,7 @@ pthread_mutex_t     mutex_mmap;
 #endif
 //#define TRACE_MEMSTAT
 rbtree_t* memprot = NULL;
+static uint32_t memprot_gen = 0; // bumped on every memprot change, see getProtection_cached
 // guest 4K page permissions for hosts with larger pages.
 static rbtree_t* memprot_guest = NULL;
 // guest 4K pages contain source code that the dynarec wants to write-protect
@@ -609,6 +610,7 @@ static void setProtection_generic(uintptr_t addr, size_t sz, uint32_t prot, mem_
 
 #define UNLOCK_PROT()                              \
     do {                                           \
+        __atomic_fetch_add(&memprot_gen, 1, __ATOMIC_RELAXED); \
         if (defered_prot_p) {                      \
             uintptr_t p = defered_prot_p;          \
             size_t sz = defered_prot_sz;           \
@@ -2231,6 +2233,29 @@ static int guestPageHasWrite_locked(uintptr_t guest_page)
     return 0;
 }
 
+static int guestPageHasExec_locked(uintptr_t guest_page)
+{
+    uintptr_t scan = guest_page;
+    uintptr_t guest_end = guest_page + X86_PAGE_SIZE;
+    while (scan < guest_end) {
+        uint32_t prot = 0;
+        uintptr_t bend = guest_end;
+        if (!memprot_guest || !rb_get_end(memprot_guest, scan, &prot, &bend)) {
+            prot = rb_get(memprot, scan) & ~PROT_CUSTOM;
+            if (!prot)
+                prot = PROT_READ | PROT_WRITE | PROT_EXEC;
+        }
+        if (prot & PROT_EXEC)
+            return 1;
+        if (bend > guest_end)
+            bend = guest_end;
+        if (bend <= scan)
+            break;
+        scan = bend;
+    }
+    return 0;
+}
+
 static int hostPageHasExternalWrite_locked(uintptr_t host_page, uintptr_t prot_start, uintptr_t prot_end)
 {
     uintptr_t host_end = host_page + box64_pagesize;
@@ -2238,6 +2263,10 @@ static int hostPageHasExternalWrite_locked(uintptr_t host_page, uintptr_t prot_s
         if (!guestPageHasWrite_locked(page)) continue;
         if (prot_end > prot_start && page < prot_end && page + X86_PAGE_SIZE > prot_start) continue;
         if (memprot_guest_dyn && rb_get(memprot_guest_dyn, page)) continue;
+        // JIT code areas are writable+executable and fill up gradually: a neighbour like that is most
+        // likely more code, so write-protect the whole host page and let a write to it go through the
+        // usual dirty/hotpage path (it gets PROT_DYNAREC in applyDBHostPageProtection_locked)
+        if (BOX64ENV(dynarec_jitpages) && guestPageHasExec_locked(page)) continue;
         return 1;
     }
     return 0;
@@ -2323,6 +2352,17 @@ static int applyDBHostPageProtection_locked(uintptr_t cur, uintptr_t bend, uint3
         if (!(dyn & PROT_DYNAREC) || (dyn & PROT_NEVERCLEAN_MIXED))
             mprotect((void*)hostpage_start, hostpage_end - hostpage_start, base_prot & ~PROT_WRITE);
         prot = base_prot | PROT_DYNAREC;
+        if (BOX64ENV(dynarec_jitpages) && box64_pagesize > X86_PAGE_SIZE) {
+            // the writable+executable neighbours are now write-protected too: track them, so that a
+            // write to one of them is handled as a code change of the host page (unprotectDB)
+            for (uintptr_t page = hostpage_start; page < hostpage_end; page += X86_PAGE_SIZE) {
+                if (page >= cur && page < bend) continue;
+                uint32_t gprot = rb_get(memprot, page);
+                if (!gprot || (gprot & (PROT_DYN))) continue;
+                if (guestPageHasWrite_locked(page) && guestPageHasExec_locked(page))
+                    rb_set(memprot, page, page + X86_PAGE_SIZE, gprot | PROT_DYNAREC);
+            }
+        }
     } else {
         if (!(dyn & PROT_DYNAREC_R) || (dyn & PROT_NEVERCLEAN_MIXED))
             mprotect((void*)hostpage_start, hostpage_end - hostpage_start, base_prot);
@@ -2591,6 +2631,9 @@ int isInHotPage(uintptr_t addr)
 {
     if(addr>0x1000000000000LL) return 0;
     if(BOX64ENV(dynarec_nohotpage))
+        return 0;
+    // no live hotpage: nothing to find and nothing to tick down
+    if(!n_hpages_alive)
         return 0;
     uintptr_t page = addr>>12;
     int idx = IdxHotPage(page);
@@ -2947,6 +2990,31 @@ uint32_t getProtection_fast(uintptr_t addr)
     LOCK_PROT_FAST();
     uint32_t ret = rb_get(memprot, addr);
     UNLOCK_PROT_FAST();
+    return ret;
+}
+
+// Lock-free in the common case: small per-thread cache of recent page lookups, invalidated by any
+// change to memprot (memprot_gen). Protections are set at page granularity, so one page = one value.
+// The generation is read before the locked lookup, so a change racing with the lookup only costs a
+// miss next time. Several entries, because dispatch typically alternates between the caller's and
+// the callee's page (a single entry thrashed: one locked lookup per indirect call into JIT code).
+// A relaxed load is enough: a reader that observes the old generation is in the same position as one
+// that did its lookup just before the change, which the locked path allows too.
+#define PROTCACHE_SIZE 8
+uint32_t getProtection_cached(uintptr_t addr)
+{
+    static __thread struct { uintptr_t page; uint32_t prot, gen; } cache[PROTCACHE_SIZE] = {
+        [0 ... PROTCACHE_SIZE - 1] = { (uintptr_t)-1, 0, 0 }
+    };
+    uintptr_t page = ALIGN_DOWN(addr);
+    unsigned idx = (unsigned)(page / box64_pagesize) & (PROTCACHE_SIZE - 1);
+    uint32_t gen = __atomic_load_n(&memprot_gen, __ATOMIC_RELAXED);
+    if (cache[idx].page == page && cache[idx].gen == gen)
+        return cache[idx].prot;
+    uint32_t ret = getProtection(addr);
+    cache[idx].page = page;
+    cache[idx].prot = ret;
+    cache[idx].gen = gen;
     return ret;
 }
 

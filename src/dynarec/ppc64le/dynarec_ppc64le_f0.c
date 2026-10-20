@@ -165,11 +165,17 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                         BNEZ_MARK2(x3);
                     }
                     LWSYNC();
+                    // all the bits already set: the locked OR changes nothing, it can take effect at this load;
+                    // skipping the store keeps the cache line shared (Boehm GC dirty bits, set on every pointer store)
+                    LD(x1, 0, wback);
+                    ANDC(x4, gd, x1);
+                    BEQZ_MARKLOCK2(x4);
                     MARKLOCK;
                     LDARX(x1, 0, wback);
                     OR(x4, x1, gd);
                     STDCXd(x4, 0, wback);
                     BNE_MARKLOCK_CR0;
+                    MARKLOCK2;
                     LWSYNC();
                     if (!ALIGNED_ATOMICxw) { B_MARK3_nocond; }
                 } else {
@@ -178,11 +184,16 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                         BNEZ_MARK(x3);
                     }
                     LWSYNC();
+                    LWZ(x1, 0, wback); // see above: no store if all the bits are already set
+                    ANDC(x4, gd, x1);
+                    RLDICL(x4, x4, 0, 32);
+                    BEQZ_MARKLOCK2(x4);
                     MARKLOCK;
                     LWARX(x1, 0, wback);
                     OR(x4, x1, gd);
                     STWCXd(x4, 0, wback);
                     BNE_MARKLOCK_CR0;
+                    MARKLOCK2;
                     LWSYNC();
                     if (!ALIGNED_ATOMICxw) {
                         B_MARK3_nocond;
@@ -592,48 +603,59 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                                 *ok = 0;
                             } else if (rex.w) {
                                 INST_NAME("LOCK CMPXCHG16B Gq, Eq");
-                                static int warned = 0;
-                                PASS3(if (!warned) dynarec_log(LOG_INFO, "Warning, LOCK CMPXCHG16B is not well supported on PPC64LE and issues are expected.\n"));
-                                PASS3(warned = 1);
                                 SETFLAGS(X_ZF, SF_SUBSET, NAT_FLAGS_NOFUSION);
                                 SKIPTEST(x1);
-                                addr = geted(dyn, addr, ninst, nextop, &wback, x2, x1, &fixedaddress, rex, LOCK_LOCK, NO_DISP, 0);
+                                addr = geted(dyn, addr, ninst, nextop, &wback, x1, x6, &fixedaddress, rex, LOCK_LOCK, NO_DISP, 0);
                                 // RDX:RAX = expected, RCX:RBX = replacement
-                                // PPC64LE (pre-POWER10) lacks 128-bit LL/SC, so use the
-                                // mutex_16b spinlock to protect the critical section, matching
-                                // the interpreter and the LA64/RV64 fallback paths.
                                 RLWINM(xFlags, xFlags, 0, 32 - F_ZF, 30 - F_ZF); // clear ZF
-                                // Acquire mutex_16b spinlock
-                                LD(x5, offsetof(x64emu_t, context), xEmu);         // x5 = emu->context
-                                ADDI(x5, x5, offsetof(box64context_t, mutex_16b)); // x5 = &mutex_16b
-                                LI(x4, 1);
-                                MARK2;
-                                LWARX(x6, 0, x5);  // x6 = old mutex value
-                                BNEZ_MARK2(x6);    // spin if already locked
-                                STWCXd(x4, 0, x5); // try to store 1
-                                BNE_MARK2_CR0;     // retry if reservation lost
-                                ISYNC();           // acquire barrier
-                                // Under lock: plain loads of 128-bit value
-                                LD(x1, 0, wback); // x1 = low qword
-                                LD(x3, 8, wback); // x3 = high qword
-                                // Compare with RDX:RAX
-                                BNE_MARK(x1, xRAX);
-                                BNE_MARK(x3, xRDX);
-                                // Equal: store RCX:RBX
-                                STD(xRBX, 0, wback);
-                                STD(xRCX, 8, wback);
-                                // Set ZF=1
+                                ANDId(x6, wback, 0xf);
+                                BNEZ_MARKLOCK2(x6); // not 16-byte aligned (#GP on x86): spinlock path below
+                                // aligned: quadword LL/SC (lqarx/stqcx., POWER8+). In little-endian mode the even
+                                // register of the pair holds the doubleword at EA+8 (high), the odd one the one at EA (low)
+                                MV(x4, xRCX); // stqcx. pair: x4 (r6, even) = high qword
+                                MV(x5, xRBX); //              x5 (r7, odd)  = low qword
+                                LWSYNC();
+                                MARKLOCK;
+                                LQARX(x2, 0, wback); // x2 (r4) = high qword, x3 (r5) = low qword
+                                BNE_MARK(x3, xRAX);
+                                BNE_MARK(x2, xRDX);
+                                STQCXd(x4, 0, wback);
+                                BNE_MARKLOCK_CR0;
+                                LWSYNC();
                                 ORI(xFlags, xFlags, 1 << F_ZF);
                                 B_MARK3_nocond;
-                                // Not equal: load old value into RDX:RAX
-                                MARK;
-                                MV(xRAX, x1);
+                                MARK; // not equal: RDX:RAX = current value
+                                LWSYNC();
+                                MV(xRAX, x3);
+                                MV(xRDX, x2);
+                                B_MARK3_nocond;
+                                // unaligned: mutex_16b spinlock (same as the interpreter for unaligned addresses)
+                                MARKLOCK2;
+                                LD(x5, offsetof(x64emu_t, context), xEmu);
+                                ADDI(x5, x5, offsetof(box64context_t, mutex_16b));
+                                LI(x4, 1);
+                                MARK2;
+                                LWARX(x6, 0, x5);
+                                BNEZ_MARK2(x6);
+                                STWCXd(x4, 0, x5);
+                                BNE_MARK2_CR0;
+                                ISYNC();
+                                LD(x2, 0, wback); // low
+                                LD(x3, 8, wback); // high
+                                CMPD(x2, xRAX);
+                                BNE(7 * 4);       // -> not equal
+                                CMPD(x3, xRDX);
+                                BNE(5 * 4);       // -> not equal
+                                STD(xRBX, 0, wback);
+                                STD(xRCX, 8, wback);
+                                ORI(xFlags, xFlags, 1 << F_ZF);
+                                B(3 * 4);         // -> unlock
+                                MV(xRAX, x2);     // not equal
                                 MV(xRDX, x3);
-                                MARK3;
-                                // Release mutex_16b spinlock
-                                LWSYNC(); // release barrier
+                                LWSYNC();         // unlock
                                 LI(x6, 0);
-                                STW(x6, 0, x5); // store 0 to unlock
+                                STW(x6, 0, x5);
+                                MARK3;
                             } else {
                                 INST_NAME("LOCK CMPXCHG8B Gq, Eq");
                                 SETFLAGS(X_ZF, SF_SUBSET, NAT_FLAGS_NOFUSION);
@@ -1130,11 +1152,15 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                                 BNEZ_MARK2(x3);
                             }
                             LWSYNC();
+                            LD(x1, 0, wback); // no store if all the bits are already set (see LOCK OR Ed, Gd)
+                            ANDC(x4, x7, x1);
+                            BEQZ_MARKLOCK2(x4);
                             MARKLOCK;
                             LDARX(x1, 0, wback);
                             OR(x4, x1, x7);
                             STDCXd(x4, 0, wback);
                             BNE_MARKLOCK_CR0;
+                            MARKLOCK2;
                             LWSYNC();
                             if (!ALIGNED_ATOMICxw) { B_MARK3_nocond; }
                         } else {
@@ -1143,11 +1169,16 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                                 BNEZ_MARK(x3);
                             }
                             LWSYNC();
+                            LWZ(x1, 0, wback); // no store if all the bits are already set
+                            ANDC(x4, x7, x1);
+                            RLDICL(x4, x4, 0, 32);
+                            BEQZ_MARKLOCK2(x4);
                             MARKLOCK;
                             LWARX(x1, 0, wback);
                             OR(x4, x1, x7);
                             STWCXd(x4, 0, wback);
                             BNE_MARKLOCK_CR0;
+                            MARKLOCK2;
                             LWSYNC();
                             if (!ALIGNED_ATOMICxw) {
                                 B_MARK3_nocond;
